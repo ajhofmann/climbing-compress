@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
 import base64
 import io
 import json
@@ -23,7 +22,8 @@ from pipeline.speed_curve import (
     solve_speed_curve, solve_constant_progress, get_output_duration,
 )
 from pipeline.render import render_preview
-from pipeline.cache import save_analysis, load_analysis, has_cache
+from pipeline.stabilize import compute_stabilization_offsets, stabilization_stats
+from pipeline.cache import save_analysis, load_analysis, has_cache, content_hash
 from pipeline.debug_overlay import make_speed_badge_fn, make_debug_overlay_fn
 from utils.video_io import get_video_info
 from utils.viz import generate_thumbnails, render_waveform_data_url
@@ -44,10 +44,17 @@ app.add_middleware(
 # In-memory store for video paths by ID
 _videos: dict[str, Path] = {}
 
+# Content-hash index for upload dedup (hash -> video_id)
+_file_hashes: dict[str, str] = {}
+
 # Scan existing input videos on startup
-for f in INPUT_DIR.iterdir():
-    if f.suffix.lower() in (".mov", ".mp4", ".avi", ".mkv"):
-        _videos[f.stem] = f
+for _f in INPUT_DIR.iterdir():
+    if _f.suffix.lower() in (".mov", ".mp4", ".avi", ".mkv") and not _f.name.startswith("_tmp_"):
+        _videos[_f.stem] = _f
+        try:
+            _file_hashes[content_hash(str(_f))] = _f.stem
+        except Exception:
+            pass
 
 
 # ---- Models ----
@@ -68,13 +75,10 @@ class SolveRequest(BaseModel):
     hand_weight: float = 2.0
     foot_weight: float = 1.0
     core_weight: float = 3.0
+    progress_floor: float = 0.02
+    trim_start: float = 0.0
+    trim_end: float = 0.0
     pins: list[Pin] = []
-
-class CropBox(BaseModel):
-    x: float
-    y: float
-    w: float
-    h: float
 
 class RenderRequest(BaseModel):
     video_id: str
@@ -88,16 +92,23 @@ class RenderRequest(BaseModel):
     hand_weight: float = 2.0
     foot_weight: float = 1.0
     core_weight: float = 3.0
+    progress_floor: float = 0.02
+    trim_start: float = 0.0
+    trim_end: float = 0.0
     pins: list[Pin] = []
     scale: float = 0.5
     output_fps: float = 30
     crf: int = 23
     debug_overlay: bool = True
-    crop: Optional[CropBox] = None
+    # Pose-anchored stabilization
+    stabilize: bool = False
+    stabilize_strength: float = 0.7
+    stabilize_smoothness: float = 0.8
+    stabilize_crop: float = 0.15
 
 class AnalyzeRequest(BaseModel):
     video_id: str
-    stride: int = 2
+    stride: int = 1
     force: bool = False
 
 
@@ -109,22 +120,45 @@ def _get_video_path(video_id: str) -> Path:
     return _videos[video_id]
 
 
+def _trim_poses(poses, fps, trim_start: float, trim_end: float):
+    """Slice poses to the trimmed frame range. Returns (trimmed_poses, start_frame)."""
+    n = len(poses)
+    duration = n / fps if fps > 0 else 0
+
+    start_f = int(trim_start * fps) if trim_start > 0 else 0
+    end_f = int(trim_end * fps) if trim_end > 0 else n
+    start_f = max(0, min(start_f, n))
+    end_f = max(start_f, min(end_f, n))
+
+    return poses[start_f:end_f], start_f
+
+
 def _compute_scores_and_curve(req: SolveRequest, poses, fps):
-    pins = [(p.time, p.speed) for p in req.pins]
+    # Trim poses to selected range
+    trimmed, start_frame = _trim_poses(poses, fps, req.trim_start, req.trim_end)
+
+    # Offset pins into trimmed-region time and filter out-of-range
+    trim_s = start_frame / fps if fps > 0 else 0
+    trim_dur = len(trimmed) / fps if fps > 0 else 0
+    pins = [
+        (p.time - trim_s, p.speed) for p in req.pins
+        if trim_s <= p.time <= trim_s + trim_dur
+    ]
 
     if req.mode == "progress":
-        scores = score_progress(poses, fps, smooth_sigma_s=req.smoothing)
+        scores = score_progress(trimmed, fps, smooth_sigma_s=req.smoothing)
         curve = solve_constant_progress(
             scores, fps,
             target_duration=req.target_duration,
             min_speed=req.min_speed,
             max_speed=req.max_speed,
             smoothing=req.smoothing,
+            floor=req.progress_floor,
             pins=pins,
         )
     else:
         scores = score_movement(
-            poses, fps,
+            trimmed, fps,
             smooth_sigma_s=req.smoothing,
             hand_weight=req.hand_weight,
             foot_weight=req.foot_weight,
@@ -140,7 +174,7 @@ def _compute_scores_and_curve(req: SolveRequest, poses, fps):
             pins=pins,
         )
 
-    return scores, curve
+    return scores, curve, trimmed, start_frame
 
 
 def _curve_stats(curve, fps):
@@ -164,35 +198,68 @@ def _curve_stats(curve, fps):
 
 # ---- Endpoints ----
 
-@app.post("/api/upload")
-async def upload_video(file: UploadFile = File(...)):
-    video_id = uuid.uuid4().hex[:10]
-    ext = Path(file.filename).suffix or ".mov"
-    dest = INPUT_DIR / f"{video_id}{ext}"
-
-    with open(dest, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    _videos[video_id] = dest
-    info = get_video_info(str(dest))
-
-    # Generate thumbnails
-    thumbs = generate_thumbnails(str(dest), n=8)
-    thumb_urls = []
+def _encode_thumbnails(thumbs) -> list[str]:
+    """Encode thumbnail arrays as base64 data URLs."""
+    from PIL import Image
+    urls = []
     for t in thumbs:
-        from PIL import Image
         img = Image.fromarray(t)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=80)
         b64 = base64.b64encode(buf.getvalue()).decode()
-        thumb_urls.append(f"data:image/jpeg;base64,{b64}")
+        urls.append(f"data:image/jpeg;base64,{b64}")
+    return urls
 
-    return {
-        "video_id": video_id,
-        "info": info,
-        "thumbnails": thumb_urls,
-        "cached": has_cache(str(dest)),
-    }
+
+@app.post("/api/upload")
+async def upload_video(file: UploadFile = File(...)):
+    ext = Path(file.filename).suffix or ".mov"
+
+    # Save to temp first so we can hash before committing
+    tmp = INPUT_DIR / f"_tmp_{uuid.uuid4().hex[:8]}{ext}"
+    try:
+        with open(tmp, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+
+        ch = content_hash(str(tmp))
+
+        # Reuse existing file if same content already in input dir
+        if ch in _file_hashes:
+            existing_id = _file_hashes[ch]
+            if existing_id in _videos and _videos[existing_id].exists():
+                tmp.unlink()
+                dest = _videos[existing_id]
+                info = get_video_info(str(dest))
+                thumbs = generate_thumbnails(str(dest), n=8)
+                return {
+                    "video_id": existing_id,
+                    "info": info,
+                    "thumbnails": _encode_thumbnails(thumbs),
+                    "cached": has_cache(str(dest)),
+                    "reused": True,
+                }
+
+        # New video — rename temp to final
+        video_id = uuid.uuid4().hex[:10]
+        dest = INPUT_DIR / f"{video_id}{ext}"
+        tmp.rename(dest)
+
+        _videos[video_id] = dest
+        _file_hashes[ch] = video_id
+        info = get_video_info(str(dest))
+        thumbs = generate_thumbnails(str(dest), n=8)
+
+        return {
+            "video_id": video_id,
+            "info": info,
+            "thumbnails": _encode_thumbnails(thumbs),
+            "cached": has_cache(str(dest)),
+            "reused": False,
+        }
+    except Exception:
+        if tmp.exists():
+            tmp.unlink()
+        raise
 
 
 @app.get("/api/videos")
@@ -217,7 +284,7 @@ async def analyze_video(req: AnalyzeRequest):
     def run_analysis():
         """Run in a thread so progress events can be queued."""
         try:
-            cached = load_analysis(video_path) if not req.force else None
+            cached = load_analysis(video_path, expected_stride=req.stride) if not req.force else None
 
             if cached:
                 poses, fps, _ = cached
@@ -240,7 +307,7 @@ async def analyze_video(req: AnalyzeRequest):
 
                 progress_q.put({"progress": 0.6, "message": "Scoring movement..."})
                 default_scores = score_movement(poses, fps)
-                save_analysis(video_path, poses, fps, default_scores)
+                save_analysis(video_path, poses, fps, default_scores, stride=req.stride)
 
             progress_q.put({"progress": 0.7, "message": "Computing progress scores..."})
             progress_scores = score_progress(poses, fps)
@@ -298,13 +365,14 @@ async def solve_curve(req: SolveRequest):
         raise HTTPException(400, "Run analyze first")
 
     poses, fps, _ = cached
-    scores, curve = _compute_scores_and_curve(req, poses, fps)
+    scores, curve, trimmed, start_frame = _compute_scores_and_curve(req, poses, fps)
 
-    # Downsample curve for transfer
+    # Downsample curve for transfer — times are absolute (offset by trim start)
     n = len(curve)
     step = max(1, n // 500)
     curve_ds = curve[::step].tolist()
-    times_ds = (np.arange(0, n, step) / fps).tolist()
+    trim_offset = start_frame / fps if fps > 0 else 0
+    times_ds = ((np.arange(0, n, step) / fps) + trim_offset).tolist()
 
     stats = _curve_stats(curve, fps)
 
@@ -332,31 +400,30 @@ async def render_video_endpoint(req: RenderRequest):
         try:
             progress_q.put({"progress": 0.05, "message": "Computing speed curve..."})
 
-            scores, curve = _compute_scores_and_curve(
+            scores, curve, trimmed, start_frame = _compute_scores_and_curve(
                 SolveRequest(**{k: v for k, v in req.dict().items() if k in SolveRequest.__fields__}),
                 poses, fps,
             )
 
+            trim_start_s = start_frame / fps if fps > 0 else 0.0
+
+            # Compute stabilization offsets from trimmed pose data
+            stab_offsets = None
+            stab_info = {}
+            if req.stabilize:
+                progress_q.put({"progress": 0.08, "message": "Computing stabilization..."})
+                stab_dx, stab_dy = compute_stabilization_offsets(
+                    trimmed, fps,
+                    strength=req.stabilize_strength,
+                    smooth_window_s=req.stabilize_smoothness,
+                )
+                stab_offsets = (stab_dx, stab_dy)
+                stab_info = stabilization_stats(stab_dx, stab_dy)
+
             progress_q.put({"progress": 0.1, "message": "Rendering frames..."})
 
-            # Remap poses if crop is active so overlay draws in cropped coords
-            crop_tuple = None
-            overlay_poses = poses
-            if req.crop:
-                crop_tuple = (req.crop.x, req.crop.y, req.crop.w, req.crop.h)
-                cx, cy, cw, ch = crop_tuple
-                overlay_poses = []
-                for pose in poses:
-                    if pose is None:
-                        overlay_poses.append(None)
-                        continue
-                    rp = {}
-                    for name, (px, py, vis) in pose.items():
-                        rp[name] = ((px - cx) / cw, (py - cy) / ch, vis)
-                    overlay_poses.append(rp)
-
             if req.debug_overlay:
-                overlay_fn = make_debug_overlay_fn(overlay_poses, scores, curve, fps)
+                overlay_fn = make_debug_overlay_fn(trimmed, scores, curve, fps)
             else:
                 overlay_fn = make_speed_badge_fn(curve)
 
@@ -377,10 +444,13 @@ async def render_video_endpoint(req: RenderRequest):
                 crf=req.crf,
                 debug_overlay_fn=overlay_fn,
                 progress_cb=render_progress,
-                crop=crop_tuple,
+                stabilize_offsets=stab_offsets,
+                stabilize_crop=req.stabilize_crop,
+                trim_start_s=trim_start_s,
             )
 
             stats = _curve_stats(curve, fps)
+            stats.update(stab_info)
             progress_q.put({
                 "progress": 1.0,
                 "message": "Done!",

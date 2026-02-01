@@ -11,12 +11,30 @@ import numpy as np
 CACHE_DIR = Path(__file__).parent.parent / "data" / "cache"
 
 
-def _video_hash(video_path: str) -> str:
-    """Fast hash based on file path, size, and mtime."""
+def content_hash(video_path: str) -> str:
+    """Content-based hash from file size + head/tail bytes.
+
+    Stable across renames and re-uploads — same content always gets
+    the same hash, so pose cache survives across dev iterations.
+    """
     p = Path(video_path)
-    stat = p.stat()
-    key = f"{p.name}:{stat.st_size}:{stat.st_mtime_ns}"
-    return hashlib.md5(key.encode()).hexdigest()[:12]
+    size = p.stat().st_size
+    chunk = 65536  # 64KB
+
+    h = hashlib.md5()
+    h.update(str(size).encode())
+
+    with open(p, "rb") as f:
+        h.update(f.read(chunk))
+        if size > chunk * 2:
+            f.seek(-chunk, 2)
+            h.update(f.read(chunk))
+
+    return h.hexdigest()[:12]
+
+
+# Internal alias
+_video_hash = content_hash
 
 
 def get_cache_path(video_path: str) -> Path:
@@ -27,7 +45,7 @@ def get_cache_path(video_path: str) -> Path:
     return path
 
 
-def save_analysis(video_path: str, poses: list, fps: float, scores: np.ndarray):
+def save_analysis(video_path: str, poses: list, fps: float, scores: np.ndarray, stride: int = 1):
     """Save poses and scores to cache."""
     cache = get_cache_path(video_path)
 
@@ -41,13 +59,17 @@ def save_analysis(video_path: str, poses: list, fps: float, scores: np.ndarray):
             serializable.append({k: list(v) for k, v in p.items()})
 
     with open(cache / "poses.json", "w") as f:
-        json.dump({"fps": fps, "poses": serializable}, f)
+        json.dump({"fps": fps, "stride": stride, "poses": serializable}, f)
 
     np.save(cache / "scores.npy", scores)
 
 
-def load_analysis(video_path: str) -> tuple | None:
-    """Load cached poses, fps, and scores. Returns None if no cache."""
+def load_analysis(video_path: str, expected_stride: int | None = None) -> tuple | None:
+    """Load cached poses, fps, and scores. Returns None if no cache.
+
+    If expected_stride is given, returns None on mismatch so the caller
+    re-runs pose extraction at the new stride.
+    """
     cache = get_cache_path(video_path)
     poses_path = cache / "poses.json"
     scores_path = cache / "scores.npy"
@@ -57,6 +79,10 @@ def load_analysis(video_path: str) -> tuple | None:
 
     with open(poses_path) as f:
         data = json.load(f)
+
+    # Stride mismatch → treat as cache miss
+    if expected_stride is not None and data.get("stride", 2) != expected_stride:
+        return None
 
     fps = data["fps"]
     poses = []

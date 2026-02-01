@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { Pin, Settings, CurveStats, AnalysisData, VideoInfo, CropBox, DEFAULT_SETTINGS } from "./types";
+import { Pin, Settings, CurveStats, AnalysisData, VideoInfo, DEFAULT_SETTINGS } from "./types";
 
 interface Store {
   // Video
@@ -31,10 +31,6 @@ interface Store {
   settings: Settings;
   updateSettings: (partial: Partial<Settings>) => void;
 
-  // Crop
-  crop: CropBox | null;
-  setCrop: (crop: CropBox | null) => void;
-
   // Output
   outputId: string | null;
   setOutputId: (id: string | null) => void;
@@ -53,7 +49,7 @@ export const useStore = create<Store>((set) => ({
   videoId: null,
   videoInfo: null,
   thumbnails: [],
-  setVideo: (id, info, thumbs) => set({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, curve: [], curveTimes: [], stats: null, outputId: null, pins: [], crop: null }),
+  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, curve: [], curveTimes: [], stats: null, outputId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
 
   analysis: null,
   setAnalysis: (data) => set({ analysis: data }),
@@ -71,9 +67,6 @@ export const useStore = create<Store>((set) => ({
 
   settings: { ...DEFAULT_SETTINGS },
   updateSettings: (partial) => set((s) => ({ settings: { ...s.settings, ...partial } })),
-
-  crop: null,
-  setCrop: (crop) => set({ crop }),
 
   outputId: null,
   setOutputId: (id) => set({ outputId: id }),

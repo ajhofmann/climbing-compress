@@ -1,4 +1,4 @@
-"""Render engine — ffmpeg decode + encode for proper HDR->SDR handling."""
+"""Render engine — ffmpeg decode + encode with pose-anchored stabilization."""
 
 from __future__ import annotations
 
@@ -22,13 +22,24 @@ def render_preview(
     crf: int = 23,
     debug_overlay_fn=None,
     progress_cb=None,
-    crop=None,  # tuple of (x, y, w, h) normalized floats, or None
+    stabilize_offsets: tuple[np.ndarray, np.ndarray] | None = None,
+    stabilize_crop: float = 0.15,
+    trim_start_s: float = 0.0,
 ) -> str:
     """
     Render speed-ramped video using ffmpeg for both decode and encode.
 
     Uses ffmpeg decode to properly handle HDR/HLG/BT.2020 iPhone videos,
     avoiding the dark output caused by OpenCV's limited-range decode.
+
+    When stabilize_offsets is provided, decodes at a padded resolution
+    and applies per-frame crop offsets to cancel camera shake.
+
+    Args:
+        stabilize_offsets: (dx, dy) arrays from compute_stabilization_offsets.
+                           Normalized coordinates, one per source frame.
+        stabilize_crop: fraction of frame used as stabilization padding.
+                        0.15 = 15% of frame sacrificed for shake room.
     """
     if output_path is None:
         output_path = str(Path(tempfile.mkdtemp()) / "preview.mp4")
@@ -36,25 +47,25 @@ def render_preview(
     # Get source dimensions
     info = get_video_info(video_path)
     src_w, src_h = info["width"], info["height"]
-
-    # Apply crop before scaling
-    if crop:
-        cx, cy, cw, ch = crop
-        crop_x = int(cx * src_w)
-        crop_y = int(cy * src_h)
-        crop_w = int(cw * src_w)
-        crop_h = int(ch * src_h)
-        # Ensure even dimensions
-        crop_w -= crop_w % 2
-        crop_h -= crop_h % 2
-        effective_w, effective_h = crop_w, crop_h
-    else:
-        effective_w, effective_h = src_w, src_h
-
-    out_w = int(effective_w * scale)
-    out_h = int(effective_h * scale)
+    out_w = int(src_w * scale)
+    out_h = int(src_h * scale)
     out_w -= out_w % 2
     out_h -= out_h % 2
+
+    # Stabilization: decode at padded resolution, crop per-frame
+    stabilizing = stabilize_offsets is not None
+    if stabilizing:
+        stab_dx, stab_dy = stabilize_offsets
+        # Padded decode dimensions — extra room for crop offset
+        pad_w = int(out_w / (1.0 - stabilize_crop))
+        pad_h = int(out_h / (1.0 - stabilize_crop))
+        pad_w -= pad_w % 2
+        pad_h -= pad_h % 2
+        margin_w = (pad_w - out_w) // 2
+        margin_h = (pad_h - out_h) // 2
+        decode_w, decode_h = pad_w, pad_h
+    else:
+        decode_w, decode_h = out_w, out_h
 
     # Build frame mapping
     time_map = get_time_mapping(speed_curve, fps)
@@ -64,28 +75,28 @@ def render_preview(
     source_indices = np.searchsorted(time_map, output_times)
     source_indices = np.clip(source_indices, 0, len(speed_curve) - 1)
 
-    frame_size = out_w * out_h * 3  # rgb24
+    frame_size = decode_w * decode_h * 3  # rgb24
 
     # --- ffmpeg DECODE subprocess ---
-    # This handles HDR->SDR tone mapping, color space conversion, crop, scaling
-    vf_parts = []
-    if crop:
-        vf_parts.append(f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}")
-    vf_parts.append(f"scale={out_w}:{out_h}:flags=lanczos")
-    vf_parts.append("format=rgb24")
-    vf_str = ",".join(vf_parts)
-
     decode_cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
+    ]
+    # Seek to trim start (input-level seek for speed)
+    if trim_start_s > 0:
+        decode_cmd += ["-ss", f"{trim_start_s:.4f}"]
+    decode_cmd += [
         "-i", str(video_path),
-        "-vf", vf_str,
+        "-vf", (
+            f"scale={decode_w}:{decode_h}:flags=lanczos,"
+            "format=rgb24"
+        ),
         "-pix_fmt", "rgb24",
         "-f", "rawvideo",
         "-v", "error",
         "pipe:1",
     ]
 
-    # --- ffmpeg ENCODE subprocess ---
+    # --- ffmpeg ENCODE subprocess (always at output resolution) ---
     encode_cmd = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
         "-f", "rawvideo",
@@ -132,15 +143,33 @@ def render_preview(
                     break
                 src_frame_idx += 1
                 if src_frame_idx == target_src:
-                    current_frame = np.frombuffer(raw, dtype=np.uint8).reshape((out_h, out_w, 3))
+                    current_frame = np.frombuffer(raw, dtype=np.uint8).reshape(
+                        (decode_h, decode_w, 3)
+                    )
 
-            if current_frame is not None:
-                if debug_overlay_fn is not None:
-                    speed_val = float(speed_curve[target_src]) if target_src < len(speed_curve) else 1.0
-                    frame_out = debug_overlay_fn(current_frame.copy(), target_src, speed_val)
-                    encode_proc.stdin.write(frame_out.tobytes())
-                else:
-                    encode_proc.stdin.write(current_frame.tobytes())
+            if current_frame is None:
+                continue
+
+            # Apply stabilization crop
+            if stabilizing and target_src < len(stab_dx):
+                dx = stab_dx[target_src]
+                dy = stab_dy[target_src]
+                # Convert normalized offset to pixel offset within padded frame
+                crop_x = margin_w + int(dx * pad_w)
+                crop_y = margin_h + int(dy * pad_h)
+                # Clamp to valid bounds
+                crop_x = max(0, min(crop_x, pad_w - out_w))
+                crop_y = max(0, min(crop_y, pad_h - out_h))
+                frame_out = current_frame[crop_y:crop_y + out_h, crop_x:crop_x + out_w, :]
+            else:
+                frame_out = current_frame
+
+            # Debug overlay drawn AFTER stabilization crop
+            if debug_overlay_fn is not None:
+                speed_val = float(speed_curve[target_src]) if target_src < len(speed_curve) else 1.0
+                frame_out = debug_overlay_fn(frame_out.copy(), target_src, speed_val)
+
+            encode_proc.stdin.write(frame_out.tobytes())
 
             if progress_cb and n_output_frames > 0:
                 progress_cb(out_idx / n_output_frames)

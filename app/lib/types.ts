@@ -36,15 +36,6 @@ export interface AnalysisData {
   waveform_action: string;
 }
 
-export interface CropBox {
-  x: number; // left edge, normalized 0-1
-  y: number; // top edge, normalized 0-1
-  w: number; // width, normalized 0-1
-  h: number; // height, normalized 0-1
-}
-
-export type AspectPreset = "9:16" | "1:1" | "4:5" | "16:9" | null;
-
 export type SpeedMode = "progress" | "action";
 
 export interface Settings {
@@ -62,6 +53,17 @@ export interface Settings {
   outputFps: number;
   crf: number;
   debugOverlay: boolean;
+  trimStart: number;
+  trimEnd: number;
+  // Analysis
+  analyzeStride: number;
+  // Constant progress mode
+  progressFloor: number;
+  // Pose-anchored stabilization
+  stabilize: boolean;
+  stabilizeStrength: number;
+  stabilizeSmoothness: number;
+  stabilizeCrop: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -79,4 +81,87 @@ export const DEFAULT_SETTINGS: Settings = {
   outputFps: 30,
   crf: 23,
   debugOverlay: true,
+  trimStart: 0,
+  trimEnd: 0,
+  analyzeStride: 1,
+  progressFloor: 0.02,
+  stabilize: false,
+  stabilizeStrength: 0.7,
+  stabilizeSmoothness: 0.8,
+  stabilizeCrop: 0.15,
 };
+
+export interface Preset {
+  name: string;
+  emoji: string;
+  desc: string;
+  /** Partial settings — merged onto DEFAULT_SETTINGS when applied */
+  overrides: Partial<Settings>;
+}
+
+export const PRESETS: Preset[] = [
+  {
+    name: "Default",
+    emoji: "🪨",
+    desc: "balanced speed ramp",
+    overrides: {},
+  },
+  {
+    name: "Cinematic",
+    emoji: "🎬",
+    desc: "long, dramatic slow-mo",
+    overrides: {
+      mode: "progress",
+      targetDuration: 25,
+      minSpeed: 0.15,
+      maxSpeed: 8,
+      smoothing: 0.6,
+      progressFloor: 0.01,
+      outputFps: 24,
+    },
+  },
+  {
+    name: "Quick Reel",
+    emoji: "📱",
+    desc: "punchy 10s for social",
+    overrides: {
+      mode: "action",
+      targetDuration: 10,
+      sensitivity: 0.5,
+      minSpeed: 0.4,
+      maxSpeed: 15,
+      steepness: 20,
+      smoothing: 0.15,
+    },
+  },
+  {
+    name: "Max Drama",
+    emoji: "🔥",
+    desc: "extreme slow-mo on moves",
+    overrides: {
+      mode: "action",
+      targetDuration: 20,
+      sensitivity: 0.2,
+      minSpeed: 0.1,
+      maxSpeed: 12,
+      steepness: 25,
+      smoothing: 0.4,
+      handWeight: 3.0,
+      footWeight: 2.0,
+      coreWeight: 5.0,
+    },
+  },
+  {
+    name: "Realtime",
+    emoji: "▶️",
+    desc: "subtle ramp, mostly 1x",
+    overrides: {
+      mode: "progress",
+      targetDuration: 30,
+      minSpeed: 0.8,
+      maxSpeed: 3,
+      smoothing: 0.5,
+      progressFloor: 0.08,
+    },
+  },
+];

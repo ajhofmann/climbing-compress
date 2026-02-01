@@ -4,7 +4,7 @@ import { useStore } from "@/lib/store";
 import { useTimeline } from "./use-timeline";
 
 export function TimelineEditor() {
-  const { analysis, curve, curveTimes, pins, setPins, settings, stats } = useStore();
+  const { analysis, curve, curveTimes, pins, setPins, settings, updateSettings, stats } = useStore();
 
   const waveformUrl = analysis
     ? (settings.mode === "progress" ? analysis.waveform_progress : analysis.waveform_action)
@@ -18,6 +18,9 @@ export function TimelineEditor() {
     pins,
     waveformUrl,
     onPinsChange: setPins,
+    trimStart: settings.trimStart,
+    trimEnd: settings.trimEnd,
+    onTrimChange: (start, end) => updateSettings({ trimStart: start, trimEnd: end }),
   });
 
   if (!analysis) {
@@ -50,9 +53,13 @@ export function TimelineEditor() {
       />
       <div className="flex justify-between px-1 text-[10px] text-text-muted">
         <span>0s</span>
+        <span className="font-mono" style={{ color: "var(--warm)" }}>
+          trim: {settings.trimStart.toFixed(1)}s – {(settings.trimEnd > 0 ? settings.trimEnd : analysis.duration).toFixed(1)}s
+          {" "}({((settings.trimEnd > 0 ? settings.trimEnd : analysis.duration) - settings.trimStart).toFixed(1)}s)
+        </span>
         {stats && (
           <span className="font-mono">
-            output: {stats.output_duration}s / {stats.speed_min}x–{stats.speed_max}x / ratio: {stats.action_rest_ratio}x
+            output: {stats.output_duration}s
           </span>
         )}
         <span>{analysis.duration.toFixed(0)}s</span>

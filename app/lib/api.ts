@@ -1,4 +1,4 @@
-import { Pin, Settings, SolveResult, CropBox } from "./types";
+import { Pin, Settings, SolveResult } from "./types";
 
 const API = "http://localhost:8000";
 
@@ -66,6 +66,9 @@ export async function solveCurve(
       hand_weight: settings.handWeight,
       foot_weight: settings.footWeight,
       core_weight: settings.coreWeight,
+      progress_floor: settings.progressFloor,
+      trim_start: settings.trimStart,
+      trim_end: settings.trimEnd,
       pins,
     }),
   });
@@ -77,7 +80,6 @@ export async function renderVideo(
   videoId: string,
   settings: Settings,
   pins: Pin[],
-  crop: CropBox | null,
   onProgress: (progress: number, message: string) => void,
 ) {
   const res = await fetch(`${API}/api/render`, {
@@ -95,12 +97,18 @@ export async function renderVideo(
       hand_weight: settings.handWeight,
       foot_weight: settings.footWeight,
       core_weight: settings.coreWeight,
+      progress_floor: settings.progressFloor,
+      trim_start: settings.trimStart,
+      trim_end: settings.trimEnd,
       pins,
       scale: settings.scale,
       output_fps: settings.outputFps,
       crf: settings.crf,
       debug_overlay: settings.debugOverlay,
-      crop: crop,
+      stabilize: settings.stabilize,
+      stabilize_strength: settings.stabilizeStrength,
+      stabilize_smoothness: settings.stabilizeSmoothness,
+      stabilize_crop: settings.stabilizeCrop,
     }),
   });
 

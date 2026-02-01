@@ -11,15 +11,25 @@ interface TimelineConfig {
   pins: Pin[];
   waveformUrl: string;
   onPinsChange: (pins: Pin[]) => void;
+  trimStart: number;
+  trimEnd: number;
+  onTrimChange: (start: number, end: number) => void;
 }
+
+type DragTarget =
+  | { type: "pin"; index: number }
+  | { type: "trim-start" }
+  | { type: "trim-end" }
+  | null;
 
 export function useTimeline(config: TimelineConfig) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const waveImgRef = useRef<HTMLImageElement | null>(null);
-  const [dragging, setDragging] = useState<number | null>(null);
+  const [dragging, setDragging] = useState<DragTarget>(null);
   const [hoverIdx, setHoverIdx] = useState(-1);
+  const [hoverTrim, setHoverTrim] = useState<"start" | "end" | null>(null);
 
-  const { duration, maxSpeed, curve, curveTimes, pins, waveformUrl, onPinsChange } = config;
+  const { duration, maxSpeed, curve, curveTimes, pins, waveformUrl, onPinsChange, trimStart, trimEnd, onTrimChange } = config;
 
   // Load waveform image
   useEffect(() => {
@@ -97,6 +107,67 @@ export function useTimeline(config: TimelineConfig) {
       ctx.stroke();
     }
 
+    // Trim dimmed regions
+    const trimX0 = timeToX(trimStart, w);
+    const trimX1 = timeToX(trimEnd > 0 ? trimEnd : duration, w);
+
+    if (trimX0 > 0) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fillRect(0, 0, trimX0, h);
+    }
+    if (trimX1 < w) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+      ctx.fillRect(trimX1, 0, w - trimX1, h);
+    }
+
+    // Trim handles
+    const handleW = 6;
+    const trimHandleColor = "#e8863a";
+    const trimHoverStart = hoverTrim === "start" || (dragging?.type === "trim-start");
+    const trimHoverEnd = hoverTrim === "end" || (dragging?.type === "trim-end");
+
+    // Start handle
+    ctx.fillStyle = trimHoverStart ? "#ff9f55" : trimHandleColor;
+    ctx.beginPath();
+    ctx.roundRect(trimX0 - handleW / 2, 0, handleW, h, 3);
+    ctx.fill();
+    // Grip lines
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 1;
+    for (let gy = h * 0.35; gy < h * 0.65; gy += 5) {
+      ctx.beginPath();
+      ctx.moveTo(trimX0 - 1.5, gy);
+      ctx.lineTo(trimX0 + 1.5, gy);
+      ctx.stroke();
+    }
+
+    // End handle
+    ctx.fillStyle = trimHoverEnd ? "#ff9f55" : trimHandleColor;
+    ctx.beginPath();
+    ctx.roundRect(trimX1 - handleW / 2, 0, handleW, h, 3);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.7)";
+    ctx.lineWidth = 1;
+    for (let gy = h * 0.35; gy < h * 0.65; gy += 5) {
+      ctx.beginPath();
+      ctx.moveTo(trimX1 - 1.5, gy);
+      ctx.lineTo(trimX1 + 1.5, gy);
+      ctx.stroke();
+    }
+
+    // Trim time labels
+    ctx.font = "bold 10px system-ui";
+    ctx.fillStyle = trimHandleColor;
+    if (trimStart > 0) {
+      const label = `${trimStart.toFixed(1)}s`;
+      ctx.fillText(label, trimX0 + 4, 12);
+    }
+    if (trimEnd > 0 && trimEnd < duration) {
+      const label = `${trimEnd.toFixed(1)}s`;
+      const tw2 = ctx.measureText(label).width;
+      ctx.fillText(label, trimX1 - tw2 - 4, 12);
+    }
+
     // Pin points
     const accentColor = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#3d5a3e";
     const warmColor = getComputedStyle(document.documentElement).getPropertyValue("--warm").trim() || "#c97b2a";
@@ -105,7 +176,7 @@ export function useTimeline(config: TimelineConfig) {
       const x = timeToX(pins[i].time, w);
       const y = speedToY(pins[i].speed, h);
       const isHover = i === hoverIdx;
-      const isDrag = dragging === i;
+      const isDrag = dragging?.type === "pin" && dragging.index === i;
 
       // Glow
       ctx.beginPath();
@@ -139,7 +210,7 @@ export function useTimeline(config: TimelineConfig) {
         ctx.fillText(label, Math.max(8, lx), ly);
       }
     }
-  }, [curve, curveTimes, pins, duration, maxSpeed, hoverIdx, dragging, timeToX, speedToY]);
+  }, [curve, curveTimes, pins, duration, maxSpeed, hoverIdx, dragging, trimStart, trimEnd, hoverTrim, timeToX, speedToY]);
 
   // Redraw on changes
   useEffect(() => { draw(); }, [draw]);
@@ -165,6 +236,16 @@ export function useTimeline(config: TimelineConfig) {
     return -1;
   }, [pins, timeToX, speedToY]);
 
+  const findNearTrim = useCallback((pos: { x: number; y: number }, threshold = 10): "start" | "end" | null => {
+    const canvas = canvasRef.current!;
+    const rect = canvas.getBoundingClientRect();
+    const startX = timeToX(trimStart, rect.width);
+    const endX = timeToX(trimEnd > 0 ? trimEnd : duration, rect.width);
+    if (Math.abs(pos.x - startX) < threshold) return "start";
+    if (Math.abs(pos.x - endX) < threshold) return "end";
+    return null;
+  }, [trimStart, trimEnd, duration, timeToX]);
+
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const pos = getPos(e);
@@ -179,35 +260,68 @@ export function useTimeline(config: TimelineConfig) {
       return;
     }
 
+    // Check trim handles first (they take priority at edges)
+    const trimHit = findNearTrim(pos);
+    if (trimHit === "start") {
+      setDragging({ type: "trim-start" });
+      return;
+    }
+    if (trimHit === "end") {
+      setDragging({ type: "trim-end" });
+      return;
+    }
+
+    // Then check pins
     const idx = findNear(pos);
     if (idx >= 0) {
-      setDragging(idx);
+      setDragging({ type: "pin", index: idx });
     } else {
       const t = xToTime(pos.x, rect.width);
       const s = yToSpeed(pos.y, rect.height);
       const next = [...pins, { time: t, speed: s }];
       onPinsChange(next);
-      setDragging(next.length - 1);
+      setDragging({ type: "pin", index: next.length - 1 });
     }
-  }, [pins, findNear, getPos, onPinsChange, xToTime, yToSpeed]);
+  }, [pins, findNear, findNearTrim, getPos, onPinsChange, xToTime, yToSpeed]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     const pos = getPos(e);
     const rect = canvasRef.current!.getBoundingClientRect();
 
     if (dragging !== null) {
-      const t = xToTime(pos.x, rect.width);
-      const s = yToSpeed(pos.y, rect.height);
-      const next = pins.map((p, i) => i === dragging ? { time: t, speed: s } : p);
-      onPinsChange(next);
+      if (dragging.type === "trim-start") {
+        const t = xToTime(pos.x, rect.width);
+        const effectiveEnd = trimEnd > 0 ? trimEnd : duration;
+        const clamped = Math.max(0, Math.min(t, effectiveEnd - 1));
+        onTrimChange(clamped, trimEnd);
+      } else if (dragging.type === "trim-end") {
+        const t = xToTime(pos.x, rect.width);
+        const clamped = Math.max(trimStart + 1, Math.min(t, duration));
+        onTrimChange(trimStart, clamped);
+      } else if (dragging.type === "pin") {
+        const t = xToTime(pos.x, rect.width);
+        const s = yToSpeed(pos.y, rect.height);
+        const next = pins.map((p, i) => i === dragging.index ? { time: t, speed: s } : p);
+        onPinsChange(next);
+      }
     } else {
+      // Check trim hover first
+      const trimHit = findNearTrim(pos);
+      setHoverTrim(trimHit);
+
       const idx = findNear(pos);
       setHoverIdx(idx);
       if (canvasRef.current) {
-        canvasRef.current.style.cursor = idx >= 0 ? "grab" : "crosshair";
+        if (trimHit) {
+          canvasRef.current.style.cursor = "col-resize";
+        } else if (idx >= 0) {
+          canvasRef.current.style.cursor = "grab";
+        } else {
+          canvasRef.current.style.cursor = "crosshair";
+        }
       }
     }
-  }, [dragging, pins, findNear, getPos, onPinsChange, xToTime, yToSpeed]);
+  }, [dragging, pins, trimStart, trimEnd, duration, findNear, findNearTrim, getPos, onPinsChange, onTrimChange, xToTime, yToSpeed]);
 
   const onMouseUp = useCallback(() => {
     setDragging(null);
@@ -216,6 +330,7 @@ export function useTimeline(config: TimelineConfig) {
   const onMouseLeave = useCallback(() => {
     setDragging(null);
     setHoverIdx(-1);
+    setHoverTrim(null);
   }, []);
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
