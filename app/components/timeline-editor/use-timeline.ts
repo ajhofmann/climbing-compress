@@ -16,6 +16,8 @@ interface TimelineConfig {
   onTrimChange: (start: number, end: number) => void;
 }
 
+const DEFAULT_PIN_RADIUS = 2.0;
+
 type DragTarget =
   | { type: "pin"; index: number }
   | { type: "trim-start" }
@@ -52,7 +54,8 @@ export function useTimeline(config: TimelineConfig) {
     const dpr = window.devicePixelRatio || 1;
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
     ctx.scale(dpr, dpr);
     const w = rect.width;
     const h = rect.height;
@@ -173,10 +176,34 @@ export function useTimeline(config: TimelineConfig) {
     const warmColor = getComputedStyle(document.documentElement).getPropertyValue("--warm").trim() || "#c97b2a";
 
     for (let i = 0; i < pins.length; i++) {
-      const x = timeToX(pins[i].time, w);
-      const y = speedToY(pins[i].speed, h);
+      const pin = pins[i];
+      const x = timeToX(pin.time, w);
+      const y = speedToY(pin.speed, h);
       const isHover = i === hoverIdx;
       const isDrag = dragging?.type === "pin" && dragging.index === i;
+      const radiusS = pin.radius ?? DEFAULT_PIN_RADIUS;
+
+      // Radius influence zone — translucent bell shape
+      const radiusPx = timeToX(radiusS, w);
+      if (radiusPx > 2 && (isHover || isDrag)) {
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, radiusPx);
+        grad.addColorStop(0, isDrag ? `${warmColor}30` : `${accentColor}20`);
+        grad.addColorStop(1, "transparent");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(x, y, radiusPx, h * 0.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Radius bracket lines (subtle, always visible)
+      const rLeftX = timeToX(pin.time - radiusS, w);
+      const rRightX = timeToX(pin.time + radiusS, w);
+      ctx.strokeStyle = isDrag ? `${warmColor}50` : `${accentColor}25`;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(rLeftX, 0); ctx.lineTo(rLeftX, h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(rRightX, 0); ctx.lineTo(rRightX, h); ctx.stroke();
+      ctx.setLineDash([]);
 
       // Glow
       ctx.beginPath();
@@ -187,7 +214,7 @@ export function useTimeline(config: TimelineConfig) {
       // Circle
       ctx.beginPath();
       ctx.arc(x, y, isDrag ? 8 : 6, 0, Math.PI * 2);
-      ctx.fillStyle = isDrag ? warmColor : (isHover ? accentColor : accentColor);
+      ctx.fillStyle = isDrag ? warmColor : accentColor;
       ctx.fill();
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 2;
@@ -195,16 +222,16 @@ export function useTimeline(config: TimelineConfig) {
 
       // Tooltip
       if (isHover || isDrag) {
-        const label = `${pins[i].speed.toFixed(1)}x @ ${pins[i].time.toFixed(1)}s`;
+        const label = `${pin.speed.toFixed(1)}x @ ${pin.time.toFixed(1)}s  r=${radiusS.toFixed(1)}s`;
         ctx.font = "bold 11px system-ui";
-        const tw = ctx.measureText(label).width;
-        const lx = Math.min(x - tw / 2, w - tw - 8);
+        const tw2 = ctx.measureText(label).width;
+        const lx = Math.min(x - tw2 / 2, w - tw2 - 8);
         const ly = y - 18;
 
         ctx.fillStyle = "rgba(0,0,0,0.75)";
         ctx.beginPath();
-        const rx = Math.max(4, lx - 4);
-        ctx.roundRect(rx, ly - 12, tw + 8, 16, 4);
+        const rx2 = Math.max(4, lx - 4);
+        ctx.roundRect(rx2, ly - 12, tw2 + 8, 16, 4);
         ctx.fill();
         ctx.fillStyle = "#fff";
         ctx.fillText(label, Math.max(8, lx), ly);
@@ -220,12 +247,14 @@ export function useTimeline(config: TimelineConfig) {
   }, [draw]);
 
   const getPos = useCallback((e: React.MouseEvent) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return { x: 0, y: 0 };
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }, []);
 
   const findNear = useCallback((pos: { x: number; y: number }, threshold = 15) => {
-    const canvas = canvasRef.current!;
+    const canvas = canvasRef.current;
+    if (!canvas) return -1;
     const rect = canvas.getBoundingClientRect();
     for (let i = 0; i < pins.length; i++) {
       const px = timeToX(pins[i].time, rect.width);
@@ -237,7 +266,8 @@ export function useTimeline(config: TimelineConfig) {
   }, [pins, timeToX, speedToY]);
 
   const findNearTrim = useCallback((pos: { x: number; y: number }, threshold = 10): "start" | "end" | null => {
-    const canvas = canvasRef.current!;
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
     const startX = timeToX(trimStart, rect.width);
     const endX = timeToX(trimEnd > 0 ? trimEnd : duration, rect.width);
@@ -249,7 +279,8 @@ export function useTimeline(config: TimelineConfig) {
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const pos = getPos(e);
-    const rect = canvasRef.current!.getBoundingClientRect();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
 
     if (e.button === 2) {
       const idx = findNear(pos);
@@ -278,7 +309,7 @@ export function useTimeline(config: TimelineConfig) {
     } else {
       const t = xToTime(pos.x, rect.width);
       const s = yToSpeed(pos.y, rect.height);
-      const next = [...pins, { time: t, speed: s }];
+      const next = [...pins, { time: t, speed: s, radius: DEFAULT_PIN_RADIUS }];
       onPinsChange(next);
       setDragging({ type: "pin", index: next.length - 1 });
     }
@@ -286,7 +317,8 @@ export function useTimeline(config: TimelineConfig) {
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     const pos = getPos(e);
-    const rect = canvasRef.current!.getBoundingClientRect();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
 
     if (dragging !== null) {
       if (dragging.type === "trim-start") {
@@ -333,12 +365,28 @@ export function useTimeline(config: TimelineConfig) {
     setHoverTrim(null);
   }, []);
 
+  const onWheel = useCallback((e: React.WheelEvent) => {
+    // Scroll on a hovered pin to resize its radius
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const pos = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    const idx = findNear(pos);
+    if (idx < 0) return;
+    e.preventDefault();
+
+    const delta = e.deltaY > 0 ? -0.2 : 0.2; // scroll down = shrink, up = grow
+    const pin = pins[idx];
+    const newRadius = Math.max(0.2, Math.min(10.0, (pin.radius ?? DEFAULT_PIN_RADIUS) + delta));
+    const next = pins.map((p, i) => i === idx ? { ...p, radius: newRadius } : p);
+    onPinsChange(next);
+  }, [pins, findNear, getPos, onPinsChange]);
+
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
   }, []);
 
   return {
     canvasRef,
-    handlers: { onMouseDown, onMouseMove, onMouseUp, onMouseLeave, onContextMenu },
+    handlers: { onMouseDown, onMouseMove, onMouseUp, onMouseLeave, onContextMenu, onWheel },
   };
 }

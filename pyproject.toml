@@ -1,6 +1,6 @@
 [project]
 name = "climb-ramp"
-version = "0.2.0"
+version = "0.3.0"
 description = "Climbing video speed ramper — stabilize, analyze, compress"
 requires-python = ">=3.9"
 dependencies = [
@@ -13,6 +13,20 @@ dependencies = [
     "uvicorn>=0.20",
     "python-multipart>=0.0.9",
     "Pillow>=9.0",
+]
+
+[project.optional-dependencies]
+tracking = [
+    "ultralytics>=8.0",
+    "supervision>=0.18",
+]
+all = [
+    "climb-ramp[tracking]",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "httpx>=0.24",
 ]
 
 [project.scripts]

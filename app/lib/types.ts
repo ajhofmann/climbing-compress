@@ -9,6 +9,7 @@ export interface VideoInfo {
 export interface Pin {
   time: number;
   speed: number;
+  radius: number; // influence radius in seconds (default 2.0)
 }
 
 export interface CurveStats {
@@ -34,6 +35,8 @@ export interface AnalysisData {
   scores_step: number;
   waveform_progress: string;
   waveform_action: string;
+  tracker_available?: boolean;
+  flow_available?: boolean;
 }
 
 export type SpeedMode = "progress" | "action";
@@ -57,13 +60,22 @@ export interface Settings {
   trimEnd: number;
   // Analysis
   analyzeStride: number;
+  useTracker: boolean;
+  useFlow: boolean;
   // Constant progress mode
   progressFloor: number;
+  verticalBias: number;
+  restThreshold: number;
   // Pose-anchored stabilization
   stabilize: boolean;
   stabilizeStrength: number;
   stabilizeSmoothness: number;
   stabilizeCrop: number;
+  // Feature-based stabilization (blended with pose)
+  useFeatureStabilize: boolean;
+  featureStabilizeWeight: number;
+  // Audio
+  includeAudio: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -84,11 +96,18 @@ export const DEFAULT_SETTINGS: Settings = {
   trimStart: 0,
   trimEnd: 0,
   analyzeStride: 1,
+  useTracker: true,
+  useFlow: true,
   progressFloor: 0.02,
+  verticalBias: 0.7,
+  restThreshold: 0.3,
   stabilize: false,
   stabilizeStrength: 0.7,
   stabilizeSmoothness: 0.8,
   stabilizeCrop: 0.15,
+  useFeatureStabilize: true,
+  featureStabilizeWeight: 0.5,
+  includeAudio: true,
 };
 
 export interface Preset {
@@ -117,6 +136,8 @@ export const PRESETS: Preset[] = [
       maxSpeed: 8,
       smoothing: 0.6,
       progressFloor: 0.01,
+      verticalBias: 0.8,
+      restThreshold: 0.5,
       outputFps: 24,
     },
   },
@@ -162,6 +183,8 @@ export const PRESETS: Preset[] = [
       maxSpeed: 3,
       smoothing: 0.5,
       progressFloor: 0.08,
+      verticalBias: 0.6,
+      restThreshold: 0.5,
     },
   },
 ];

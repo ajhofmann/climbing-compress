@@ -27,7 +27,7 @@ export function ProgressBar() {
   return (
     <div className="w-full flex flex-col gap-1.5">
       {active && (
-        <div className="w-full h-2.5 bg-bg-card rounded-full overflow-hidden border border-border">
+        <div className="w-full h-2 bg-bg-card-solid rounded-full overflow-hidden border border-border">
           <div
             className={`h-full rounded-full transition-all duration-500 ease-out ${
               progress < 1 ? "progress-shimmer" : "bg-accent"
@@ -42,7 +42,7 @@ export function ProgressBar() {
           {funMsg && <span className="ml-2 text-accent-light italic">{funMsg}</span>}
         </p>
         {active && (
-          <span className="text-xs font-mono text-text-muted">{Math.round(pct)}%</span>
+          <span className="text-xs font-mono text-text-muted tabular-nums">{Math.round(pct)}%</span>
         )}
       </div>
     </div>

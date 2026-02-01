@@ -3,6 +3,12 @@
 import { create } from "zustand";
 import { Pin, Settings, CurveStats, AnalysisData, VideoInfo, DEFAULT_SETTINGS } from "./types";
 
+export interface AnalysisParams {
+  stride: number;
+  useTracker: boolean;
+  useFlow: boolean;
+}
+
 interface Store {
   // Video
   videoId: string | null;
@@ -12,7 +18,8 @@ interface Store {
 
   // Analysis
   analysis: AnalysisData | null;
-  setAnalysis: (data: AnalysisData) => void;
+  analysisParams: AnalysisParams | null;
+  setAnalysis: (data: AnalysisData, params: AnalysisParams) => void;
 
   // Speed curve
   curve: number[];
@@ -49,10 +56,11 @@ export const useStore = create<Store>((set) => ({
   videoId: null,
   videoInfo: null,
   thumbnails: [],
-  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, curve: [], curveTimes: [], stats: null, outputId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
+  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], stats: null, outputId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
 
   analysis: null,
-  setAnalysis: (data) => set({ analysis: data }),
+  analysisParams: null,
+  setAnalysis: (data, params) => set({ analysis: data, analysisParams: params }),
 
   curve: [],
   curveTimes: [],

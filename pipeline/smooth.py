@@ -63,7 +63,7 @@ def smooth_poses(
     fps: float,
     min_cutoff: float = 1.0,
     beta: float = 0.5,
-) -> list[dict | None]:
+) -> list[dict | None]:  # same format as input
     """Apply One Euro Filter to all landmark positions over time.
 
     Smooths (x, y) independently per landmark. Visibility is passed through.

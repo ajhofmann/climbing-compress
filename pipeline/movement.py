@@ -1,9 +1,17 @@
-"""Movement and progress scoring from pose data."""
+"""Movement and progress scoring from pose data.
+
+Supports optional flow-based scoring for background-compensated motion
+detection. When flow scores are available, they're blended with pose-based
+scores for more robust movement detection that survives camera shake.
+"""
 
 from __future__ import annotations
 
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
+
+from pipeline.constants import MIN_VISIBILITY
+from pipeline.signal import smooth_and_normalize
 
 
 def score_movement(
@@ -13,9 +21,19 @@ def score_movement(
     hand_weight: float = 2.0,
     foot_weight: float = 1.0,
     core_weight: float = 3.0,
-) -> np.ndarray:
+    flow_scores: np.ndarray | None = None,
+    flow_weight: float = 0.3,
+) -> np.ndarray:  # shape (n_frames,), normalized [0, 1]
     """
     Compute per-frame movement score (action intensity).
+
+    When flow_scores are provided (from pipeline.flow), blends pose-based
+    velocity with background-compensated optical flow for more robust
+    scoring that handles camera shake and pose dropout.
+
+    Args:
+        flow_scores: optional per-frame flow magnitude, normalized [0,1].
+        flow_weight: blend weight for flow scores (0 = pose only, 1 = flow only).
 
     Returns:
         scores: numpy array of shape (n_frames,), normalized to [0, 1]
@@ -24,49 +42,54 @@ def score_movement(
     if n < 2:
         return np.zeros(n)
 
-    raw_scores = np.zeros(n)
+    # --- Vectorised landmark extraction ---
+    # Order: left_wrist, right_wrist, left_ankle, right_ankle, left_hip, right_hip
+    _LM_NAMES = ("left_wrist", "right_wrist", "left_ankle", "right_ankle",
+                  "left_hip", "right_hip")
+    n_lm = len(_LM_NAMES)
+    pos = np.full((n, n_lm, 3), np.nan)  # (x, y, vis) per landmark
 
-    for i in range(1, n):
-        prev, curr = poses[i - 1], poses[i]
-        if prev is None or curr is None:
+    for i, pose in enumerate(poses):
+        if pose is None:
             continue
+        for j, name in enumerate(_LM_NAMES):
+            if name in pose:
+                pos[i, j] = pose[name]
 
-        def vel(name: str) -> float:
-            if name not in prev or name not in curr:
-                return 0.0
-            px, py, pv = prev[name]
-            cx, cy, cv_ = curr[name]
-            if pv < 0.5 or cv_ < 0.5:
-                return 0.0
-            return np.sqrt((cx - px) ** 2 + (cy - py) ** 2)
+    xy = pos[:, :, :2]   # (n, n_lm, 2)
+    vis = pos[:, :, 2]   # (n, n_lm)
 
-        hand_energy = max(vel("left_wrist"), vel("right_wrist")) * hand_weight
-        foot_energy = max(vel("left_ankle"), vel("right_ankle")) * foot_weight
-        hip_vel = (vel("left_hip") + vel("right_hip")) / 2.0
-        core_energy = hip_vel * core_weight
+    # Frame-to-frame displacement (n-1 pairs)
+    d_xy = np.diff(xy, axis=0)                                   # (n-1, n_lm, 2)
+    vel = np.sqrt(np.nansum(d_xy ** 2, axis=-1))                 # (n-1, n_lm)
+    vis_ok = (vis[:-1] >= MIN_VISIBILITY) & (vis[1:] >= MIN_VISIBILITY)
+    vel = np.where(vis_ok, vel, 0.0)
 
-        raw = hand_energy + foot_energy + core_energy
+    # Weighted energy per body group
+    hand = np.maximum(vel[:, 0], vel[:, 1]) * hand_weight        # (n-1,)
+    foot = np.maximum(vel[:, 2], vel[:, 3]) * foot_weight
+    core = (vel[:, 4] + vel[:, 5]) / 2.0 * core_weight
 
-        # Chalk-up suppression
-        if curr.get("left_hip") and curr.get("left_wrist"):
-            hip_y = (curr["left_hip"][1] + curr["right_hip"][1]) / 2.0
-            wrist_y_min = min(curr["left_wrist"][1], curr["right_wrist"][1])
-            feet_vel = max(vel("left_ankle"), vel("right_ankle"))
-            hands_below_hips = wrist_y_min > hip_y
-            feet_still = feet_vel < 0.005
+    raw_scores = np.zeros(n)
+    raw_scores[1:] = hand + foot + core
 
-            if hands_below_hips and feet_still:
-                raw *= 0.1
+    # --- Chalk-up suppression (vectorised) ---
+    hip_y = (pos[1:, 4, 1] + pos[1:, 5, 1]) / 2.0              # mean hip y
+    wrist_y_min = np.minimum(pos[1:, 0, 1], pos[1:, 1, 1])      # min wrist y
+    feet_vel_max = np.maximum(vel[:, 2], vel[:, 3])
+    chalk_up = (
+        ~np.isnan(hip_y) & ~np.isnan(wrist_y_min)
+        & (wrist_y_min > hip_y)
+        & (feet_vel_max < 0.005)
+    )
+    raw_scores[1:] = np.where(chalk_up, raw_scores[1:] * 0.1, raw_scores[1:])
 
-        raw_scores[i] = raw
+    scores = smooth_and_normalize(raw_scores, fps, sigma_s=smooth_sigma_s)
 
-    sigma_frames = max(1, fps * smooth_sigma_s)
-    scores = gaussian_filter1d(raw_scores, sigma=sigma_frames)
-
-    p95 = np.percentile(scores, 95)
-    if p95 > 0:
-        scores = scores / p95
-    scores = np.clip(scores, 0.0, 1.0)
+    # Blend with flow scores if available
+    if flow_scores is not None and len(flow_scores) == n and flow_weight > 0:
+        scores = scores * (1.0 - flow_weight) + flow_scores * flow_weight
+        scores = np.clip(scores, 0.0, 1.0)
 
     return scores
 
@@ -75,14 +98,19 @@ def score_progress(
     poses: list[dict | None],
     fps: float,
     smooth_sigma_s: float = 1.0,
-) -> np.ndarray:
+    vertical_bias: float = 0.7,
+) -> np.ndarray:  # shape (n_frames,), normalized [0, 1]
     """
     Compute per-frame spatial progress on the wall.
 
     Tracks the climber's center of mass (average of hips, shoulders)
-    and computes cumulative displacement. The speed curve solver then
-    allocates output time proportional to progress, creating a video
-    where visual progress feels constant.
+    and computes displacement weighted by direction. For climbing,
+    vertical movement is usually the primary progress signal.
+
+    Args:
+        vertical_bias: 0.0 = only horizontal, 0.5 = equal, 1.0 = only vertical.
+                       Default 0.7 — strongly favors vertical progress, which
+                       filters out horizontal body sway during rests.
 
     Returns:
         progress_rate: per-frame rate of progress, normalized to [0, 1].
@@ -107,7 +135,7 @@ def score_progress(
         for name in center_parts:
             if name in pose:
                 x, y, vis = pose[name]
-                if vis > 0.3:
+                if vis > MIN_VISIBILITY:
                     xs.append(x)
                     ys.append(y)
         if len(xs) >= 2:
@@ -128,19 +156,17 @@ def score_progress(
     com_x = gaussian_filter1d(com_x, sigma=pos_sigma)
     com_y = gaussian_filter1d(com_y, sigma=pos_sigma)
 
-    # Per-frame displacement (2D euclidean distance)
+    # Per-frame displacement weighted by direction
+    # vertical_bias=0.7 means 70% vertical, 30% horizontal
     dx = np.diff(com_x, prepend=com_x[0])
     dy = np.diff(com_y, prepend=com_y[0])
-    displacement = np.sqrt(dx ** 2 + dy ** 2)
 
-    # Smooth the displacement rate
-    sigma_frames = max(1, fps * smooth_sigma_s)
-    progress_rate = gaussian_filter1d(displacement, sigma=sigma_frames)
+    vb = float(np.clip(vertical_bias, 0.0, 1.0))
+    h_w = 1.0 - vb
+    v_w = vb
+    displacement = h_w * np.abs(dx) + v_w * np.abs(dy)
 
-    # Normalize to [0, 1]
-    p95 = np.percentile(progress_rate, 95)
-    if p95 > 0:
-        progress_rate = progress_rate / p95
-    progress_rate = np.clip(progress_rate, 0.0, 1.0)
+    # Smooth and normalize displacement rate
+    progress_rate = smooth_and_normalize(displacement, fps, sigma_s=smooth_sigma_s)
 
     return progress_rate

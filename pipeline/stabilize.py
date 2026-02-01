@@ -1,11 +1,17 @@
-"""Pose-anchored video stabilization.
+"""Video stabilization — layered pose-anchored + feature-based.
 
-Uses tracked body landmarks to compute a smooth virtual camera path.
-Per-frame crop offsets cancel camera shake while preserving intentional
-camera motion (following the climber up the wall).
+Two stabilization strategies that can be combined:
 
-Unlike optical-flow stabilization, this anchors on the SUBJECT, not the
-background — so intentional panning is preserved and only shake is removed.
+1. Pose-anchored (original): anchors on the climber's body center.
+   Preserves intentional panning, removes shake relative to subject.
+
+2. Feature-based (new): uses ORB features on the background wall to
+   estimate camera motion directly. More robust when pose drops
+   (overhangs, occlusion) and better at removing pure camera shake.
+
+The feature-based layer estimates camera motion from the wall/background,
+while the pose layer refines by centering on the climber. Together they
+handle both stationary and panning camera footage.
 """
 
 from __future__ import annotations
@@ -13,6 +19,51 @@ from __future__ import annotations
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
+from pipeline.constants import MIN_VISIBILITY
+
+
+# ---- Simple Kalman filter for smooth camera path ----
+
+class _Kalman1D:
+    """Minimal 1D Kalman filter for smoothing a scalar signal."""
+
+    def __init__(self, process_noise: float = 1e-4, measurement_noise: float = 1e-2):
+        self.q = process_noise
+        self.r = measurement_noise
+        self.x = 0.0  # state estimate
+        self.p = 1.0  # error covariance
+        self.initialized = False
+
+    def update(self, z: float) -> float:
+        if not self.initialized:
+            self.x = z
+            self.initialized = True
+            return self.x
+
+        # Predict
+        self.p += self.q
+
+        # Update
+        k = self.p / (self.p + self.r)
+        self.x += k * (z - self.x)
+        self.p *= 1.0 - k
+
+        return self.x
+
+
+def _kalman_smooth(signal: np.ndarray, process_noise: float = 1e-4,
+                   measurement_noise: float = 1e-2) -> np.ndarray:
+    """Forward-backward Kalman smoothing for a 1D signal."""
+    kf = _Kalman1D(process_noise, measurement_noise)
+    forward = np.array([kf.update(float(s)) for s in signal])
+
+    kf2 = _Kalman1D(process_noise, measurement_noise)
+    backward = np.array([kf2.update(float(s)) for s in signal[::-1]])[::-1]
+
+    return (forward + backward) / 2.0
+
+
+# ---- Pose-anchored stabilization (original) ----
 
 def compute_anchor_trajectory(
     poses: list[dict | None],
@@ -39,7 +90,7 @@ def compute_anchor_trajectory(
         for name in anchor_parts:
             if name in pose:
                 x, y, vis = pose[name]
-                if vis > 0.3:
+                if vis > MIN_VISIBILITY:
                     xs.append(x)
                     ys.append(y)
         if len(xs) >= 2:
@@ -63,6 +114,9 @@ def compute_stabilization_offsets(
     fps: float,
     strength: float = 0.7,
     smooth_window_s: float = 0.8,
+    camera_motion: tuple[np.ndarray, np.ndarray] | None = None,
+    camera_motion_weight: float = 0.5,
+    use_kalman: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute per-frame stabilization offsets in normalized coordinates.
 
@@ -73,28 +127,72 @@ def compute_stabilization_offsets(
         poses: per-frame pose data from extract_poses.
         fps: video framerate.
         strength: 0-1, stabilization intensity. 0=off, 1=full gimbal lock.
-                  0.7 is a good default — preserves some organic feel.
         smooth_window_s: gaussian sigma in seconds for trajectory smoothing.
-                         Larger = smoother but may lag on fast intentional pans.
-                         0.8s removes hand shake + body sway, keeps slow pans.
+        camera_motion: optional (dx, dy) from feature-based estimation
+                       (pipeline.flow.compute_camera_motion). When provided,
+                       blended with pose-based offsets for more robust result.
+        camera_motion_weight: blend weight for feature-based camera motion.
+                              0 = pose only, 1 = feature-based only.
+        use_kalman: use Kalman filter instead of Gaussian for smoothing.
+                    Better at preserving intentional pans while removing jitter.
 
     Returns:
         (dx, dy) offset arrays. Positive = crop shifts right/down to cancel
         leftward/upward shake.
     """
     raw_x, raw_y = compute_anchor_trajectory(poses)
+    n = len(raw_x)
 
-    # Heavy smooth = "virtual gimbal" path — what a perfectly smooth
-    # camera following the climber would look like
-    sigma = max(1, fps * smooth_window_s)
-    smooth_x = gaussian_filter1d(raw_x, sigma=sigma)
-    smooth_y = gaussian_filter1d(raw_y, sigma=sigma)
+    if use_kalman:
+        # Kalman: process noise controls how fast the "virtual gimbal" moves
+        # Higher = follows faster pans, Lower = smoother but more lag
+        pn = 1.0 / max(1, fps * smooth_window_s) ** 2
+        mn = 0.01 / strength if strength > 0 else 0.01
+        smooth_x = _kalman_smooth(raw_x, process_noise=pn, measurement_noise=mn)
+        smooth_y = _kalman_smooth(raw_y, process_noise=pn, measurement_noise=mn)
+    else:
+        sigma = max(1, fps * smooth_window_s)
+        smooth_x = gaussian_filter1d(raw_x, sigma=sigma)
+        smooth_y = gaussian_filter1d(raw_y, sigma=sigma)
 
-    # Offset = where subject IS minus where gimbal says it SHOULD be.
-    # This is the shake component. We apply it to the crop position
-    # to cancel the shake in the output.
-    dx = (raw_x - smooth_x) * strength
-    dy = (raw_y - smooth_y) * strength
+    # Pose-based offset: shake = raw - smooth
+    pose_dx = (raw_x - smooth_x) * strength
+    pose_dy = (raw_y - smooth_y) * strength
+
+    # Feature-based camera motion offset
+    if camera_motion is not None and camera_motion_weight > 0:
+        cam_dx, cam_dy = camera_motion
+
+        # Ensure same length
+        if len(cam_dx) != n:
+            indices = np.arange(n)
+            cam_indices = np.arange(len(cam_dx))
+            cam_dx = np.interp(indices, cam_indices, cam_dx)
+            cam_dy = np.interp(indices, cam_indices, cam_dy)
+
+        # Cumulative camera displacement
+        cum_dx = np.cumsum(cam_dx)
+        cum_dy = np.cumsum(cam_dy)
+
+        # Smooth the cumulative path
+        if use_kalman:
+            smooth_cum_dx = _kalman_smooth(cum_dx, process_noise=pn, measurement_noise=mn)
+            smooth_cum_dy = _kalman_smooth(cum_dy, process_noise=pn, measurement_noise=mn)
+        else:
+            sigma = max(1, fps * smooth_window_s)
+            smooth_cum_dx = gaussian_filter1d(cum_dx, sigma=sigma)
+            smooth_cum_dy = gaussian_filter1d(cum_dy, sigma=sigma)
+
+        feat_dx = (cum_dx - smooth_cum_dx) * strength
+        feat_dy = (cum_dy - smooth_cum_dy) * strength
+
+        # Blend pose-based and feature-based
+        w = camera_motion_weight
+        dx = pose_dx * (1 - w) + feat_dx * w
+        dy = pose_dy * (1 - w) + feat_dy * w
+    else:
+        dx = pose_dx
+        dy = pose_dy
 
     return dx, dy
 
@@ -102,11 +200,11 @@ def compute_stabilization_offsets(
 def stabilization_stats(
     dx: np.ndarray,
     dy: np.ndarray,
-) -> dict:
+) -> dict[str, float]:
     """Summary stats for stabilization offsets (for debug/logging)."""
     magnitude = np.sqrt(dx ** 2 + dy ** 2)
     return {
-        "avg_offset_pct": round(float(np.mean(magnitude)) * 100, 2),
-        "max_offset_pct": round(float(np.max(magnitude)) * 100, 2),
-        "p95_offset_pct": round(float(np.percentile(magnitude, 95)) * 100, 2),
+        "stab_avg_offset_pct": round(float(np.mean(magnitude)) * 100, 2),
+        "stab_max_offset_pct": round(float(np.max(magnitude)) * 100, 2),
+        "stab_p95_offset_pct": round(float(np.percentile(magnitude, 95)) * 100, 2),
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { useStore } from "@/lib/store";
+import { useStore, AnalysisParams } from "@/lib/store";
 import { analyzeVideo, solveCurve, renderVideo } from "@/lib/api";
 import { VideoUpload } from "@/components/video-upload";
 import { VideoPlayer } from "@/components/video-player";
@@ -14,7 +14,6 @@ export default function Home() {
   const solveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { videoId, analysis, settings, pins } = store;
 
-  // Auto-solve curve on any settings/pin change (debounced)
   useEffect(() => {
     if (!videoId || !analysis) return;
     if (solveTimeout.current) clearTimeout(solveTimeout.current);
@@ -31,15 +30,35 @@ export default function Home() {
 
   const handleAnalyze = useCallback(async () => {
     if (!videoId) return;
+
+    // Check if analysis is already cached with the same params
+    const currentParams: AnalysisParams = {
+      stride: settings.analyzeStride,
+      useTracker: settings.useTracker,
+      useFlow: settings.useFlow,
+    };
+    const cached = store.analysisParams;
+    if (
+      analysis &&
+      cached &&
+      cached.stride === currentParams.stride &&
+      cached.useTracker === currentParams.useTracker &&
+      cached.useFlow === currentParams.useFlow
+    ) {
+      store.setProgress(0, "Analysis already up to date");
+      return;
+    }
+
     store.setAnalyzing(true);
     store.setProgress(0, "Starting analysis...");
     try {
-      const result = await analyzeVideo(videoId, settings.analyzeStride, hasAnalysis, (p, msg) => {
-        store.setProgress(p, msg);
-      });
+      const result = await analyzeVideo(
+        videoId, settings.analyzeStride, false,
+        (p, msg) => { store.setProgress(p, msg); },
+        settings.useTracker, settings.useFlow,
+      );
       if (result) {
-        store.setAnalysis(result);
-        // Initialize trim to full video duration
+        store.setAnalysis(result, currentParams);
         if (settings.trimEnd === 0) {
           store.updateSettings({ trimEnd: result.duration });
         }
@@ -49,12 +68,13 @@ export default function Home() {
         store.setCurve(solveResult.curve, solveResult.times, solveResult.stats);
         store.setProgress(0, "Analysis complete!");
       }
-    } catch (e: any) {
-      store.setProgress(0, `Error: ${e.message}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      store.setProgress(0, `Error: ${msg}`);
     } finally {
       store.setAnalyzing(false);
     }
-  }, [videoId, settings, pins]);
+  }, [videoId, analysis, settings, pins]);
 
   const handleRender = useCallback(async () => {
     if (!videoId) return;
@@ -68,8 +88,9 @@ export default function Home() {
         store.setOutputId(result.output_id);
         store.setProgress(0, `Done! ${result.stats?.output_duration}s video ready`);
       }
-    } catch (e: any) {
-      store.setProgress(0, `Error: ${e.message}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      store.setProgress(0, `Error: ${msg}`);
     } finally {
       store.setRendering(false);
     }
@@ -78,13 +99,13 @@ export default function Home() {
   const hasAnalysis = !!analysis;
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-6">
+    <main className="max-w-4xl mx-auto px-6 py-12 flex flex-col gap-8">
       {/* Header */}
-      <header className="flex items-baseline gap-3">
-        <h1 className="text-3xl font-black tracking-tight" style={{ color: "var(--accent)" }}>
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight" style={{ color: "var(--accent)" }}>
           climb-ramp
         </h1>
-        <p className="text-sm text-text-muted">
+        <p className="text-sm text-text-muted mt-0.5">
           speed-ramp your sends
         </p>
       </header>
@@ -95,57 +116,73 @@ export default function Home() {
         <VideoPlayer />
       </div>
 
-      {/* Action bar */}
+      {/* Actions */}
       <div className="flex flex-col gap-3">
         <div className="flex gap-3">
           <button
             onClick={handleAnalyze}
             disabled={!videoId || store.isAnalyzing}
-            title="Detect the climber's body in each frame and compute movement scores. Only needed once per video — results are cached."
-            className={`flex-1 py-3.5 rounded-xl font-bold text-sm border-2 transition-all ${
+            title="Detect the climber's body in each frame and compute movement scores."
+            className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${
               store.isAnalyzing
-                ? "border-accent bg-accent/10 text-accent animate-pulse"
+                ? "bg-accent/10 text-accent border border-accent/30"
                 : videoId && !hasAnalysis
-                  ? "border-accent bg-accent text-white shadow-lg pulse-border"
-                  : "border-border bg-bg-card text-text hover:border-accent hover:bg-bg-input"
+                  ? "bg-accent text-white shadow-md hover:shadow-lg hover:bg-accent-hover pulse-border"
+                  : "bg-bg-card-solid text-text border border-border hover:border-accent/40"
             } disabled:opacity-40 disabled:cursor-not-allowed`}
           >
-            {store.isAnalyzing ? "🔍 analyzing..." : hasAnalysis ? "🔄 re-analyze" : "🔍 analyze"}
+            {store.isAnalyzing ? "analyzing..." : hasAnalysis ? "re-analyze" : "analyze"}
           </button>
           <button
             onClick={handleRender}
             disabled={!videoId || !hasAnalysis || store.isRendering}
-            title="Render the speed-ramped video with your current settings. Tweak sliders and pins first, then hit render when you're happy with the curve."
-            className={`flex-1 py-3.5 rounded-xl font-bold text-sm border-2 transition-all ${
+            title="Render the speed-ramped video with your current settings."
+            className={`flex-1 py-3 rounded-xl text-sm font-medium transition-all ${
               store.isRendering
-                ? "border-warm bg-warm/10 text-warm animate-pulse"
+                ? "bg-warm/10 text-warm border border-warm/30"
                 : hasAnalysis
-                  ? "border-accent bg-accent text-white shadow-lg hover:bg-accent-hover"
-                  : "border-border bg-bg-card text-text-muted"
+                  ? "bg-accent text-white shadow-md hover:shadow-lg hover:bg-accent-hover"
+                  : "bg-bg-card-solid text-text-muted border border-border"
             } disabled:opacity-40 disabled:cursor-not-allowed`}
           >
-            {store.isRendering ? "🎬 rendering..." : "🎬 render"}
+            {store.isRendering ? "rendering..." : "render"}
           </button>
         </div>
         <ProgressBar />
       </div>
 
-      {/* Timeline editor */}
+      {/* Timeline */}
       <TimelineEditor />
 
-      {/* Stats pill */}
+      {/* Stats */}
       {store.stats && (
         <div className="flex flex-wrap gap-2 justify-center">
           {[
-            { label: "output", value: `${store.stats.output_duration}s`, emoji: "⏱" },
-            { label: "speed", value: `${store.stats.speed_min}x–${store.stats.speed_max}x`, emoji: "⚡" },
-            { label: "ratio", value: `${store.stats.action_rest_ratio}x`, emoji: "📊" },
-            { label: "real-time", value: `${store.stats.slow_pct}%`, emoji: "🐌" },
-          ].map(({ label, value, emoji }) => (
-            <span key={label} className="px-3 py-1 bg-bg-card border border-border rounded-full text-xs font-mono text-text-muted">
-              {emoji} {label}: <span className="text-text font-semibold">{value}</span>
+            { label: "output", value: `${store.stats.output_duration}s` },
+            { label: "speed", value: `${store.stats.speed_min}x\u2013${store.stats.speed_max}x` },
+            { label: "ratio", value: `${store.stats.action_rest_ratio}x` },
+            { label: "real-time", value: `${store.stats.slow_pct}%` },
+          ].map(({ label, value }) => (
+            <span key={label} className="px-3 py-1 bg-bg-card-solid border border-border rounded-full text-xs font-mono text-text-muted">
+              {label}: <span className="text-text font-medium">{value}</span>
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Analysis feature badges */}
+      {analysis && (
+        <div className="flex flex-wrap gap-1.5 justify-center -mt-4">
+          {analysis.tracker_available && (
+            <span className="px-2 py-0.5 bg-accent/10 border border-accent/20 rounded-full text-[10px] font-medium text-accent">
+              person tracking
+            </span>
+          )}
+          {analysis.flow_available && (
+            <span className="px-2 py-0.5 bg-accent/10 border border-accent/20 rounded-full text-[10px] font-medium text-accent">
+              optical flow
+            </span>
+          )}
         </div>
       )}
 
@@ -153,7 +190,7 @@ export default function Home() {
       <SettingsPanel />
 
       {/* Footer */}
-      <footer className="text-center text-xs text-text-muted py-4 opacity-60">
+      <footer className="text-center text-xs text-text-muted py-6 opacity-40">
         made for sending
       </footer>
     </main>

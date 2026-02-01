@@ -4,19 +4,16 @@ import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { Settings, DEFAULT_SETTINGS, PRESETS } from "@/lib/types";
 
-function Slider({ label, emoji, info, value, min, max, step, onChange }: {
-  label: string; emoji?: string; info?: string; value: number;
+function Slider({ label, info, value, min, max, step, onChange }: {
+  label: string; info?: string; value: number;
   min: number; max: number; step: number;
   onChange: (v: number) => void;
 }) {
   return (
     <label className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
       <div className="flex justify-between items-baseline">
-        <span className="text-xs font-semibold text-text">
-          {emoji && <span className="mr-1">{emoji}</span>}
-          {label}
-        </span>
-        <span className="text-xs font-mono text-accent font-bold">{value}</span>
+        <span className="text-xs font-medium text-text">{label}</span>
+        <span className="text-xs font-mono text-accent tabular-nums">{value}</span>
       </div>
       <input
         type="range" min={min} max={max} step={step} value={value}
@@ -28,28 +25,40 @@ function Slider({ label, emoji, info, value, min, max, step, onChange }: {
   );
 }
 
-function Section({ title, emoji, children, defaultOpen = false }: {
-  title: string; emoji?: string; children: React.ReactNode; defaultOpen?: boolean;
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="12" height="12" viewBox="0 0 12 12" fill="none"
+      className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+      style={{ color: "var(--text-muted)" }}
+    >
+      <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function Section({ title, children, defaultOpen = false }: {
+  title: string; children: React.ReactNode; defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border border-border rounded-xl overflow-hidden bg-bg-card/50">
+    <div className="border border-border rounded-xl overflow-hidden bg-bg-card-solid">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full px-4 py-3 text-left text-sm font-medium text-text flex justify-between items-center hover:bg-bg-card transition-colors"
+        className="w-full px-4 py-3 text-left text-sm font-medium text-text flex justify-between items-center hover:bg-bg-input transition-colors"
       >
-        <span>{emoji && <span className="mr-2">{emoji}</span>}{title}</span>
-        <span className={`text-text-muted text-xs transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+        <span>{title}</span>
+        <Chevron open={open} />
       </button>
       {open && <div className="px-4 pb-4 pt-2 border-t border-border">{children}</div>}
     </div>
   );
 }
 
-function PhaseLabel({ label, detail }: { label: string; detail: string }) {
+function Divider({ label, detail }: { label: string; detail: string }) {
   return (
-    <div className="flex items-center gap-2 pt-2 pb-0.5">
-      <span className="text-[10px] font-bold uppercase tracking-widest text-accent">{label}</span>
+    <div className="flex items-center gap-2.5 pt-2 pb-0.5">
+      <span className="text-[10px] font-semibold uppercase tracking-widest text-accent">{label}</span>
       <span className="text-[10px] text-text-muted">{detail}</span>
       <div className="flex-1 border-t border-border/50" />
     </div>
@@ -59,7 +68,7 @@ function PhaseLabel({ label, detail }: { label: string; detail: string }) {
 export function SettingsPanel() {
   const { settings, updateSettings } = useStore();
   const s = settings;
-  const u = (k: keyof Settings, v: any) => updateSettings({ [k]: v });
+  const u = (k: keyof Settings, v: Settings[keyof Settings]) => updateSettings({ [k]: v });
 
   const applyPreset = (overrides: Partial<Settings>) => {
     updateSettings({ ...DEFAULT_SETTINGS, ...overrides, trimStart: s.trimStart, trimEnd: s.trimEnd, analyzeStride: s.analyzeStride });
@@ -73,38 +82,36 @@ export function SettingsPanel() {
           <button
             key={p.name}
             onClick={() => applyPreset(p.overrides)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-border hover:border-accent hover:bg-accent/10 transition-all text-text-muted hover:text-text"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:border-accent/40 hover:bg-bg-card transition-colors text-text-muted hover:text-text"
             title={p.desc}
           >
-            <span className="mr-1">{p.emoji}</span>
             {p.name}
           </button>
         ))}
       </div>
 
-      <PhaseLabel label="Speed Curve" detail="instant preview" />
+      <Divider label="Speed Curve" detail="instant preview" />
 
       {/* Mode toggle */}
-      <div className="flex gap-1 p-1 bg-bg-card rounded-xl">
+      <div className="flex gap-1 p-1 bg-bg-card-solid rounded-xl border border-border">
         {([
-          { key: "progress" as const, label: "Constant Progress", emoji: "🏔️", desc: "smooth journey up the wall" },
-          { key: "action" as const, label: "Action Highlight", emoji: "⚡", desc: "slow-mo on big moves" },
-        ]).map(({ key, label, emoji }) => (
+          { key: "progress" as const, label: "Constant Progress" },
+          { key: "action" as const, label: "Action Highlight" },
+        ]).map(({ key, label }) => (
           <button
             key={key}
             onClick={() => u("mode", key)}
-            className={`flex-1 py-2.5 px-3 rounded-lg text-sm font-semibold transition-all ${
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
               s.mode === key
-                ? "bg-accent text-white shadow-md"
-                : "text-text-muted hover:text-text hover:bg-bg-input"
+                ? "bg-accent text-white shadow-sm"
+                : "text-text-muted hover:text-text"
             }`}
           >
-            <span className="mr-1.5">{emoji}</span>
             {label}
           </button>
         ))}
       </div>
-      <p className="text-[11px] text-text-muted -mt-1 px-1">
+      <p className="text-[11px] text-text-muted -mt-1 px-1 leading-relaxed">
         {s.mode === "progress"
           ? "at 50% of the video, you're 50% up the boulder. stalling = fast forward, moving = real time."
           : "big moves get slow-mo, chalk-ups get skipped. classic climbing edit style."}
@@ -112,13 +119,13 @@ export function SettingsPanel() {
 
       {/* Main sliders */}
       <div className="flex gap-5 flex-wrap">
-        <Slider emoji="⏱" label="Duration" info="target output length" value={s.targetDuration} min={3} max={120} step={1} onChange={(v) => u("targetDuration", v)} />
-        <Slider emoji="🎯" label="Sensitivity" info="lower = more generous slow-mo" value={s.sensitivity} min={0.01} max={0.99} step={0.01} onChange={(v) => u("sensitivity", v)} />
-        <Slider emoji="⏩" label="Max Speed" info="how fast to skip rest" value={s.maxSpeed} min={1} max={30} step={0.5} onChange={(v) => u("maxSpeed", v)} />
+        <Slider label="Duration" info="target output length" value={s.targetDuration} min={3} max={120} step={1} onChange={(v) => u("targetDuration", v)} />
+        <Slider label="Sensitivity" info="lower = more generous slow-mo" value={s.sensitivity} min={0.01} max={0.99} step={0.01} onChange={(v) => u("sensitivity", v)} />
+        <Slider label="Max Speed" info="how fast to skip rest" value={s.maxSpeed} min={1} max={30} step={0.5} onChange={(v) => u("maxSpeed", v)} />
       </div>
 
       {/* Advanced */}
-      <Section emoji="🎛" title="Speed Curve">
+      <Section title="Speed Curve">
         <div className="flex gap-5 flex-wrap">
           <Slider label="Min Speed" info="0.05 = 20x slow-mo" value={s.minSpeed} min={0.05} max={1} step={0.01} onChange={(v) => u("minSpeed", v)} />
           {s.mode === "action" && (
@@ -126,29 +133,32 @@ export function SettingsPanel() {
           )}
           <Slider label="Smoothing" info="seconds of curve blur" value={s.smoothing} min={0.05} max={2} step={0.05} onChange={(v) => u("smoothing", v)} />
           {s.mode === "progress" && (
-            <Slider label="Floor" info="higher = less aggressive skip on stalls" value={s.progressFloor} min={0.001} max={0.3} step={0.001} onChange={(v) => u("progressFloor", v)} />
+            <>
+              <Slider label="Vertical Bias" info="0.5 = equal, 1.0 = vertical only" value={s.verticalBias} min={0} max={1} step={0.05} onChange={(v) => u("verticalBias", v)} />
+              <Slider label="Rest Skip" info="seconds of stillness before fast-forward" value={s.restThreshold} min={0} max={2} step={0.05} onChange={(v) => u("restThreshold", v)} />
+            </>
           )}
         </div>
       </Section>
 
       {s.mode === "action" && (
-        <Section emoji="🦎" title="Body Part Weights">
+        <Section title="Body Part Weights">
           <div className="flex gap-5 flex-wrap">
             <Slider label="Hands" info="reaching for holds" value={s.handWeight} min={0} max={10} step={0.1} onChange={(v) => u("handWeight", v)} />
             <Slider label="Feet" info="foot placements" value={s.footWeight} min={0} max={10} step={0.1} onChange={(v) => u("footWeight", v)} />
-            <Slider label="Core" info="dyno detector 🚀" value={s.coreWeight} min={0} max={20} step={0.1} onChange={(v) => u("coreWeight", v)} />
+            <Slider label="Core" info="dyno detector" value={s.coreWeight} min={0} max={20} step={0.1} onChange={(v) => u("coreWeight", v)} />
           </div>
         </Section>
       )}
 
-      <PhaseLabel label="Render" detail="re-render to apply" />
+      <Divider label="Render" detail="re-render to apply" />
 
-      <Section emoji="📐" title="Stabilization" defaultOpen={true}>
+      <Section title="Stabilization" defaultOpen={true}>
         <div className="flex flex-col gap-3">
           <label className="flex items-center gap-2 text-xs text-text cursor-pointer">
             <input type="checkbox" checked={s.stabilize} onChange={(e) => u("stabilize", e.target.checked)}
               className="accent-accent w-4 h-4 rounded" />
-            <span className="font-semibold">enable pose-anchored stabilization</span>
+            <span className="font-medium">enable stabilization</span>
           </label>
           {s.stabilize && (
             <>
@@ -160,17 +170,25 @@ export function SettingsPanel() {
                 <Slider label="Smoothness" info="seconds of trajectory smoothing" value={s.stabilizeSmoothness} min={0.1} max={5} step={0.1} onChange={(v) => u("stabilizeSmoothness", v)} />
                 <Slider label="Crop" info="frame sacrificed for shake room" value={s.stabilizeCrop} min={0.01} max={0.5} step={0.01} onChange={(v) => u("stabilizeCrop", v)} />
               </div>
+              <label className="flex items-center gap-2 text-xs text-text cursor-pointer mt-1">
+                <input type="checkbox" checked={s.useFeatureStabilize} onChange={(e) => u("useFeatureStabilize", e.target.checked)}
+                  className="accent-accent w-4 h-4 rounded" />
+                <span className="font-medium">blend feature-based camera motion</span>
+              </label>
+              {s.useFeatureStabilize && (
+                <Slider label="Feature Weight" info="0 = pose only, 1 = features only" value={s.featureStabilizeWeight} min={0} max={1} step={0.05} onChange={(v) => u("featureStabilizeWeight", v)} />
+              )}
             </>
           )}
         </div>
       </Section>
 
-      <Section emoji="🎥" title="Export Quality">
+      <Section title="Export Quality">
         <div className="flex gap-5 flex-wrap items-end">
           <Slider label="Resolution" info="0.25 = tiny preview, 1.0 = full res" value={s.scale} min={0.1} max={1} step={0.05} onChange={(v) => u("scale", v)} />
           <Slider label="Quality" info="lower = sharper, bigger file" value={s.crf} min={10} max={40} step={1} onChange={(v) => u("crf", v)} />
           <label className="flex flex-col gap-1.5 flex-1 min-w-[120px]">
-            <span className="text-xs font-semibold text-text">FPS</span>
+            <span className="text-xs font-medium text-text">FPS</span>
             <select value={s.outputFps} onChange={(e) => u("outputFps", parseInt(e.target.value))}
               className="bg-bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text">
               <option value={24}>24 (cinematic)</option>
@@ -179,32 +197,61 @@ export function SettingsPanel() {
             </select>
           </label>
         </div>
-        <label className="flex items-center gap-2 mt-3 text-xs text-text-muted cursor-pointer">
-          <input type="checkbox" checked={s.debugOverlay} onChange={(e) => u("debugOverlay", e.target.checked)}
-            className="accent-accent w-4 h-4 rounded" />
-          show debug overlay (skeleton + speed badge)
-        </label>
+        <div className="flex flex-col gap-2 mt-3">
+          <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer">
+            <input type="checkbox" checked={s.includeAudio} onChange={(e) => u("includeAudio", e.target.checked)}
+              className="accent-accent w-4 h-4 rounded" />
+            include audio (time-stretched from source)
+          </label>
+          <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer">
+            <input type="checkbox" checked={s.debugOverlay} onChange={(e) => u("debugOverlay", e.target.checked)}
+              className="accent-accent w-4 h-4 rounded" />
+            show debug overlay (skeleton + speed badge)
+          </label>
+        </div>
       </Section>
 
-      <PhaseLabel label="Analysis" detail="re-analyze to apply" />
+      <Divider label="Analysis" detail="re-analyze to apply" />
 
-      <Section emoji="🔬" title="Analysis">
-        <div className="flex gap-5 flex-wrap items-end">
-          <label className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs font-semibold text-text">Detection Quality</span>
-              <span className="text-xs font-mono text-accent font-bold">
-                {s.analyzeStride === 1 ? "high" : s.analyzeStride === 2 ? "balanced" : "fast"}
-              </span>
-            </div>
-            <select value={s.analyzeStride} onChange={(e) => u("analyzeStride", parseInt(e.target.value))}
-              className="bg-bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text">
-              <option value={1}>every frame (slow, best tracking)</option>
-              <option value={2}>every 2nd frame (default)</option>
-              <option value={3}>every 3rd frame (fast, rougher)</option>
-            </select>
-            <span className="text-[10px] text-text-muted leading-tight">re-analyze after changing</span>
-          </label>
+      <Section title="Analysis">
+        <div className="flex flex-col gap-3">
+          <div className="flex gap-5 flex-wrap items-end">
+            <label className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs font-medium text-text">Detection Quality</span>
+                <span className="text-xs font-mono text-accent">
+                  {s.analyzeStride === 1 ? "high" : s.analyzeStride === 2 ? "balanced" : "fast"}
+                </span>
+              </div>
+              <select value={s.analyzeStride} onChange={(e) => u("analyzeStride", parseInt(e.target.value))}
+                className="bg-bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text">
+                <option value={1}>every frame (slow, best tracking)</option>
+                <option value={2}>every 2nd frame (default)</option>
+                <option value={3}>every 3rd frame (fast, rougher)</option>
+              </select>
+              <span className="text-[10px] text-text-muted leading-tight">re-analyze after changing</span>
+            </label>
+          </div>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-xs text-text cursor-pointer">
+              <input type="checkbox" checked={s.useTracker} onChange={(e) => u("useTracker", e.target.checked)}
+                className="accent-accent w-4 h-4 rounded" />
+              <span className="font-medium">person tracking</span>
+              <span className="text-[10px] text-text-muted">(YOLOv8 + ByteTrack)</span>
+            </label>
+            <p className="text-[10px] text-text-muted leading-tight ml-6 -mt-1">
+              tracks the climber across frames. rejects belayer, improves pose accuracy on overhangs.
+            </p>
+            <label className="flex items-center gap-2 text-xs text-text cursor-pointer">
+              <input type="checkbox" checked={s.useFlow} onChange={(e) => u("useFlow", e.target.checked)}
+                className="accent-accent w-4 h-4 rounded" />
+              <span className="font-medium">optical flow</span>
+              <span className="text-[10px] text-text-muted">(background-compensated)</span>
+            </label>
+            <p className="text-[10px] text-text-muted leading-tight ml-6 -mt-1">
+              subtracts camera shake from motion scores. more robust than pose velocity alone.
+            </p>
+          </div>
         </div>
       </Section>
     </div>

@@ -37,15 +37,14 @@ export function VideoUpload() {
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onClick={openPicker}
-        className={`rounded-2xl border-2 border-dashed p-10 text-center cursor-pointer transition-all duration-200 ${
+        className={`rounded-2xl border border-dashed p-10 text-center cursor-pointer transition-all duration-200 ${
           isDragging
-            ? "border-accent bg-glow scale-[1.02]"
-            : "border-border hover:border-accent-light hover:bg-bg-card"
+            ? "border-accent bg-accent/5 scale-[1.01]"
+            : "border-border hover:border-accent/40 hover:bg-bg-card"
         }`}
       >
-        <div className="text-3xl mb-2">🧗</div>
-        <p className="text-sm text-text-muted">drop a climbing video here</p>
-        <p className="text-xs text-text-muted mt-1">or click to browse</p>
+        <p className="text-sm text-text-muted font-medium">drop a climbing video here</p>
+        <p className="text-xs text-text-muted mt-1 opacity-50">or click to browse</p>
       </div>
     );
   }
@@ -55,7 +54,7 @@ export function VideoUpload() {
       {thumbnails.length > 0 && (
         <div className="flex gap-0.5 overflow-hidden rounded-xl">
           {thumbnails.map((t, i) => (
-            <img key={i} src={t} alt="" className="h-20 object-cover flex-1 min-w-0" />
+            <img key={i} src={t} alt={`Video thumbnail ${i + 1} of ${thumbnails.length}`} className="h-20 object-cover flex-1 min-w-0" />
           ))}
         </div>
       )}

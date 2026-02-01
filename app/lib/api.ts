@@ -1,6 +1,6 @@
-import { Pin, Settings, SolveResult } from "./types";
+import { AnalysisData, Pin, Settings, SolveResult } from "./types";
 
-const API = "http://localhost:8000";
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export async function uploadVideo(file: File) {
   const form = new FormData();
@@ -20,16 +20,27 @@ export async function analyzeVideo(
   stride: number,
   force: boolean,
   onProgress: (progress: number, message: string) => void,
-) {
+  useTracker: boolean = true,
+  useFlow: boolean = true,
+): Promise<AnalysisData | null> {
   const res = await fetch(`${API}/api/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ video_id: videoId, stride, force }),
+    body: JSON.stringify({
+      video_id: videoId,
+      stride,
+      force,
+      use_tracker: useTracker,
+      use_flow: useFlow,
+    }),
   });
 
-  const reader = res.body!.getReader();
+  if (!res.ok) throw new Error(await res.text());
+  if (!res.body) throw new Error("No response body");
+
+  const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  let result: any = null;
+  let result: AnalysisData | null = null;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -37,9 +48,13 @@ export async function analyzeVideo(
     const text = decoder.decode(value);
     for (const line of text.split("\n")) {
       if (line.startsWith("data: ")) {
-        const data = JSON.parse(line.slice(6));
-        onProgress(data.progress, data.message);
-        if (data.done) result = data;
+        try {
+          const data = JSON.parse(line.slice(6));
+          onProgress(data.progress, data.message);
+          if (data.done) result = data;
+        } catch {
+          // skip malformed SSE lines
+        }
       }
     }
   }
@@ -67,6 +82,8 @@ export async function solveCurve(
       foot_weight: settings.footWeight,
       core_weight: settings.coreWeight,
       progress_floor: settings.progressFloor,
+      vertical_bias: settings.verticalBias,
+      rest_threshold_s: settings.restThreshold,
       trim_start: settings.trimStart,
       trim_end: settings.trimEnd,
       pins,
@@ -76,12 +93,23 @@ export async function solveCurve(
   return res.json();
 }
 
+interface RenderResult {
+  output_id: string;
+  stats: {
+    output_duration: number;
+    speed_min: number;
+    speed_max: number;
+    slow_pct: number;
+    action_rest_ratio: number;
+  };
+}
+
 export async function renderVideo(
   videoId: string,
   settings: Settings,
   pins: Pin[],
   onProgress: (progress: number, message: string) => void,
-) {
+): Promise<RenderResult | null> {
   const res = await fetch(`${API}/api/render`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -98,6 +126,8 @@ export async function renderVideo(
       foot_weight: settings.footWeight,
       core_weight: settings.coreWeight,
       progress_floor: settings.progressFloor,
+      vertical_bias: settings.verticalBias,
+      rest_threshold_s: settings.restThreshold,
       trim_start: settings.trimStart,
       trim_end: settings.trimEnd,
       pins,
@@ -109,12 +139,18 @@ export async function renderVideo(
       stabilize_strength: settings.stabilizeStrength,
       stabilize_smoothness: settings.stabilizeSmoothness,
       stabilize_crop: settings.stabilizeCrop,
+      include_audio: settings.includeAudio,
+      use_feature_stabilize: settings.useFeatureStabilize,
+      feature_stabilize_weight: settings.featureStabilizeWeight,
     }),
   });
 
-  const reader = res.body!.getReader();
+  if (!res.ok) throw new Error(await res.text());
+  if (!res.body) throw new Error("No response body");
+
+  const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  let result: any = null;
+  let result: RenderResult | null = null;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -122,9 +158,13 @@ export async function renderVideo(
     const text = decoder.decode(value);
     for (const line of text.split("\n")) {
       if (line.startsWith("data: ")) {
-        const data = JSON.parse(line.slice(6));
-        onProgress(data.progress, data.message);
-        if (data.done) result = data;
+        try {
+          const data = JSON.parse(line.slice(6));
+          onProgress(data.progress, data.message);
+          if (data.done) result = data;
+        } catch {
+          // skip malformed SSE lines
+        }
       }
     }
   }

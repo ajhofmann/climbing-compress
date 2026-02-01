@@ -11,6 +11,7 @@ const config: Config = {
       colors: {
         bg: "var(--bg)",
         "bg-card": "var(--bg-card)",
+        "bg-card-solid": "var(--bg-card-solid)",
         "bg-input": "var(--bg-input)",
         border: "var(--border)",
         text: "var(--text)",

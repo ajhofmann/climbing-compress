@@ -36,8 +36,9 @@ export function TimelineEditor() {
       <div className="flex justify-between items-center px-1">
         <span className="text-xs font-medium text-text">speed curve editor</span>
         <div className="flex gap-3 text-[10px] text-text-muted">
-          <span>click to add point</span>
-          <span>drag to adjust</span>
+          <span>click to add</span>
+          <span>drag to move</span>
+          <span>scroll to resize</span>
           <span>right-click to delete</span>
           {pins.length > 0 && (
             <button onClick={() => setPins([])} className="text-danger hover:underline">
@@ -49,6 +50,8 @@ export function TimelineEditor() {
       <canvas
         ref={canvasRef}
         {...handlers}
+        aria-label="Speed curve editor — click to add pins, drag to move, scroll to resize, right-click to delete"
+        role="img"
         className="w-full h-44 rounded-lg border border-border"
       />
       <div className="flex justify-between px-1 text-[10px] text-text-muted">

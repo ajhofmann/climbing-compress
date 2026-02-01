@@ -1,4 +1,8 @@
-"""Analysis result caching — skip re-analysis when tuning parameters."""
+"""Analysis result caching — skip re-analysis when tuning parameters.
+
+Caches pose data, movement scores, tracking data, and flow scores
+under content-hash-based directories.
+"""
 
 from __future__ import annotations
 
@@ -33,13 +37,9 @@ def content_hash(video_path: str) -> str:
     return h.hexdigest()[:12]
 
 
-# Internal alias
-_video_hash = content_hash
-
-
 def get_cache_path(video_path: str) -> Path:
     """Return cache directory for a video."""
-    h = _video_hash(video_path)
+    h = content_hash(video_path)
     path = CACHE_DIR / h
     path.mkdir(parents=True, exist_ok=True)
     return path
@@ -96,6 +96,81 @@ def load_analysis(video_path: str, expected_stride: int | None = None) -> tuple 
     return poses, fps, scores
 
 
+# ---- Tracker cache ----
+
+def save_tracks(video_path: str, tracks: list[dict | None], fps: float, stride: int = 1):
+    """Save per-frame tracking results to cache."""
+    cache = get_cache_path(video_path)
+
+    serializable = []
+    for t in tracks:
+        if t is None:
+            serializable.append(None)
+        else:
+            # Only cache the fields we need (bbox_norm, track_id, confidence)
+            serializable.append({
+                "bbox_norm": list(t["bbox_norm"]) if "bbox_norm" in t else None,
+                "track_id": t.get("track_id"),
+                "confidence": t.get("confidence"),
+                "n_persons": t.get("n_persons", 1),
+            })
+
+    with open(cache / "tracks.json", "w") as f:
+        json.dump({"fps": fps, "stride": stride, "tracks": serializable}, f)
+
+
+def load_tracks(video_path: str, expected_stride: int | None = None) -> tuple | None:
+    """Load cached tracking results. Returns (tracks, fps) or None."""
+    cache = get_cache_path(video_path)
+    tracks_path = cache / "tracks.json"
+
+    if not tracks_path.exists():
+        return None
+
+    with open(tracks_path) as f:
+        data = json.load(f)
+
+    if expected_stride is not None and data.get("stride", 1) != expected_stride:
+        return None
+
+    fps = data["fps"]
+    tracks = []
+    for t in data["tracks"]:
+        if t is None:
+            tracks.append(None)
+        else:
+            if t.get("bbox_norm") is not None:
+                t["bbox_norm"] = tuple(t["bbox_norm"])
+            tracks.append(t)
+
+    return tracks, fps
+
+
+def has_tracks(video_path: str) -> bool:
+    """Check if tracking cache exists for a video."""
+    cache = get_cache_path(video_path)
+    return (cache / "tracks.json").exists()
+
+
+# ---- Flow scores cache ----
+
+def save_flow_scores(video_path: str, flow_scores: np.ndarray):
+    """Save flow-based movement scores to cache."""
+    cache = get_cache_path(video_path)
+    np.save(cache / "flow_scores.npy", flow_scores)
+
+
+def load_flow_scores(video_path: str) -> np.ndarray | None:
+    """Load cached flow scores. Returns None if no cache."""
+    cache = get_cache_path(video_path)
+    path = cache / "flow_scores.npy"
+    if not path.exists():
+        return None
+    return np.load(path)
+
+
+# ---- General ----
+
 def has_cache(video_path: str) -> bool:
     """Check if analysis cache exists for a video."""
     cache = get_cache_path(video_path)
@@ -103,7 +178,8 @@ def has_cache(video_path: str) -> bool:
 
 
 def clear_cache(video_path: str):
-    """Remove cache for a video."""
+    """Remove all cache for a video."""
     cache = get_cache_path(video_path)
-    for f in cache.iterdir():
-        f.unlink()
+    if cache.exists():
+        for f in cache.iterdir():
+            f.unlink()

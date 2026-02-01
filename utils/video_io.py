@@ -1,16 +1,14 @@
-"""Video I/O utilities — read with OpenCV, write with ffmpeg."""
+"""Video I/O utilities — shared helpers for video reading across the pipeline."""
 
 from __future__ import annotations
 
-import subprocess
-import tempfile
-from pathlib import Path
+from collections.abc import Iterator
 
 import cv2
 import numpy as np
 
 
-def get_video_info(path: str) -> dict:
+def get_video_info(path: str) -> dict[str, float | int]:
     """Get video metadata without reading all frames."""
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
@@ -26,83 +24,72 @@ def get_video_info(path: str) -> dict:
     return info
 
 
-def iter_frames(path: str, scale: float = 1.0):
-    """Yield RGB frames one at a time. Memory-efficient."""
+def iter_video_frames(
+    path: str,
+    max_short_side: int | None = None,
+    stride: int = 1,
+    color: str = "bgr",
+) -> Iterator[tuple[int, np.ndarray, dict]]:
+    """Yield ``(frame_idx, frame, meta)`` for stride-matched frames.
+
+    Centralises the video-read → resize → stride-skip → color-convert
+    loop that was previously duplicated in ``pose.py``, ``flow.py``, and
+    ``tracker.py``.  Skipped stride frames use ``cap.grab()`` (no pixel
+    decode) for a significant speedup at stride > 1.
+
+    Args:
+        path: Video file path.
+        max_short_side: Resize so the shorter dimension is at most this
+            value.  ``None`` disables resizing (caller handles it).
+        stride: Process every *N*-th frame (1 = all frames).
+        color: Output colour space — ``"bgr"`` (default), ``"gray"``,
+            or ``"rgb"``.
+
+    Yields:
+        ``(frame_idx, frame, meta)`` where *meta* is a dict with keys
+        ``fps``, ``total_frames``, ``orig_h``, ``orig_w``.  The same
+        dict reference is reused on every yield.
+    """
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         raise ValueError(f"Cannot open video: {path}")
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        if scale != 1.0:
-            h, w = frame_rgb.shape[:2]
-            new_w, new_h = int(w * scale), int(h * scale)
-            frame_rgb = cv2.resize(frame_rgb, (new_w, new_h))
-        yield frame_rgb
-    cap.release()
 
+    meta: dict = {
+        "fps": cap.get(cv2.CAP_PROP_FPS),
+        "total_frames": int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
+        "orig_w": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+        "orig_h": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+    }
 
-def read_frame_at(path: str, frame_idx: int, scale: float = 1.0) -> np.ndarray | None:
-    """Read a single frame by index."""
-    cap = cv2.VideoCapture(str(path))
-    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-    ret, frame = cap.read()
-    cap.release()
-    if not ret:
-        return None
-    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    if scale != 1.0:
-        h, w = frame_rgb.shape[:2]
-        frame_rgb = cv2.resize(frame_rgb, (int(w * scale), int(h * scale)))
-    return frame_rgb
+    frame_idx = 0
+    try:
+        while True:
+            # Skip non-stride frames without decoding
+            if stride > 1 and frame_idx % stride != 0:
+                if not cap.grab():
+                    break
+                frame_idx += 1
+                continue
 
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-def write_video_ffmpeg(
-    frames: list[np.ndarray],
-    fps: float,
-    output_path: str,
-) -> str:
-    """Write frames to H.264 MP4 using ffmpeg. Returns output path."""
-    if not frames:
-        raise ValueError("No frames to write")
+            # Resize by short side
+            if max_short_side is not None:
+                h, w = frame.shape[:2]
+                short_side = min(h, w)
+                if short_side > max_short_side:
+                    s = max_short_side / short_side
+                    frame = cv2.resize(frame, (int(w * s), int(h * s)))
 
-    h, w = frames[0].shape[:2]
-    output_path = str(output_path)
+            # Colour conversion
+            if color == "gray":
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            elif color == "rgb":
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    # Ensure .mp4 extension
-    if not output_path.endswith(".mp4"):
-        output_path += ".mp4"
-
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", "rawvideo",
-        "-vcodec", "rawvideo",
-        "-s", f"{w}x{h}",
-        "-pix_fmt", "rgb24",
-        "-r", str(fps),
-        "-i", "-",
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        "-preset", "fast",
-        "-crf", "23",
-        "-movflags", "+faststart",
-        output_path,
-    ]
-
-    proc = subprocess.Popen(
-        cmd,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    for frame in frames:
-        proc.stdin.write(frame.astype(np.uint8).tobytes())
-    proc.stdin.close()
-    _, stderr = proc.communicate()
-
-    if proc.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed: {stderr.decode()}")
-
-    return output_path
+            yield frame_idx, frame, meta
+            frame_idx += 1
+    finally:
+        cap.release()
