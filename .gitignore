@@ -1,0 +1,34 @@
+# Data
+data/input/
+data/cache/
+data/output/
+data/presets/
+
+# Models (large binaries)
+models/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Env
+.env
+.env.*
+
+# Next.js
+app/node_modules/
+app/.next/
+app/out/

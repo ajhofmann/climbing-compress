@@ -1,0 +1,19 @@
+[project]
+name = "climb-ramp"
+version = "0.2.0"
+description = "Climbing video speed ramper — stabilize, analyze, compress"
+requires-python = ">=3.9"
+dependencies = [
+    "mediapipe>=0.10.9",
+    "opencv-python-headless>=4.8",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "python-multipart>=0.0.9",
+    "Pillow>=9.0",
+]
+
+[project.scripts]
+climb-ramp = "server:app"

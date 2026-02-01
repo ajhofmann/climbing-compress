@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f7f4ef;
+  --bg-card: #efeae2;
+  --bg-input: #e8e1d6;
+  --border: #d4c9b8;
+  --text: #3d3225;
+  --text-muted: #8a7d6e;
+  --accent: #4a7a50;
+  --accent-light: #6db380;
+  --accent-hover: #3d6842;
+  --warm: #c97b2a;
+  --warm-light: #f0d4a8;
+  --danger: #b85c3a;
+  --glow: rgba(109, 179, 128, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1814;
+    --bg-card: #242018;
+    --bg-input: #2e2820;
+    --border: #4a4035;
+    --text: #e8e0d4;
+    --text-muted: #9a8d7e;
+    --accent: #6db380;
+    --accent-light: #8fcf9a;
+    --accent-hover: #5a9a6a;
+    --warm: #daa050;
+    --warm-light: #4a3a20;
+    --danger: #d07050;
+    --glow: rgba(109, 179, 128, 0.1);
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Fun range slider */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: var(--bg-input);
+  border-radius: 3px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--accent);
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: grab;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+input[type="range"]::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.3);
+  background: var(--warm);
+}
+input[type="range"]:active {
+  background: linear-gradient(90deg, var(--accent-light) var(--pct, 50%), var(--bg-input) var(--pct, 50%));
+}
+
+/* Progress bar shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.progress-shimmer {
+  background: linear-gradient(90deg, var(--accent) 25%, var(--accent-light) 50%, var(--accent) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Pulse for buttons */
+@keyframes gentle-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--glow); }
+  50% { box-shadow: 0 0 0 8px transparent; }
+}
+.pulse-border {
+  animation: gentle-pulse 2s ease-in-out infinite;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
