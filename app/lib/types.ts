@@ -36,6 +36,15 @@ export interface AnalysisData {
   waveform_action: string;
 }
 
+export interface CropBox {
+  x: number; // left edge, normalized 0-1
+  y: number; // top edge, normalized 0-1
+  w: number; // width, normalized 0-1
+  h: number; // height, normalized 0-1
+}
+
+export type AspectPreset = "9:16" | "1:1" | "4:5" | "16:9" | null;
+
 export type SpeedMode = "progress" | "action";
 
 export interface Settings {

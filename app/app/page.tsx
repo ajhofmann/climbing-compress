@@ -5,6 +5,7 @@ import { useStore } from "@/lib/store";
 import { analyzeVideo, solveCurve, renderVideo } from "@/lib/api";
 import { VideoUpload } from "@/components/video-upload";
 import { VideoPlayer } from "@/components/video-player";
+import { CropEditor } from "@/components/crop-editor";
 import { TimelineEditor } from "@/components/timeline-editor";
 import { SettingsPanel } from "@/components/settings";
 import { ProgressBar } from "@/components/progress-bar";
@@ -12,7 +13,7 @@ import { ProgressBar } from "@/components/progress-bar";
 export default function Home() {
   const store = useStore();
   const solveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { videoId, analysis, settings, pins } = store;
+  const { videoId, analysis, settings, pins, crop } = store;
 
   // Auto-solve curve on any settings/pin change (debounced)
   useEffect(() => {
@@ -56,7 +57,7 @@ export default function Home() {
     store.setRendering(true);
     store.setProgress(0, "Starting render...");
     try {
-      const result = await renderVideo(videoId, settings, pins, (p, msg) => {
+      const result = await renderVideo(videoId, settings, pins, crop, (p, msg) => {
         store.setProgress(p, msg);
       });
       if (result?.output_id) {
@@ -86,7 +87,10 @@ export default function Home() {
 
       {/* Video I/O */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <VideoUpload />
+        <div className="flex flex-col gap-3">
+          <VideoUpload />
+          <CropEditor />
+        </div>
         <VideoPlayer />
       </div>
 

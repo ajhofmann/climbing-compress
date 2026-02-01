@@ -15,6 +15,8 @@ import numpy as np
 import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions, vision
 
+from pipeline.smooth import smooth_poses
+
 
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/latest/pose_landmarker_heavy.task"
 MODEL_DIR = Path(__file__).parent.parent / "models"
@@ -67,6 +69,7 @@ def extract_poses(
     video_path: str,
     scale: float = 0.5,
     stride: int = 1,
+    max_short_side: int = 960,
     progress_cb=None,
 ) -> tuple:
     """
@@ -108,7 +111,7 @@ def extract_poses(
             if frame_idx % stride == 0:
                 # OpenCV already auto-rotates the frame
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame_rgb = _resize_for_detection(frame_rgb, max_short_side=640)
+                frame_rgb = _resize_for_detection(frame_rgb, max_short_side=max_short_side)
 
                 mp_image = mp.Image(
                     image_format=mp.ImageFormat.SRGB,
@@ -141,6 +144,9 @@ def extract_poses(
 
     if stride > 1:
         poses = interpolate_missing_poses(poses)
+
+    # Temporal smoothing: One Euro Filter kills jitter, stays responsive
+    poses = smooth_poses(poses, fps, min_cutoff=1.0, beta=0.5)
 
     return poses, fps
 

@@ -22,6 +22,7 @@ def render_preview(
     crf: int = 23,
     debug_overlay_fn=None,
     progress_cb=None,
+    crop=None,  # tuple of (x, y, w, h) normalized floats, or None
 ) -> str:
     """
     Render speed-ramped video using ffmpeg for both decode and encode.
@@ -35,8 +36,23 @@ def render_preview(
     # Get source dimensions
     info = get_video_info(video_path)
     src_w, src_h = info["width"], info["height"]
-    out_w = int(src_w * scale)
-    out_h = int(src_h * scale)
+
+    # Apply crop before scaling
+    if crop:
+        cx, cy, cw, ch = crop
+        crop_x = int(cx * src_w)
+        crop_y = int(cy * src_h)
+        crop_w = int(cw * src_w)
+        crop_h = int(ch * src_h)
+        # Ensure even dimensions
+        crop_w -= crop_w % 2
+        crop_h -= crop_h % 2
+        effective_w, effective_h = crop_w, crop_h
+    else:
+        effective_w, effective_h = src_w, src_h
+
+    out_w = int(effective_w * scale)
+    out_h = int(effective_h * scale)
     out_w -= out_w % 2
     out_h -= out_h % 2
 
@@ -51,14 +67,18 @@ def render_preview(
     frame_size = out_w * out_h * 3  # rgb24
 
     # --- ffmpeg DECODE subprocess ---
-    # This handles HDR->SDR tone mapping, color space conversion, scaling
+    # This handles HDR->SDR tone mapping, color space conversion, crop, scaling
+    vf_parts = []
+    if crop:
+        vf_parts.append(f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}")
+    vf_parts.append(f"scale={out_w}:{out_h}:flags=lanczos")
+    vf_parts.append("format=rgb24")
+    vf_str = ",".join(vf_parts)
+
     decode_cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error",
         "-i", str(video_path),
-        "-vf", (
-            f"scale={out_w}:{out_h}:flags=lanczos,"
-            "format=rgb24"
-        ),
+        "-vf", vf_str,
         "-pix_fmt", "rgb24",
         "-f", "rawvideo",
         "-v", "error",

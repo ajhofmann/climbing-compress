@@ -1,4 +1,4 @@
-import { Pin, Settings, SolveResult } from "./types";
+import { Pin, Settings, SolveResult, CropBox } from "./types";
 
 const API = "http://localhost:8000";
 
@@ -77,6 +77,7 @@ export async function renderVideo(
   videoId: string,
   settings: Settings,
   pins: Pin[],
+  crop: CropBox | null,
   onProgress: (progress: number, message: string) => void,
 ) {
   const res = await fetch(`${API}/api/render`, {
@@ -99,6 +100,7 @@ export async function renderVideo(
       output_fps: settings.outputFps,
       crf: settings.crf,
       debug_overlay: settings.debugOverlay,
+      crop: crop,
     }),
   });
 

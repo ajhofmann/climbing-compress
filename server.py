@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Optional
 import base64
 import io
 import json
@@ -69,6 +70,12 @@ class SolveRequest(BaseModel):
     core_weight: float = 3.0
     pins: list[Pin] = []
 
+class CropBox(BaseModel):
+    x: float
+    y: float
+    w: float
+    h: float
+
 class RenderRequest(BaseModel):
     video_id: str
     mode: str = "progress"
@@ -86,6 +93,7 @@ class RenderRequest(BaseModel):
     output_fps: float = 30
     crf: int = 23
     debug_overlay: bool = True
+    crop: Optional[CropBox] = None
 
 class AnalyzeRequest(BaseModel):
     video_id: str
@@ -331,8 +339,24 @@ async def render_video_endpoint(req: RenderRequest):
 
             progress_q.put({"progress": 0.1, "message": "Rendering frames..."})
 
+            # Remap poses if crop is active so overlay draws in cropped coords
+            crop_tuple = None
+            overlay_poses = poses
+            if req.crop:
+                crop_tuple = (req.crop.x, req.crop.y, req.crop.w, req.crop.h)
+                cx, cy, cw, ch = crop_tuple
+                overlay_poses = []
+                for pose in poses:
+                    if pose is None:
+                        overlay_poses.append(None)
+                        continue
+                    rp = {}
+                    for name, (px, py, vis) in pose.items():
+                        rp[name] = ((px - cx) / cw, (py - cy) / ch, vis)
+                    overlay_poses.append(rp)
+
             if req.debug_overlay:
-                overlay_fn = make_debug_overlay_fn(poses, scores, curve, fps)
+                overlay_fn = make_debug_overlay_fn(overlay_poses, scores, curve, fps)
             else:
                 overlay_fn = make_speed_badge_fn(curve)
 
@@ -353,6 +377,7 @@ async def render_video_endpoint(req: RenderRequest):
                 crf=req.crf,
                 debug_overlay_fn=overlay_fn,
                 progress_cb=render_progress,
+                crop=crop_tuple,
             )
 
             stats = _curve_stats(curve, fps)
