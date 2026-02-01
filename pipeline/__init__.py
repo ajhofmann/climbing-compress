@@ -7,7 +7,7 @@ Public API re-exports for convenient access::
 """
 
 from pipeline.pose import extract_poses, interpolate_missing_poses
-from pipeline.movement import score_movement, score_progress
+from pipeline.movement import score_movement, score_progress, analyze_rest_signals
 from pipeline.speed_curve import solve_speed_curve, solve_constant_progress
 from pipeline.render import render_preview
 from pipeline.stabilize import compute_stabilization_offsets
@@ -18,6 +18,7 @@ __all__ = [
     "interpolate_missing_poses",
     "score_movement",
     "score_progress",
+    "analyze_rest_signals",
     "solve_speed_curve",
     "solve_constant_progress",
     "render_preview",

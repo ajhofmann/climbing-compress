@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 
 from pipeline.pose import extract_poses, interpolate_missing_poses
-from pipeline.movement import score_movement, score_progress
+from pipeline.movement import score_movement, score_progress, analyze_rest_signals
 from pipeline.speed_curve import (
     solve_speed_curve, solve_constant_progress, get_output_duration,
     detect_rest,
@@ -97,7 +97,9 @@ def compute_scores_and_curve(
             trimmed, fps,
             smooth_sigma_s=req.smoothing,
             vertical_bias=req.vertical_bias,
+            down_weight=getattr(req, "down_weight", 0.15),
         )
+        rest_signals = analyze_rest_signals(trimmed, fps)
         curve = solve_constant_progress(
             scores, fps,
             target_duration=req.target_duration,
@@ -107,6 +109,8 @@ def compute_scores_and_curve(
             rest_threshold_s=req.rest_threshold_s,
             floor=req.progress_floor,
             pins=pins,
+            com_variance=rest_signals["com_variance"],
+            limb_ratio=rest_signals["limb_ratio"],
         )
     else:
         scores = score_movement(
@@ -368,7 +372,15 @@ def run_render(
             if ef <= len(flow_scores):
                 debug_flow = flow_scores[start_frame:ef]
 
-        rest_mask = detect_rest(scores, fps, req.rest_threshold_s)
+        if req.mode == "progress":
+            debug_rest_signals = analyze_rest_signals(trimmed, fps)
+            rest_mask = detect_rest(
+                scores, fps, req.rest_threshold_s,
+                com_variance=debug_rest_signals["com_variance"],
+                limb_ratio=debug_rest_signals["limb_ratio"],
+            )
+        else:
+            rest_mask = detect_rest(scores, fps, req.rest_threshold_s)
 
         trim_s = trim_start_s
         trim_dur = len(trimmed) / fps if fps > 0 else 0

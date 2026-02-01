@@ -84,6 +84,7 @@ class SolveRequest(BaseModel):
     core_weight: float = 3.0
     progress_floor: float = 0.02
     vertical_bias: float = 0.7
+    down_weight: float = 0.15
     rest_threshold_s: float = 0.3
     trim_start: float = 0.0
     trim_end: float = 0.0

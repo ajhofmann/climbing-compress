@@ -201,6 +201,97 @@ class TestDetectRest:
         assert not rest.any()
 
 
+class TestDetectRestEnhanced:
+    """Tests for enhanced rest detection with auxiliary signals."""
+
+    def test_aux_signals_widen_detection(self):
+        """When COM variance is low, borderline frames should become rest."""
+        fps = 30
+        n = 300
+        progress = np.zeros(n) + 0.5
+        # Borderline section: not quite below the 10% threshold, but
+        # COM variance confirms rest.
+        progress[100:200] = 0.06  # slightly above base threshold (~0.05)
+
+        # Without aux signals → not rest
+        rest_base = detect_rest(progress, fps, threshold_s=0.3)
+        assert not rest_base[150], "Base detector should not flag borderline frames"
+
+        # With low COM variance → rest
+        com_var = np.ones(n) * 0.01
+        com_var[100:200] = 0.0001  # very stable body
+        rest_aux = detect_rest(
+            progress, fps, threshold_s=0.3,
+            com_variance=com_var, com_var_thresh=0.0005,
+        )
+        assert rest_aux[150], "Aux signals should widen rest detection"
+
+    def test_high_limb_ratio_triggers_rest(self):
+        """High limb ratio (shakeout) should confirm borderline rest frames."""
+        fps = 30
+        n = 300
+        progress = np.zeros(n) + 0.5
+        progress[100:200] = 0.06
+
+        limb_ratio = np.ones(n) * 1.0
+        limb_ratio[100:200] = 10.0  # limbs very active vs body
+
+        rest = detect_rest(
+            progress, fps, threshold_s=0.3,
+            limb_ratio=limb_ratio, limb_ratio_thresh=5.0,
+        )
+        assert rest[150]
+
+    def test_aux_signals_dont_affect_active_frames(self):
+        """High-progress frames should never become rest, even with aux signals."""
+        fps = 30
+        n = 300
+        progress = np.zeros(n) + 0.8  # high progress throughout
+
+        com_var = np.zeros(n)  # low variance everywhere
+        limb_ratio = np.ones(n) * 20.0  # very high ratio
+
+        rest = detect_rest(
+            progress, fps, threshold_s=0.3,
+            com_variance=com_var, limb_ratio=limb_ratio,
+        )
+        # Active climbing frames should never be flagged as rest
+        assert not rest[150]
+
+    def test_backward_compatible_without_aux(self):
+        """Passing None for aux signals should match the old behaviour."""
+        fps = 30
+        n = 300
+        progress = np.zeros(n) + 0.5
+        progress[100:200] = 0.0
+
+        rest_old = detect_rest(progress, fps, threshold_s=0.5)
+        rest_new = detect_rest(
+            progress, fps, threshold_s=0.5,
+            com_variance=None, limb_ratio=None,
+        )
+        np.testing.assert_array_equal(rest_old, rest_new)
+
+
+class TestSolveConstantProgressWithAux:
+    """Tests that solve_constant_progress works with rest signal kwargs."""
+
+    def test_accepts_aux_signals(self):
+        """Should run without error when aux signals are provided."""
+        fps = 30
+        n = 300
+        progress = np.random.rand(n)
+        com_var = np.random.rand(n) * 0.001
+        limb_ratio = np.random.rand(n) * 3.0
+
+        curve = solve_constant_progress(
+            progress, fps, target_duration=5.0,
+            com_variance=com_var, limb_ratio=limb_ratio,
+        )
+        assert len(curve) == n
+        assert np.all(np.isfinite(curve))
+
+
 class TestBisectDuration:
     """Tests for the bisection duration solver."""
 

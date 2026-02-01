@@ -65,6 +65,7 @@ export interface Settings {
   // Constant progress mode
   progressFloor: number;
   verticalBias: number;
+  downWeight: number;
   restThreshold: number;
   // Pose-anchored stabilization
   stabilize: boolean;
@@ -82,10 +83,10 @@ export const DEFAULT_SETTINGS: Settings = {
   mode: "progress",
   targetDuration: 15,
   sensitivity: 0.35,
-  maxSpeed: 10,
+  maxSpeed: 15,
   minSpeed: 0.25,
   steepness: 14,
-  smoothing: 0.3,
+  smoothing: 1,
   handWeight: 2.0,
   footWeight: 1.0,
   coreWeight: 3.0,
@@ -100,6 +101,7 @@ export const DEFAULT_SETTINGS: Settings = {
   useFlow: true,
   progressFloor: 0.02,
   verticalBias: 0.7,
+  downWeight: 0.15,
   restThreshold: 0.3,
   stabilize: false,
   stabilizeStrength: 0.7,

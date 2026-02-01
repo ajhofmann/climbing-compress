@@ -135,6 +135,7 @@ export function SettingsPanel() {
           {s.mode === "progress" && (
             <>
               <Slider label="Vertical Bias" info="0.5 = equal, 1.0 = vertical only" value={s.verticalBias} min={0} max={1} step={0.05} onChange={(v) => u("verticalBias", v)} />
+              <Slider label="Down Weight" info="0 = ignore downclimb, 1 = count equally" value={s.downWeight} min={0} max={1} step={0.05} onChange={(v) => u("downWeight", v)} />
               <Slider label="Rest Skip" info="seconds of stillness before fast-forward" value={s.restThreshold} min={0} max={2} step={0.05} onChange={(v) => u("restThreshold", v)} />
             </>
           )}

@@ -94,35 +94,15 @@ def score_movement(
     return scores
 
 
-def score_progress(
+def _extract_com(
     poses: list[dict | None],
-    fps: float,
-    smooth_sigma_s: float = 1.0,
-    vertical_bias: float = 0.7,
-) -> np.ndarray:  # shape (n_frames,), normalized [0, 1]
-    """
-    Compute per-frame spatial progress on the wall.
+) -> tuple[np.ndarray, np.ndarray]:
+    """Extract center-of-mass (x, y) arrays from poses.
 
-    Tracks the climber's center of mass (average of hips, shoulders)
-    and computes displacement weighted by direction. For climbing,
-    vertical movement is usually the primary progress signal.
-
-    Args:
-        vertical_bias: 0.0 = only horizontal, 0.5 = equal, 1.0 = only vertical.
-                       Default 0.7 — strongly favors vertical progress, which
-                       filters out horizontal body sway during rests.
-
-    Returns:
-        progress_rate: per-frame rate of progress, normalized to [0, 1].
-                       High = climber is moving on the wall.
-                       Low = climber is stationary (resting/reading).
+    COM is the mean of hips + shoulders.  Frames with fewer than 2
+    visible centre landmarks get NaN.
     """
     n = len(poses)
-    if n < 2:
-        return np.zeros(n)
-
-    # Extract center-of-mass position per frame
-    # Use average of hips + shoulders as a stable body center
     com_x = np.full(n, np.nan)
     com_y = np.full(n, np.nan)
 
@@ -142,6 +122,58 @@ def score_progress(
             com_x[i] = np.mean(xs)
             com_y[i] = np.mean(ys)
 
+    return com_x, com_y
+
+
+def score_progress(
+    poses: list[dict | None],
+    fps: float,
+    smooth_sigma_s: float = 1.0,
+    vertical_bias: float = 0.7,
+    down_weight: float = 0.15,
+    consistency_window_s: float = 1.0,
+    consistency_floor: float = 0.1,
+) -> np.ndarray:  # shape (n_frames,), normalized [0, 1]
+    """
+    Compute per-frame spatial progress on the wall.
+
+    Tracks the climber's center of mass (average of hips, shoulders)
+    and computes displacement weighted by direction.  Three layers
+    of filtering suppress non-progress motion:
+
+    1. **Signed vertical displacement** — upward movement (negative dy
+       in image coords) gets full weight; downward movement is
+       discounted by *down_weight*.
+    2. **Directional consistency** — frame-to-frame displacement is
+       multiplied by how consistently the vertical direction is
+       sustained over a ~1 s window.  Oscillatory sway during rest
+       produces near-zero consistency.
+    3. **Vertical bias** — horizontal movement is down-weighted
+       relative to vertical (controlled by *vertical_bias*).
+
+    Args:
+        vertical_bias: 0.0 = only horizontal, 0.5 = equal, 1.0 = only vertical.
+                       Default 0.7.
+        down_weight: multiplier for downward COM movement (0 = ignore
+                     downward entirely, 1 = symmetric).  Default 0.15.
+        consistency_window_s: window (seconds) over which directional
+                              consistency is evaluated.  Default 1.0.
+        consistency_floor: minimum consistency multiplier so very slow
+                           but genuine progress is not fully suppressed.
+                           Default 0.1.
+
+    Returns:
+        progress_rate: per-frame rate of progress, normalized to [0, 1].
+                       High = climber is moving on the wall.
+                       Low = climber is stationary (resting/reading).
+    """
+    n = len(poses)
+    if n < 2:
+        return np.zeros(n)
+
+    # Extract center-of-mass position per frame
+    com_x, com_y = _extract_com(poses)
+
     # Interpolate NaN gaps
     valid = ~np.isnan(com_x)
     if np.sum(valid) < 2:
@@ -156,17 +188,129 @@ def score_progress(
     com_x = gaussian_filter1d(com_x, sigma=pos_sigma)
     com_y = gaussian_filter1d(com_y, sigma=pos_sigma)
 
-    # Per-frame displacement weighted by direction
-    # vertical_bias=0.7 means 70% vertical, 30% horizontal
+    # Per-frame displacement
     dx = np.diff(com_x, prepend=com_x[0])
     dy = np.diff(com_y, prepend=com_y[0])
 
     vb = float(np.clip(vertical_bias, 0.0, 1.0))
     h_w = 1.0 - vb
     v_w = vb
-    displacement = h_w * np.abs(dx) + v_w * np.abs(dy)
+
+    # --- Signed vertical displacement ---
+    # In MediaPipe normalised coords y=0 is top, so climbing UP = dy < 0.
+    dw = float(np.clip(down_weight, 0.0, 1.0))
+    dy_up = np.maximum(-dy, 0.0)            # upward component (positive value)
+    dy_down = np.maximum(dy, 0.0)            # downward component
+    vertical = dy_up + dw * dy_down
+
+    displacement = h_w * np.abs(dx) + v_w * vertical
+
+    # --- Directional consistency filter ---
+    # Weight displacement by how consistently dy points in one direction
+    # over a sliding window.  Oscillatory rest sway → consistency ≈ 0.
+    cw = float(max(consistency_window_s, 0))
+    cf = float(np.clip(consistency_floor, 0.0, 1.0))
+    if cw > 0 and fps > 0:
+        sign_dy = np.sign(dy)
+        sigma_c = max(1, fps * cw * 0.5)
+        consistency = np.abs(gaussian_filter1d(sign_dy, sigma=sigma_c))
+        displacement *= np.maximum(consistency, cf)
 
     # Smooth and normalize displacement rate
     progress_rate = smooth_and_normalize(displacement, fps, sigma_s=smooth_sigma_s)
 
     return progress_rate
+
+
+def analyze_rest_signals(
+    poses: list[dict | None],
+    fps: float,
+    window_s: float = 1.5,
+) -> dict[str, np.ndarray]:
+    """Compute auxiliary signals for enhanced rest detection.
+
+    Returns a dict with two 1-D arrays (length = len(poses)):
+
+    * **com_variance** — sliding-window variance of the COM y-position.
+      Low values mean the body is stationary even if there is
+      frame-to-frame jitter.
+    * **limb_ratio** — ratio of limb velocity (wrists + ankles) to COM
+      velocity.  High values mean the limbs are active but the body
+      centre is still — classic rest/shakeout pattern.
+    """
+    n = len(poses)
+    if n < 2:
+        return {
+            "com_variance": np.zeros(n),
+            "limb_ratio": np.zeros(n),
+        }
+
+    # --- COM positions (same extraction as score_progress) ---
+    com_x, com_y = _extract_com(poses)
+
+    valid = ~np.isnan(com_x)
+    if np.sum(valid) < 2:
+        return {
+            "com_variance": np.zeros(n),
+            "limb_ratio": np.zeros(n),
+        }
+
+    indices = np.arange(n)
+    com_x = np.interp(indices, indices[valid], com_x[valid])
+    com_y = np.interp(indices, indices[valid], com_y[valid])
+
+    # Smooth COM to match score_progress behaviour
+    pos_sigma = max(1, fps * 0.5)
+    com_x_s = gaussian_filter1d(com_x, sigma=pos_sigma)
+    com_y_s = gaussian_filter1d(com_y, sigma=pos_sigma)
+
+    # --- COM variance (sliding window) ---
+    win = max(1, int(fps * window_s))
+
+    # Use uniform_filter1d for efficient sliding-window variance:
+    #   var = E[x^2] - E[x]^2
+    from scipy.ndimage import uniform_filter1d
+
+    mean_y = uniform_filter1d(com_y_s, size=win, mode="nearest")
+    mean_y2 = uniform_filter1d(com_y_s ** 2, size=win, mode="nearest")
+    com_variance = np.maximum(mean_y2 - mean_y ** 2, 0.0)
+
+    # --- Limb velocity vs COM velocity ---
+    limb_names = ("left_wrist", "right_wrist", "left_ankle", "right_ankle")
+    limb_xy = np.full((n, len(limb_names), 2), np.nan)
+    limb_vis = np.full((n, len(limb_names)), 0.0)
+
+    for i, pose in enumerate(poses):
+        if pose is None:
+            continue
+        for j, name in enumerate(limb_names):
+            if name in pose:
+                x, y, vis = pose[name]
+                limb_xy[i, j] = (x, y)
+                limb_vis[i, j] = vis
+
+    # Frame-to-frame velocities
+    d_limb = np.diff(limb_xy, axis=0)                              # (n-1, 4, 2)
+    limb_vel = np.sqrt(np.nansum(d_limb ** 2, axis=-1))            # (n-1, 4)
+    vis_ok = (limb_vis[:-1] >= MIN_VISIBILITY) & (limb_vis[1:] >= MIN_VISIBILITY)
+    limb_vel = np.where(vis_ok, limb_vel, 0.0)
+    total_limb_vel = np.zeros(n)
+    total_limb_vel[1:] = limb_vel.sum(axis=1)
+
+    com_dx = np.diff(com_x_s, prepend=com_x_s[0])
+    com_dy = np.diff(com_y_s, prepend=com_y_s[0])
+    com_vel = np.sqrt(com_dx ** 2 + com_dy ** 2)
+
+    # Smooth both signals before computing ratio
+    smooth_sigma = max(1, fps * 0.5)
+    total_limb_vel = gaussian_filter1d(total_limb_vel, sigma=smooth_sigma)
+    com_vel_smooth = gaussian_filter1d(com_vel, sigma=smooth_sigma)
+
+    # Ratio: high = limbs active, body still.  Clamp denominator.
+    eps = 1e-6
+    limb_ratio = total_limb_vel / (com_vel_smooth + eps)
+
+    return {
+        "com_variance": com_variance,
+        "limb_ratio": limb_ratio,
+    }

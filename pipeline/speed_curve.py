@@ -8,6 +8,7 @@ from scipy.ndimage import gaussian_filter1d
 from pipeline.constants import (
     BISECT_HI, BISECT_LO, BISECT_MAX_ITER, NORM_PERCENTILE,
     SOLVER_TOLERANCE, SOLVER_TOLERANCE_ACTION,
+    DEFAULT_REST_COM_VARIANCE_THRESH, DEFAULT_REST_LIMB_RATIO_THRESH,
 )
 
 
@@ -121,6 +122,8 @@ def solve_constant_progress(
     rest_threshold_s: float = 0.3,
     floor: float = 0.02,
     pins: list[tuple] | None = None,
+    com_variance: np.ndarray | None = None,
+    limb_ratio: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Generate a speed curve that produces constant visual progress.
@@ -147,6 +150,8 @@ def solve_constant_progress(
         floor: minimum progress rate for non-rest frames (prevents extreme speeds
                on very low-progress climbing frames).
         pins: optional list of (time_seconds, speed_multiplier) to pin
+        com_variance: optional per-frame COM variance from analyze_rest_signals
+        limb_ratio: optional per-frame limb-to-body velocity ratio
     """
     n = len(progress_rate)
     if n == 0:
@@ -157,7 +162,11 @@ def solve_constant_progress(
     target_duration = min(target_duration, input_duration)
 
     # --- Step 1: Detect rest sections ---
-    rest_mask = detect_rest(progress_rate, fps, rest_threshold_s)
+    rest_mask = detect_rest(
+        progress_rate, fps, rest_threshold_s,
+        com_variance=com_variance,
+        limb_ratio=limb_ratio,
+    )
 
     # --- Step 2: Build effective progress rate ---
     # Rest frames contribute zero progress (will be fast-forwarded).
@@ -207,12 +216,25 @@ def detect_rest(
     progress_rate: np.ndarray,
     fps: float,
     threshold_s: float = 0.3,
+    com_variance: np.ndarray | None = None,
+    limb_ratio: np.ndarray | None = None,
+    com_var_thresh: float = DEFAULT_REST_COM_VARIANCE_THRESH,
+    limb_ratio_thresh: float = DEFAULT_REST_LIMB_RATIO_THRESH,
 ) -> np.ndarray:  # bool mask
     """Detect sustained rest sections in the progress signal.
 
     A rest is a contiguous run of frames where progress is below an
     adaptive threshold (10% of median non-zero progress) for at least
     threshold_s seconds.
+
+    When auxiliary signals from ``analyze_rest_signals`` are provided,
+    additional frames can be classified as rest even if the progress
+    signal is slightly above the base threshold:
+
+    * **Low COM variance** — body position is stable over a sliding
+      window, indicating no real wall progress despite small jitter.
+    * **High limb ratio** — limbs are active but body centre is still,
+      a classic rest/shakeout pattern.
 
     Returns boolean mask: True = resting frame.
     """
@@ -229,6 +251,23 @@ def detect_rest(
 
     thresh = float(np.median(nonzero) * 0.1)
     is_low = progress_rate < thresh
+
+    # --- Enhanced rest: widen detection with auxiliary signals ---
+    # Use a relaxed threshold (3x base) combined with corroborating
+    # evidence from COM variance or limb ratio.
+    has_aux = (com_variance is not None and len(com_variance) == n) or \
+              (limb_ratio is not None and len(limb_ratio) == n)
+    if has_aux:
+        relaxed_thresh = thresh * 3.0
+        is_borderline = (progress_rate >= thresh) & (progress_rate < relaxed_thresh)
+
+        aux_confirms = np.zeros(n, dtype=bool)
+        if com_variance is not None and len(com_variance) == n:
+            aux_confirms |= (com_variance < com_var_thresh)
+        if limb_ratio is not None and len(limb_ratio) == n:
+            aux_confirms |= (limb_ratio > limb_ratio_thresh)
+
+        is_low = is_low | (is_borderline & aux_confirms)
 
     # Vectorised run-length detection
     rest_mask = np.zeros(n, dtype=bool)

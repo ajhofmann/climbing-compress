@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pipeline.movement import score_movement, score_progress
+from pipeline.movement import score_movement, score_progress, analyze_rest_signals
 
 
 class TestScoreMovement:
@@ -202,3 +202,224 @@ def _make_climbing_poses(n):
             "left_shoulder": (0.48, cy - 0.1, 0.9), "right_shoulder": (0.52, cy - 0.1, 0.9),
         })
     return poses
+
+
+def _make_descending_poses(n):
+    """Helper: generate n frames of downward movement (COM y increases)."""
+    poses = []
+    for i in range(n):
+        cy = 0.3 + (i / n) * 0.5  # y increases = moving down
+        poses.append({
+            "left_hip": (0.48, cy + 0.1, 0.9), "right_hip": (0.52, cy + 0.1, 0.9),
+            "left_shoulder": (0.48, cy - 0.1, 0.9), "right_shoulder": (0.52, cy - 0.1, 0.9),
+        })
+    return poses
+
+
+def _make_oscillating_poses(n, amplitude=0.02, freq=8):
+    """Helper: generate n frames of oscillatory vertical sway (no net progress)."""
+    poses = []
+    for i in range(n):
+        t = i / n
+        cy = 0.5 + amplitude * np.sin(t * freq * 2 * np.pi)
+        poses.append({
+            "left_hip": (0.48, cy + 0.1, 0.9), "right_hip": (0.52, cy + 0.1, 0.9),
+            "left_shoulder": (0.48, cy - 0.1, 0.9), "right_shoulder": (0.52, cy - 0.1, 0.9),
+        })
+    return poses
+
+
+def _make_shakeout_poses(n):
+    """Helper: body still, arms active (rest/shakeout pattern)."""
+    poses = []
+    for i in range(n):
+        t = i / n
+        # Core is completely still
+        cy = 0.5
+        # Wrists oscillate vigorously
+        wrist_dy = 0.05 * np.sin(t * 20 * 2 * np.pi)
+        poses.append({
+            "left_hip": (0.48, cy + 0.1, 0.9),
+            "right_hip": (0.52, cy + 0.1, 0.9),
+            "left_shoulder": (0.48, cy - 0.1, 0.9),
+            "right_shoulder": (0.52, cy - 0.1, 0.9),
+            "left_wrist": (0.4, cy - 0.2 + wrist_dy, 0.9),
+            "right_wrist": (0.6, cy - 0.15 + wrist_dy, 0.9),
+            "left_ankle": (0.48, cy + 0.3, 0.9),
+            "right_ankle": (0.52, cy + 0.3, 0.9),
+        })
+    return poses
+
+
+class TestSignedDisplacement:
+    """Tests for signed vertical displacement (down_weight)."""
+
+    def test_upward_scores_higher_than_downward(self):
+        """Upward climbing should produce much more progress than downward.
+
+        Uses a combined sequence so both halves share the same
+        normalization scale.
+        """
+        fps = 30
+        # First half: climb up, second half: move down (same magnitude)
+        poses = _make_climbing_poses(90) + _make_descending_poses(90)
+
+        scores = score_progress(poses, fps, down_weight=0.15)
+        up_mean = scores[:90].mean()
+        down_mean = scores[90:].mean()
+
+        # Upward progress should dominate
+        assert up_mean > down_mean * 2.0
+
+    def test_down_weight_one_is_symmetric(self):
+        """down_weight=1.0 should treat up and down equally (like abs)."""
+        fps = 30
+        poses = _make_climbing_poses(90) + _make_descending_poses(90)
+
+        scores = score_progress(poses, fps, down_weight=1.0)
+        up_mean = scores[:90].mean()
+        down_mean = scores[90:].mean()
+
+        # With symmetric weighting, means should be close
+        assert abs(up_mean - down_mean) < 0.15
+
+    def test_down_weight_zero_ignores_downward(self):
+        """down_weight=0 should completely suppress downward movement.
+
+        Uses a combined sequence so the upward half establishes the
+        normalization baseline and the downward half should be near zero.
+        """
+        fps = 30
+        poses = _make_climbing_poses(90) + _make_descending_poses(90)
+
+        scores = score_progress(poses, fps, down_weight=0.0)
+        # Downward half should be strongly suppressed
+        assert scores[90:].mean() < 0.15
+
+
+class TestDirectionalConsistency:
+    """Tests for the directional consistency filter."""
+
+    def test_oscillation_suppressed(self):
+        """Oscillatory COM sway should score lower than steady climbing."""
+        fps = 30
+        n = 120
+
+        # First half: oscillatory sway (rest-like)
+        # Second half: steady upward climbing
+        poses = _make_oscillating_poses(60, amplitude=0.02, freq=6)
+        poses += _make_climbing_poses(60)
+
+        scores = score_progress(poses, fps, consistency_window_s=1.0)
+
+        osc_mean = scores[:60].mean()
+        climb_mean = scores[60:].mean()
+        assert climb_mean > osc_mean * 2.0
+
+    def test_consistency_floor_prevents_total_suppression(self):
+        """Very slow but steady climbing should still register."""
+        fps = 30
+        # Slow upward climbing — only 0.1 normalised units over 120 frames
+        slow_poses = []
+        for i in range(120):
+            cy = 0.5 - (i / 120) * 0.1
+            slow_poses.append({
+                "left_hip": (0.48, cy + 0.1, 0.9), "right_hip": (0.52, cy + 0.1, 0.9),
+                "left_shoulder": (0.48, cy - 0.1, 0.9), "right_shoulder": (0.52, cy - 0.1, 0.9),
+            })
+
+        scores = score_progress(slow_poses, fps, consistency_floor=0.1)
+        # Should still have some non-zero progress
+        assert scores.max() > 0.05
+
+    def test_consistency_disabled_when_window_zero(self):
+        """consistency_window_s=0 should disable the filter."""
+        fps = 30
+        poses = _make_oscillating_poses(90, amplitude=0.03, freq=6)
+
+        scores_filtered = score_progress(poses, fps, consistency_window_s=1.0)
+        scores_unfiltered = score_progress(poses, fps, consistency_window_s=0.0)
+
+        # Unfiltered oscillation should have higher scores
+        assert scores_unfiltered.mean() >= scores_filtered.mean()
+
+
+class TestAnalyzeRestSignals:
+    """Tests for the analyze_rest_signals helper."""
+
+    def test_output_shapes(self, synthetic_poses):
+        poses, fps = synthetic_poses
+        result = analyze_rest_signals(poses, fps)
+
+        assert "com_variance" in result
+        assert "limb_ratio" in result
+        assert len(result["com_variance"]) == len(poses)
+        assert len(result["limb_ratio"]) == len(poses)
+
+    def test_all_finite(self, synthetic_poses):
+        poses, fps = synthetic_poses
+        result = analyze_rest_signals(poses, fps)
+
+        assert np.all(np.isfinite(result["com_variance"]))
+        assert np.all(np.isfinite(result["limb_ratio"]))
+
+    def test_stationary_has_low_com_variance(self):
+        """A completely still climber should have near-zero COM variance."""
+        fps = 30
+        poses = [{
+            "left_hip": (0.5, 0.5, 0.9), "right_hip": (0.6, 0.5, 0.9),
+            "left_shoulder": (0.5, 0.4, 0.9), "right_shoulder": (0.6, 0.4, 0.9),
+            "left_wrist": (0.4, 0.3, 0.9), "right_wrist": (0.7, 0.3, 0.9),
+            "left_ankle": (0.5, 0.8, 0.9), "right_ankle": (0.6, 0.8, 0.9),
+        }] * 90
+
+        result = analyze_rest_signals(poses, fps)
+        assert result["com_variance"].max() < 1e-6
+
+    def test_shakeout_has_high_limb_ratio(self):
+        """Arms active + body still should produce high limb_ratio."""
+        fps = 30
+        shakeout = _make_shakeout_poses(90)
+
+        result = analyze_rest_signals(shakeout, fps)
+        # Limb ratio should be notably above zero when limbs are active
+        # and body is still
+        assert result["limb_ratio"].mean() > 1.0
+
+    def test_climbing_has_lower_limb_ratio_than_shakeout(self):
+        """During climbing, body and limbs both move — ratio should be lower."""
+        fps = 30
+        # Climbing: full body moving
+        climb_poses = []
+        for i in range(90):
+            t = i / 90
+            cy = 0.8 - t * 0.5
+            wrist_dy = 0.03 * np.sin(t * 10)
+            climb_poses.append({
+                "left_hip": (0.48, cy + 0.1, 0.9), "right_hip": (0.52, cy + 0.1, 0.9),
+                "left_shoulder": (0.48, cy - 0.1, 0.9), "right_shoulder": (0.52, cy - 0.1, 0.9),
+                "left_wrist": (0.4, cy - 0.2 + wrist_dy, 0.9),
+                "right_wrist": (0.6, cy - 0.15 + wrist_dy, 0.9),
+                "left_ankle": (0.48, cy + 0.3, 0.9),
+                "right_ankle": (0.52, cy + 0.3, 0.9),
+            })
+
+        shakeout = _make_shakeout_poses(90)
+
+        climb_result = analyze_rest_signals(climb_poses, fps)
+        shake_result = analyze_rest_signals(shakeout, fps)
+
+        # Shakeout should have higher limb ratio (limbs active, body still)
+        assert shake_result["limb_ratio"].mean() > climb_result["limb_ratio"].mean()
+
+    def test_empty_input(self):
+        result = analyze_rest_signals([], 30)
+        assert len(result["com_variance"]) == 0
+        assert len(result["limb_ratio"]) == 0
+
+    def test_single_frame(self):
+        poses = [{"left_hip": (0.5, 0.5, 0.9), "right_hip": (0.6, 0.5, 0.9),
+                  "left_shoulder": (0.5, 0.4, 0.9), "right_shoulder": (0.6, 0.4, 0.9)}]
+        result = analyze_rest_signals(poses, 30)
+        assert len(result["com_variance"]) == 1
+        assert len(result["limb_ratio"]) == 1
