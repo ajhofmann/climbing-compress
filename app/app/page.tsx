@@ -6,6 +6,7 @@ import { analyzeVideo, solveCurve, renderVideo } from "@/lib/api";
 import { VideoUpload } from "@/components/video-upload";
 import { VideoPlayer } from "@/components/video-player";
 import { TimelineEditor } from "@/components/timeline-editor";
+import { DebugCharts } from "@/components/debug-charts";
 import { SettingsPanel } from "@/components/settings";
 import { ProgressBar } from "@/components/progress-bar";
 
@@ -20,7 +21,7 @@ export default function Home() {
     solveTimeout.current = setTimeout(async () => {
       try {
         const result = await solveCurve(videoId, settings, pins);
-        store.setCurve(result.curve, result.times, result.stats);
+        store.setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions);
       } catch (e) {
         console.error("solve:", e);
       }
@@ -31,29 +32,27 @@ export default function Home() {
   const handleAnalyze = useCallback(async () => {
     if (!videoId) return;
 
-    // Check if analysis is already cached with the same params
     const currentParams: AnalysisParams = {
       stride: settings.analyzeStride,
       useTracker: settings.useTracker,
       useFlow: settings.useFlow,
     };
     const cached = store.analysisParams;
-    if (
-      analysis &&
+    const paramsMatch =
       cached &&
       cached.stride === currentParams.stride &&
       cached.useTracker === currentParams.useTracker &&
-      cached.useFlow === currentParams.useFlow
-    ) {
-      store.setProgress(0, "Analysis already up to date");
-      return;
-    }
+      cached.useFlow === currentParams.useFlow;
+
+    // Force re-analysis when the user already has results (they clicked "re-analyze")
+    // or when params changed (server-side cache may still hit on stride match)
+    const force = !!(analysis && paramsMatch);
 
     store.setAnalyzing(true);
-    store.setProgress(0, "Starting analysis...");
+    store.setProgress(0, force ? "Re-analyzing (fresh)..." : "Starting analysis...");
     try {
       const result = await analyzeVideo(
-        videoId, settings.analyzeStride, false,
+        videoId, settings.analyzeStride, force,
         (p, msg) => { store.setProgress(p, msg); },
         settings.useTracker, settings.useFlow,
       );
@@ -65,7 +64,7 @@ export default function Home() {
         store.setProgress(0.95, "Computing speed curve...");
         const updatedSettings = { ...settings, trimEnd: settings.trimEnd === 0 ? result.duration : settings.trimEnd };
         const solveResult = await solveCurve(videoId, updatedSettings, pins);
-        store.setCurve(solveResult.curve, solveResult.times, solveResult.stats);
+        store.setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions);
         store.setProgress(0, "Analysis complete!");
       }
     } catch (e: unknown) {
@@ -154,6 +153,9 @@ export default function Home() {
       {/* Timeline */}
       <TimelineEditor />
 
+      {/* Debug Charts */}
+      <DebugCharts />
+
       {/* Stats */}
       {store.stats && (
         <div className="flex flex-wrap gap-2 justify-center">
@@ -181,6 +183,11 @@ export default function Home() {
           {analysis.flow_available && (
             <span className="px-2 py-0.5 bg-accent/10 border border-accent/20 rounded-full text-[10px] font-medium text-accent">
               optical flow
+            </span>
+          )}
+          {analysis.camera_motion_available && (
+            <span className="px-2 py-0.5 bg-accent/10 border border-accent/20 rounded-full text-[10px] font-medium text-accent">
+              shake compensation
             </span>
           )}
         </div>

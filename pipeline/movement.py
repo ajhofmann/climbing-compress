@@ -23,6 +23,7 @@ def score_movement(
     core_weight: float = 3.0,
     flow_scores: np.ndarray | None = None,
     flow_weight: float = 0.3,
+    camera_motion: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> np.ndarray:  # shape (n_frames,), normalized [0, 1]
     """
     Compute per-frame movement score (action intensity).
@@ -34,6 +35,10 @@ def score_movement(
     Args:
         flow_scores: optional per-frame flow magnitude, normalized [0,1].
         flow_weight: blend weight for flow scores (0 = pose only, 1 = flow only).
+        camera_motion: optional (cam_dx, cam_dy) per-frame camera translation
+                       in normalized [0,1] coords from compute_camera_motion().
+                       When provided, camera shake is subtracted from landmark
+                       displacements before scoring.
 
     Returns:
         scores: numpy array of shape (n_frames,), normalized to [0, 1]
@@ -61,6 +66,15 @@ def score_movement(
 
     # Frame-to-frame displacement (n-1 pairs)
     d_xy = np.diff(xy, axis=0)                                   # (n-1, n_lm, 2)
+
+    # Subtract camera motion so shake doesn't register as body movement
+    if camera_motion is not None:
+        cam_dx, cam_dy = camera_motion
+        if len(cam_dx) == n:
+            # cam motion is per-frame translation; subtract from all landmarks
+            d_xy[:, :, 0] -= cam_dx[1:, np.newaxis]
+            d_xy[:, :, 1] -= cam_dy[1:, np.newaxis]
+
     vel = np.sqrt(np.nansum(d_xy ** 2, axis=-1))                 # (n-1, n_lm)
     vis_ok = (vis[:-1] >= MIN_VISIBILITY) & (vis[1:] >= MIN_VISIBILITY)
     vel = np.where(vis_ok, vel, 0.0)
@@ -133,6 +147,7 @@ def score_progress(
     down_weight: float = 0.15,
     consistency_window_s: float = 1.0,
     consistency_floor: float = 0.1,
+    camera_motion: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> np.ndarray:  # shape (n_frames,), normalized [0, 1]
     """
     Compute per-frame spatial progress on the wall.
@@ -161,6 +176,10 @@ def score_progress(
         consistency_floor: minimum consistency multiplier so very slow
                            but genuine progress is not fully suppressed.
                            Default 0.1.
+        camera_motion: optional (cam_dx, cam_dy) per-frame camera translation
+                       in normalized [0,1] coords. When provided, cumulative
+                       camera displacement is subtracted from COM positions
+                       so camera shake doesn't register as climbing progress.
 
     Returns:
         progress_rate: per-frame rate of progress, normalized to [0, 1].
@@ -182,6 +201,13 @@ def score_progress(
     indices = np.arange(n)
     com_x = np.interp(indices, indices[valid], com_x[valid])
     com_y = np.interp(indices, indices[valid], com_y[valid])
+
+    # Subtract cumulative camera motion from COM so shake is removed
+    if camera_motion is not None:
+        cam_dx, cam_dy = camera_motion
+        if len(cam_dx) == n:
+            com_x -= np.cumsum(cam_dx)
+            com_y -= np.cumsum(cam_dy)
 
     # Smooth positions to remove jitter
     pos_sigma = max(1, fps * 0.5)
@@ -226,6 +252,7 @@ def analyze_rest_signals(
     poses: list[dict | None],
     fps: float,
     window_s: float = 1.5,
+    camera_motion: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> dict[str, np.ndarray]:
     """Compute auxiliary signals for enhanced rest detection.
 
@@ -237,6 +264,11 @@ def analyze_rest_signals(
     * **limb_ratio** — ratio of limb velocity (wrists + ankles) to COM
       velocity.  High values mean the limbs are active but the body
       centre is still — classic rest/shakeout pattern.
+
+    Args:
+        camera_motion: optional (cam_dx, cam_dy) per-frame camera translation.
+                       When provided, cumulative camera displacement is
+                       subtracted from COM so shake doesn't inflate variance.
     """
     n = len(poses)
     if n < 2:
@@ -258,6 +290,13 @@ def analyze_rest_signals(
     indices = np.arange(n)
     com_x = np.interp(indices, indices[valid], com_x[valid])
     com_y = np.interp(indices, indices[valid], com_y[valid])
+
+    # Subtract cumulative camera motion from COM
+    if camera_motion is not None:
+        cam_dx, cam_dy = camera_motion
+        if len(cam_dx) == n:
+            com_x -= np.cumsum(cam_dx)
+            com_y -= np.cumsum(cam_dy)
 
     # Smooth COM to match score_progress behaviour
     pos_sigma = max(1, fps * 0.5)
@@ -291,6 +330,14 @@ def analyze_rest_signals(
 
     # Frame-to-frame velocities
     d_limb = np.diff(limb_xy, axis=0)                              # (n-1, 4, 2)
+
+    # Subtract camera motion from limb displacements
+    if camera_motion is not None:
+        cam_dx, cam_dy = camera_motion
+        if len(cam_dx) == n:
+            d_limb[:, :, 0] -= cam_dx[1:, np.newaxis]
+            d_limb[:, :, 1] -= cam_dy[1:, np.newaxis]
+
     limb_vel = np.sqrt(np.nansum(d_limb ** 2, axis=-1))            # (n-1, 4)
     vis_ok = (limb_vis[:-1] >= MIN_VISIBILITY) & (limb_vis[1:] >= MIN_VISIBILITY)
     limb_vel = np.where(vis_ok, limb_vel, 0.0)

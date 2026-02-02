@@ -169,6 +169,44 @@ def load_flow_scores(video_path: str) -> np.ndarray | None:
     return np.load(path)
 
 
+# ---- Raw anchor trajectory cache (for stabilization) ----
+
+def save_raw_anchor(video_path: str, ax: np.ndarray, ay: np.ndarray):
+    """Save pre-smoothing anchor trajectory for stabilization."""
+    cache = get_cache_path(video_path)
+    np.save(cache / "raw_anchor_x.npy", ax)
+    np.save(cache / "raw_anchor_y.npy", ay)
+
+
+def load_raw_anchor(video_path: str) -> tuple[np.ndarray, np.ndarray] | None:
+    """Load cached raw anchor trajectory. Returns (ax, ay) or None."""
+    cache = get_cache_path(video_path)
+    ax_path = cache / "raw_anchor_x.npy"
+    ay_path = cache / "raw_anchor_y.npy"
+    if not ax_path.exists() or not ay_path.exists():
+        return None
+    return np.load(ax_path), np.load(ay_path)
+
+
+# ---- Camera motion cache ----
+
+def save_camera_motion(video_path: str, cam_dx: np.ndarray, cam_dy: np.ndarray):
+    """Save per-frame camera motion estimates to cache."""
+    cache = get_cache_path(video_path)
+    np.save(cache / "cam_dx.npy", cam_dx)
+    np.save(cache / "cam_dy.npy", cam_dy)
+
+
+def load_camera_motion(video_path: str) -> tuple[np.ndarray, np.ndarray] | None:
+    """Load cached camera motion. Returns (cam_dx, cam_dy) or None."""
+    cache = get_cache_path(video_path)
+    dx_path = cache / "cam_dx.npy"
+    dy_path = cache / "cam_dy.npy"
+    if not dx_path.exists() or not dy_path.exists():
+        return None
+    return np.load(dx_path), np.load(dy_path)
+
+
 # ---- General ----
 
 def has_cache(video_path: str) -> bool:

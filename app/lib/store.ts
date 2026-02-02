@@ -24,8 +24,10 @@ interface Store {
   // Speed curve
   curve: number[];
   curveTimes: number[];
+  solveScores: number[];
+  restRegions: [number, number][];
   stats: CurveStats | null;
-  setCurve: (curve: number[], times: number[], stats: CurveStats) => void;
+  setCurve: (curve: number[], times: number[], stats: CurveStats, scores?: number[], restRegions?: [number, number][]) => void;
 
   // Pins
   pins: Pin[];
@@ -56,7 +58,7 @@ export const useStore = create<Store>((set) => ({
   videoId: null,
   videoInfo: null,
   thumbnails: [],
-  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], stats: null, outputId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
+  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], solveScores: [], restRegions: [], stats: null, outputId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
 
   analysis: null,
   analysisParams: null,
@@ -64,8 +66,14 @@ export const useStore = create<Store>((set) => ({
 
   curve: [],
   curveTimes: [],
+  solveScores: [],
+  restRegions: [],
   stats: null,
-  setCurve: (curve, times, stats) => set({ curve, curveTimes: times, stats }),
+  setCurve: (curve, times, stats, scores, restRegions) => set({
+    curve, curveTimes: times, stats,
+    solveScores: scores ?? [],
+    restRegions: restRegions ?? [],
+  }),
 
   pins: [],
   setPins: (pins) => set({ pins }),

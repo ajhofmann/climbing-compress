@@ -219,10 +219,15 @@ def extract_poses(
     # Fill gaps (from stride, detection failures, and sanitization)
     poses = interpolate_missing_poses(poses)
 
+    # Capture raw anchor trajectory BEFORE temporal smoothing — this
+    # preserves the camera shake signal that stabilization needs.
+    from pipeline.stabilize import compute_anchor_trajectory
+    raw_anchor = compute_anchor_trajectory(poses)
+
     # Temporal smoothing: One Euro Filter kills jitter, stays responsive
     poses = smooth_poses(poses, fps, min_cutoff=1.0, beta=0.5)
 
-    return poses, fps
+    return poses, fps, raw_anchor
 
 
 def _bbox_fallback(track: dict) -> dict | None:

@@ -246,11 +246,11 @@ export function SettingsPanel() {
             <label className="flex items-center gap-2 text-xs text-text cursor-pointer">
               <input type="checkbox" checked={s.useFlow} onChange={(e) => u("useFlow", e.target.checked)}
                 className="accent-accent w-4 h-4 rounded" />
-              <span className="font-medium">optical flow</span>
+              <span className="font-medium">optical flow + shake compensation</span>
               <span className="text-[10px] text-text-muted">(background-compensated)</span>
             </label>
             <p className="text-[10px] text-text-muted leading-tight ml-6 -mt-1">
-              subtracts camera shake from motion scores. more robust than pose velocity alone.
+              estimates camera motion from the wall and subtracts it from movement scores. prevents shaky footage from being misread as climbing action.
             </p>
           </div>
         </div>

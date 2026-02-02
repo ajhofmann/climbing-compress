@@ -117,6 +117,7 @@ def compute_stabilization_offsets(
     camera_motion: tuple[np.ndarray, np.ndarray] | None = None,
     camera_motion_weight: float = 0.5,
     use_kalman: bool = True,
+    raw_anchor: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute per-frame stabilization offsets in normalized coordinates.
 
@@ -135,12 +136,19 @@ def compute_stabilization_offsets(
                               0 = pose only, 1 = feature-based only.
         use_kalman: use Kalman filter instead of Gaussian for smoothing.
                     Better at preserving intentional pans while removing jitter.
+        raw_anchor: optional (ax, ay) pre-smoothing anchor trajectory.
+                    When provided, used instead of computing from (already
+                    smoothed) poses. This preserves the camera shake signal
+                    that the One Euro Filter would otherwise remove.
 
     Returns:
         (dx, dy) offset arrays. Positive = crop shifts right/down to cancel
         leftward/upward shake.
     """
-    raw_x, raw_y = compute_anchor_trajectory(poses)
+    if raw_anchor is not None:
+        raw_x, raw_y = raw_anchor
+    else:
+        raw_x, raw_y = compute_anchor_trajectory(poses)
     n = len(raw_x)
 
     if use_kalman:

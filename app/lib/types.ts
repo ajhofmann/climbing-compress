@@ -24,6 +24,8 @@ export interface SolveResult {
   curve: number[];
   times: number[];
   stats: CurveStats;
+  scores: number[];
+  rest_regions: [number, number][];
 }
 
 export interface AnalysisData {
@@ -37,6 +39,7 @@ export interface AnalysisData {
   waveform_action: string;
   tracker_available?: boolean;
   flow_available?: boolean;
+  camera_motion_available?: boolean;
 }
 
 export type SpeedMode = "progress" | "action";

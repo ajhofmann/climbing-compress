@@ -45,6 +45,39 @@ def _semi_rect(frame: np.ndarray, pt1: tuple, pt2: tuple,
     cv2.addWeighted(ov, alpha, frame, 1.0 - alpha, 0, frame)
 
 
+def _stab_coord_adjuster(
+    stab_offsets: tuple[np.ndarray, np.ndarray],
+    stabilize_crop: float,
+) -> Callable[[float, float, int, int, int], tuple[float, float]]:
+    """Return a function that remaps normalized [0,1] coords to the cropped frame.
+
+    After stabilization, the rendered frame is a crop of a padded decode.
+    Pose landmarks are in [0,1] of the original frame; this adjusts them
+    so ``(adj_x * w, adj_y * h)`` lands at the correct pixel in the crop.
+    """
+    stab_dx, stab_dy = stab_offsets
+    pad_ratio = 1.0 / (1.0 - stabilize_crop)
+
+    def adjust(norm_x: float, norm_y: float,
+               src_idx: int, h: int, w: int) -> tuple[float, float]:
+        pad_w = w * pad_ratio
+        pad_h = h * pad_ratio
+        margin_w = (pad_w - w) / 2
+        margin_h = (pad_h - h) / 2
+        dx = float(stab_dx[src_idx]) if src_idx < len(stab_dx) else 0.0
+        dy = float(stab_dy[src_idx]) if src_idx < len(stab_dy) else 0.0
+        crop_x = margin_w + dx * pad_w
+        crop_y = margin_h + dy * pad_h
+        # Clamp to match render.py
+        crop_x = max(0, min(crop_x, pad_w - w))
+        crop_y = max(0, min(crop_y, pad_h - h))
+        adj_x = (norm_x * pad_w - crop_x) / w
+        adj_y = (norm_y * pad_h - crop_y) / h
+        return adj_x, adj_y
+
+    return adjust
+
+
 # ---------------------------------------------------------------------------
 # Layer 1: Skeleton with visibility quality
 # ---------------------------------------------------------------------------
@@ -212,6 +245,43 @@ def _draw_com_trail(frame: np.ndarray, cx: np.ndarray, cy: np.ndarray,
         cv2.line(frame, (x0, y0), (x1, y1), col, thick, cv2.LINE_AA)
 
     # Current position dot
+    x, y, _ = pts[-1]
+    cv2.circle(frame, (x, y), 5, (255, 255, 255), -1, cv2.LINE_AA)
+    cv2.circle(frame, (x, y), 5, (60, 60, 60), 1, cv2.LINE_AA)
+
+
+def _draw_com_trail_adjusted(
+    frame: np.ndarray, cx: np.ndarray, cy: np.ndarray,
+    src_idx: int, h: int, w: int,
+    speed_curve: np.ndarray,
+    adjust: Callable,
+    trail: int = 40,
+) -> None:
+    """COM trail with per-point stabilization coordinate adjustment."""
+    lo = max(0, src_idx - trail)
+    hi = min(src_idx + 1, len(cx))
+    if hi <= lo:
+        return
+
+    pts: list[tuple[int, int, int]] = []
+    for i in range(lo, hi):
+        if i >= len(cx) or np.isnan(cx[i]):
+            continue
+        ax, ay = adjust(float(cx[i]), float(cy[i]), i, h, w)
+        pts.append((int(ax * w), int(ay * h), i))
+    if len(pts) < 2:
+        return
+
+    for j in range(1, len(pts)):
+        x0, y0, _ = pts[j - 1]
+        x1, y1, fi = pts[j]
+        alpha = j / len(pts)
+        spd = float(speed_curve[fi]) if fi < len(speed_curve) else 1.0
+        base = _speed_color(spd)
+        col = tuple(int(c * (0.25 + 0.75 * alpha)) for c in base)
+        thick = max(1, int(1 + alpha * 1.5))
+        cv2.line(frame, (x0, y0), (x1, y1), col, thick, cv2.LINE_AA)
+
     x, y, _ = pts[-1]
     cv2.circle(frame, (x, y), 5, (255, 255, 255), -1, cv2.LINE_AA)
     cv2.circle(frame, (x, y), 5, (60, 60, 60), 1, cv2.LINE_AA)
@@ -561,6 +631,7 @@ def make_debug_overlay_fn(
     flow_scores: np.ndarray | None = None,
     tracks: list | None = None,
     stab_offsets: tuple[np.ndarray, np.ndarray] | None = None,
+    stabilize_crop: float = 0.0,
     rest_mask: np.ndarray | None = None,
     pins: list | None = None,
     mode: str = "progress",
@@ -569,6 +640,10 @@ def make_debug_overlay_fn(
 
     Pre-computes all static visuals (timeline, stab inset, COM trail
     positions) once. The returned callable draws everything per frame.
+
+    When stab_offsets and stabilize_crop are provided, all body-space
+    coordinates (skeleton, bbox, COM trail) are remapped from the
+    original [0,1] frame to the stabilization-cropped frame.
     """
     badge_fn = make_speed_badge_fn(speed_curve)
 
@@ -589,10 +664,44 @@ def make_debug_overlay_fn(
     if stab_offsets is not None:
         stab_img, stab_mag = _prerender_stab(*stab_offsets)
 
+    # Coordinate adjuster for stabilization crop
+    _adjust: Callable | None = None
+    if stab_offsets is not None and stabilize_crop > 0:
+        _adjust = _stab_coord_adjuster(stab_offsets, stabilize_crop)
+
     n_frames = len(speed_curve)
 
     # Cache resized timeline per output resolution (constant within a render)
     _tl_cache: dict[tuple[int, int], np.ndarray] = {}
+
+    def _adjusted_pose(pose, src_idx: int, h: int, w: int):
+        """Remap pose landmarks to cropped-frame coordinates."""
+        if _adjust is None or pose is None:
+            return pose
+        if isinstance(pose, dict):
+            return {
+                name: (_adjust(x, y, src_idx, h, w) + (vis,))
+                for name, (x, y, vis) in pose.items()
+            }
+        return pose
+
+    def _adjusted_track(track, src_idx: int, h: int, w: int):
+        """Remap tracking bbox to cropped-frame coordinates."""
+        if _adjust is None or track is None:
+            return track
+        bn = track.get("bbox_norm")
+        if bn is None:
+            return track
+        x1, y1, x2, y2 = bn
+        ax1, ay1 = _adjust(x1, y1, src_idx, h, w)
+        ax2, ay2 = _adjust(x2, y2, src_idx, h, w)
+        return {**track, "bbox_norm": (ax1, ay1, ax2, ay2)}
+
+    def _adjusted_com(cx_arr, cy_arr, idx: int, h: int, w: int):
+        """Remap a single COM point to cropped-frame coordinates."""
+        if _adjust is None:
+            return float(cx_arr[idx]), float(cy_arr[idx])
+        return _adjust(float(cx_arr[idx]), float(cy_arr[idx]), idx, h, w)
 
     def overlay(frame: np.ndarray, src_idx: int, speed: float) -> np.ndarray:
         h, w = frame.shape[:2]
@@ -607,14 +716,20 @@ def make_debug_overlay_fn(
             )
         tl = _tl_cache[key]
 
-        # ── body layers ──
+        # ── body layers (with stabilization coordinate adjustment) ──
         if tracks is not None and src_idx < len(tracks):
-            _draw_tracking_bbox(frame, tracks[src_idx], h, w)
+            _draw_tracking_bbox(frame, _adjusted_track(tracks[src_idx], src_idx, h, w), h, w)
 
         if src_idx < len(poses) and poses[src_idx] is not None:
-            _draw_skeleton(frame, poses[src_idx], h, w)
+            _draw_skeleton(frame, _adjusted_pose(poses[src_idx], src_idx, h, w), h, w)
 
-        _draw_com_trail(frame, com_x, com_y, src_idx, h, w, speed_curve)
+        if _adjust is not None:
+            _draw_com_trail_adjusted(
+                frame, com_x, com_y, src_idx, h, w,
+                speed_curve, _adjust,
+            )
+        else:
+            _draw_com_trail(frame, com_x, com_y, src_idx, h, w, speed_curve)
 
         # ── top bar ──
         frame = badge_fn(frame, src_idx, speed)

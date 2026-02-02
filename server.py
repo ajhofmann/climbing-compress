@@ -22,10 +22,12 @@ from pydantic import BaseModel
 
 from pipeline.cache import (
     load_analysis, has_cache, content_hash, load_flow_scores,
+    load_camera_motion,
 )
 from pipeline.orchestrate import (
     run_analysis, run_render, compute_scores_and_curve, curve_stats,
 )
+from pipeline.speed_curve import detect_rest
 from utils.sse import sse_response
 from utils.video_io import get_video_info
 from utils.viz import generate_thumbnails
@@ -217,8 +219,9 @@ async def solve_curve(req: SolveRequest):
 
     poses, fps, _ = cached
     flow_scores = load_flow_scores(str(path))
+    camera_motion = load_camera_motion(str(path))
     scores, curve, trimmed, start_frame = compute_scores_and_curve(
-        req, poses, fps, flow_scores=flow_scores,
+        req, poses, fps, flow_scores=flow_scores, camera_motion=camera_motion,
     )
 
     # Downsample curve for transfer — times are absolute (offset by trim start)
@@ -228,11 +231,27 @@ async def solve_curve(req: SolveRequest):
     trim_offset = start_frame / fps if fps > 0 else 0
     times_ds = ((np.arange(0, n, step) / fps) + trim_offset).tolist()
 
+    # Downsample scores at the same rate as the curve
+    scores_ds = scores[::step].tolist()
+
+    # Rest detection (lightweight, scores-only) for debug visualization
+    rest_mask = detect_rest(scores, fps, req.rest_threshold_s)
+    rest_regions: list[list[float]] = []
+    changes = np.diff(rest_mask.astype(np.int8), prepend=0, append=0)
+    starts = np.where(changes == 1)[0]
+    ends = np.where(changes == -1)[0]
+    for s, e in zip(starts, ends):
+        t0 = float(s) / fps + trim_offset
+        t1 = float(e) / fps + trim_offset
+        rest_regions.append([round(t0, 2), round(t1, 2)])
+
     stats = curve_stats(curve, fps)
 
     return {
         "curve": curve_ds,
         "times": times_ds,
+        "scores": scores_ds,
+        "rest_regions": rest_regions,
         "stats": stats,
     }
 

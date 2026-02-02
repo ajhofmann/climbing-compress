@@ -26,6 +26,8 @@ from pipeline.cache import (
     save_analysis, load_analysis,
     save_tracks, load_tracks, has_tracks,
     save_flow_scores, load_flow_scores,
+    save_camera_motion, load_camera_motion,
+    save_raw_anchor, load_raw_anchor,
 )
 from pipeline.debug_overlay import make_speed_badge_fn, make_debug_overlay_fn
 from utils.viz import render_waveform_data_url
@@ -69,6 +71,7 @@ def compute_scores_and_curve(
     poses: list,
     fps: float,
     flow_scores: np.ndarray | None = None,
+    camera_motion: tuple[np.ndarray, np.ndarray] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, list, int]:
     """Compute movement/progress scores and speed curve from *req* params.
 
@@ -84,6 +87,14 @@ def compute_scores_and_curve(
         if end_frame <= len(flow_scores):
             trimmed_flow = flow_scores[start_frame:end_frame]
 
+    # Trim camera motion to match
+    trimmed_cam = None
+    if camera_motion is not None:
+        cam_dx, cam_dy = camera_motion
+        end_frame = start_frame + len(trimmed)
+        if end_frame <= len(cam_dx):
+            trimmed_cam = (cam_dx[start_frame:end_frame], cam_dy[start_frame:end_frame])
+
     # Offset pins into trimmed-region time and filter out-of-range
     trim_s = start_frame / fps if fps > 0 else 0
     trim_dur = len(trimmed) / fps if fps > 0 else 0
@@ -98,8 +109,9 @@ def compute_scores_and_curve(
             smooth_sigma_s=req.smoothing,
             vertical_bias=req.vertical_bias,
             down_weight=getattr(req, "down_weight", 0.15),
+            camera_motion=trimmed_cam,
         )
-        rest_signals = analyze_rest_signals(trimmed, fps)
+        rest_signals = analyze_rest_signals(trimmed, fps, camera_motion=trimmed_cam)
         curve = solve_constant_progress(
             scores, fps,
             target_duration=req.target_duration,
@@ -120,6 +132,7 @@ def compute_scores_and_curve(
             foot_weight=req.foot_weight,
             core_weight=req.core_weight,
             flow_scores=trimmed_flow,
+            camera_motion=trimmed_cam,
         )
         curve = solve_speed_curve(
             scores, fps,
@@ -203,7 +216,7 @@ def run_analysis(
                 "message": f"Detecting poses... {int(p * 100)}%",
             })
 
-        poses, fps = extract_poses(
+        poses, fps, raw_anchor = extract_poses(
             video_path,
             stride=req.stride,
             tracks=tracks,
@@ -212,6 +225,10 @@ def run_analysis(
 
         if tracks:
             save_tracks(video_path, tracks, fps=fps, stride=req.stride)
+
+        # Cache the raw (pre-smoothing) anchor trajectory for stabilization
+        if raw_anchor is not None:
+            save_raw_anchor(video_path, *raw_anchor)
 
         emit({"progress": 0.50, "message": "Interpolating..."})
 
@@ -252,10 +269,40 @@ def run_analysis(
             )
             save_flow_scores(video_path, flow_scores)
 
+    # --- Phase 3b: Camera motion estimation (for shake compensation) ---
+    camera_motion = None
+    if req.use_flow and HAS_FLOW:
+        cached_cam = load_camera_motion(video_path) if not req.force else None
+        if cached_cam is not None:
+            camera_motion = cached_cam
+            emit({"progress": 0.67, "message": "Loaded camera motion from cache"})
+        else:
+            emit({"progress": 0.65, "message": "Estimating camera motion..."})
+            tracks_for_cam = None
+            if HAS_TRACKER:
+                cached_tracks = load_tracks(video_path)
+                if cached_tracks:
+                    tracks_for_cam, _ = cached_tracks
+
+            def cam_progress(p: float) -> None:
+                emit({
+                    "progress": 0.65 + p * 0.04,
+                    "message": f"Estimating camera motion... {int(p * 100)}%",
+                })
+
+            cam_dx, cam_dy, _ = compute_camera_motion(
+                video_path,
+                tracks=tracks_for_cam,
+                stride=max(2, req.stride),
+                progress_cb=cam_progress,
+            )
+            camera_motion = (cam_dx, cam_dy)
+            save_camera_motion(video_path, cam_dx, cam_dy)
+
     # --- Phase 4: Final scores + waveforms ---
     emit({"progress": 0.70, "message": "Computing progress scores..."})
-    progress_scores = score_progress(poses, fps)
-    action_scores = score_movement(poses, fps, flow_scores=flow_scores)
+    progress_scores = score_progress(poses, fps, camera_motion=camera_motion)
+    action_scores = score_movement(poses, fps, flow_scores=flow_scores, camera_motion=camera_motion)
 
     emit({"progress": 0.85, "message": "Generating waveforms..."})
 
@@ -272,6 +319,8 @@ def run_analysis(
         tracking_info["tracker_available"] = True
     if flow_scores is not None:
         tracking_info["flow_available"] = True
+    if camera_motion is not None:
+        tracking_info["camera_motion_available"] = True
 
     emit({
         "progress": 1.0,
@@ -313,8 +362,11 @@ def run_render(
     poses, fps, _ = cached
     flow_scores = load_flow_scores(video_path)
 
+    # Load cached camera motion (computed during analysis)
+    camera_motion = load_camera_motion(video_path)
+
     scores, curve, trimmed, start_frame = compute_scores_and_curve(
-        req, poses, fps, flow_scores=flow_scores,
+        req, poses, fps, flow_scores=flow_scores, camera_motion=camera_motion,
     )
 
     trim_start_s = start_frame / fps if fps > 0 else 0.0
@@ -325,34 +377,62 @@ def run_render(
     if req.stabilize:
         emit({"progress": 0.08, "message": "Computing stabilization..."})
 
-        camera_motion = None
+        # Trim camera motion for stabilization (reuse cached data)
+        stab_cam_motion = None
         if req.use_feature_stabilize and HAS_FLOW:
-            cached_tracks = load_tracks(video_path)
-            tracks_for_stab = cached_tracks[0] if cached_tracks else None
+            if camera_motion is not None:
+                cam_dx, cam_dy = camera_motion
+                sf = start_frame
+                ef = sf + len(trimmed)
+                if ef <= len(cam_dx):
+                    stab_cam_motion = (cam_dx[sf:ef], cam_dy[sf:ef])
+            else:
+                # Fallback: compute if not cached (e.g. analysis ran without flow)
+                cached_tracks = load_tracks(video_path)
+                tracks_for_stab = cached_tracks[0] if cached_tracks else None
 
-            def _stab_progress(frac: float) -> None:
-                emit({
-                    "progress": 0.08 + frac * 0.02,
-                    "message": f"Computing camera motion... {int(frac * 100)}%",
-                })
+                def _stab_progress(frac: float) -> None:
+                    emit({
+                        "progress": 0.08 + frac * 0.02,
+                        "message": f"Computing camera motion... {int(frac * 100)}%",
+                    })
 
-            cam_dx, cam_dy, _ = compute_camera_motion(
-                video_path, tracks=tracks_for_stab,
-                progress_cb=_stab_progress,
-            )
+                cam_dx, cam_dy, _ = compute_camera_motion(
+                    video_path, tracks=tracks_for_stab,
+                    progress_cb=_stab_progress,
+                )
+                sf = start_frame
+                ef = sf + len(trimmed)
+                stab_cam_motion = (cam_dx[sf:ef], cam_dy[sf:ef])
+
+        # Load raw (pre-smoothing) anchor trajectory for accurate stabilization
+        stab_raw_anchor = None
+        cached_anchor = load_raw_anchor(video_path)
+        if cached_anchor is not None:
+            ax, ay = cached_anchor
             sf = start_frame
             ef = sf + len(trimmed)
-            camera_motion = (cam_dx[sf:ef], cam_dy[sf:ef])
+            if ef <= len(ax):
+                stab_raw_anchor = (ax[sf:ef], ay[sf:ef])
 
         stab_dx, stab_dy = compute_stabilization_offsets(
             trimmed, fps,
             strength=req.stabilize_strength,
             smooth_window_s=req.stabilize_smoothness,
-            camera_motion=camera_motion,
+            camera_motion=stab_cam_motion,
             camera_motion_weight=req.feature_stabilize_weight,
+            raw_anchor=stab_raw_anchor,
         )
         stab_offsets = (stab_dx, stab_dy)
         stab_info = stabilization_stats(stab_dx, stab_dy)
+        logger.info(
+            "Stabilization: avg=%.2f%% max=%.2f%% p95=%.2f%% (raw_anchor=%s, cam_motion=%s)",
+            stab_info["stab_avg_offset_pct"],
+            stab_info["stab_max_offset_pct"],
+            stab_info["stab_p95_offset_pct"],
+            stab_raw_anchor is not None,
+            stab_cam_motion is not None,
+        )
 
     emit({"progress": 0.1, "message": "Rendering frames..."})
 
@@ -373,7 +453,14 @@ def run_render(
                 debug_flow = flow_scores[start_frame:ef]
 
         if req.mode == "progress":
-            debug_rest_signals = analyze_rest_signals(trimmed, fps)
+            # Trim camera motion for rest signal analysis
+            debug_cam = None
+            if camera_motion is not None:
+                cam_dx, cam_dy = camera_motion
+                sf, ef = start_frame, start_frame + len(trimmed)
+                if ef <= len(cam_dx):
+                    debug_cam = (cam_dx[sf:ef], cam_dy[sf:ef])
+            debug_rest_signals = analyze_rest_signals(trimmed, fps, camera_motion=debug_cam)
             rest_mask = detect_rest(
                 scores, fps, req.rest_threshold_s,
                 com_variance=debug_rest_signals["com_variance"],
@@ -395,6 +482,7 @@ def run_render(
             flow_scores=debug_flow,
             tracks=debug_tracks,
             stab_offsets=stab_offsets,
+            stabilize_crop=req.stabilize_crop if req.stabilize else 0.0,
             rest_mask=rest_mask,
             pins=debug_pins if debug_pins else None,
             mode=req.mode,
