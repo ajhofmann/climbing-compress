@@ -20,6 +20,7 @@ from pipeline.speed_curve import (
     solve_speed_curve, solve_constant_progress, get_output_duration,
     detect_rest,
 )
+from pipeline.constants import SPEED_FLOOR, SPEED_CEIL
 from pipeline.render import render_preview
 from pipeline.stabilize import compute_stabilization_offsets, stabilization_stats
 from pipeline.cache import (
@@ -493,9 +494,13 @@ def run_render(
     output_id = uuid.uuid4().hex[:10]
     output_path = str(output_dir / f"{output_id}.mp4")
 
+    has_comparison = getattr(req, "render_comparison", False)
+    # Allocate progress: main render 0.1–0.85, audio 0.85–0.88, comparison 0.88–0.98
+    main_end = 0.85 if has_comparison else 0.90
+
     def render_progress(p: float) -> None:
         emit({
-            "progress": 0.1 + p * 0.80,
+            "progress": 0.1 + p * (main_end - 0.1),
             "message": f"Rendering... {int(p * 100)}%",
         })
 
@@ -514,14 +519,51 @@ def run_render(
     )
 
     if req.include_audio:
-        emit({"progress": 0.92, "message": "Muxing audio..."})
+        emit({"progress": main_end + 0.02, "message": "Muxing audio..."})
 
     stats = curve_stats(curve, fps)
     stats.update(stab_info)
-    emit({
+
+    # --- Comparison render: uniform-speed (naive fast-forward) ---
+    comparison_id = None
+    if getattr(req, "render_comparison", False):
+        emit({"progress": 0.92, "message": "Rendering comparison..."})
+
+        n_src = len(curve)
+        src_duration = n_src / fps if fps > 0 else 0
+        uniform_speed = src_duration / req.target_duration if req.target_duration > 0 else 1.0
+        uniform_speed = max(SPEED_FLOOR, min(uniform_speed, SPEED_CEIL))
+        flat_curve = np.full(n_src, uniform_speed)
+
+        comparison_id = uuid.uuid4().hex[:10]
+        comparison_path = str(output_dir / f"{comparison_id}.mp4")
+
+        # Simple speed badge overlay for comparison
+        comp_overlay = make_speed_badge_fn(flat_curve)
+
+        render_preview(
+            video_path, flat_curve, fps,
+            output_path=comparison_path,
+            scale=req.scale,
+            output_fps=req.output_fps,
+            crf=req.crf,
+            debug_overlay_fn=comp_overlay,
+            progress_cb=lambda p: emit({
+                "progress": 0.92 + p * 0.07,
+                "message": f"Rendering comparison... {int(p * 100)}%",
+            }),
+            trim_start_s=trim_start_s,
+            include_audio=False,
+        )
+
+    result_payload: dict = {
         "progress": 1.0,
         "message": "Done!",
         "done": True,
         "output_id": output_id,
         "stats": stats,
-    })
+    }
+    if comparison_id is not None:
+        result_payload["comparison_id"] = comparison_id
+
+    emit(result_payload)

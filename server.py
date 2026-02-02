@@ -106,6 +106,8 @@ class RenderRequest(SolveRequest):
     # Feature-based stabilization (blend with pose-anchored)
     use_feature_stabilize: bool = True
     feature_stabilize_weight: float = 0.5
+    # Comparison: also render a uniform-speed version
+    render_comparison: bool = False
 
 class AnalyzeRequest(BaseModel):
     video_id: str

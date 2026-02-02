@@ -80,6 +80,8 @@ export interface Settings {
   featureStabilizeWeight: number;
   // Audio
   includeAudio: boolean;
+  // Comparison
+  renderComparison: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -113,6 +115,7 @@ export const DEFAULT_SETTINGS: Settings = {
   useFeatureStabilize: true,
   featureStabilizeWeight: 0.5,
   includeAudio: true,
+  renderComparison: false,
 };
 
 export interface Preset {

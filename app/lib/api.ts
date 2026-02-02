@@ -96,6 +96,7 @@ export async function solveCurve(
 
 interface RenderResult {
   output_id: string;
+  comparison_id?: string;
   stats: {
     output_duration: number;
     speed_min: number;
@@ -144,6 +145,7 @@ export async function renderVideo(
       include_audio: settings.includeAudio,
       use_feature_stabilize: settings.useFeatureStabilize,
       feature_stabilize_weight: settings.featureStabilizeWeight,
+      render_comparison: settings.renderComparison,
     }),
   });
 

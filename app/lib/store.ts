@@ -42,7 +42,9 @@ interface Store {
 
   // Output
   outputId: string | null;
+  comparisonId: string | null;
   setOutputId: (id: string | null) => void;
+  setComparisonId: (id: string | null) => void;
 
   // Progress
   isAnalyzing: boolean;
@@ -58,7 +60,7 @@ export const useStore = create<Store>((set) => ({
   videoId: null,
   videoInfo: null,
   thumbnails: [],
-  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], solveScores: [], restRegions: [], stats: null, outputId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
+  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], solveScores: [], restRegions: [], stats: null, outputId: null, comparisonId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
 
   analysis: null,
   analysisParams: null,
@@ -85,7 +87,9 @@ export const useStore = create<Store>((set) => ({
   updateSettings: (partial) => set((s) => ({ settings: { ...s.settings, ...partial } })),
 
   outputId: null,
+  comparisonId: null,
   setOutputId: (id) => set({ outputId: id }),
+  setComparisonId: (id) => set({ comparisonId: id }),
 
   isAnalyzing: false,
   isRendering: false,

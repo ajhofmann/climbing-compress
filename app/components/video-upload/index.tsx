@@ -50,22 +50,20 @@ export function VideoUpload() {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex items-center gap-3">
       {thumbnails.length > 0 && (
-        <div className="flex gap-0.5 overflow-hidden rounded-xl">
-          {thumbnails.map((t, i) => (
-            <img key={i} src={t} alt={`Video thumbnail ${i + 1} of ${thumbnails.length}`} className="h-20 object-cover flex-1 min-w-0" />
+        <div className="flex gap-0.5 overflow-hidden rounded-lg shrink-0">
+          {thumbnails.slice(0, 5).map((t, i) => (
+            <img key={i} src={t} alt={`Video thumbnail ${i + 1}`} className="h-10 w-14 object-cover" />
           ))}
         </div>
       )}
-      <div className="flex justify-between items-center">
-        <span className="text-xs text-text-muted font-mono">
-          {videoInfo && `${videoInfo.duration.toFixed(0)}s · ${videoInfo.width}x${videoInfo.height} · ${videoInfo.fps.toFixed(0)}fps`}
-        </span>
-        <button onClick={openPicker} className="text-xs text-accent hover:underline">
-          change
-        </button>
-      </div>
+      <span className="text-xs text-text-muted font-mono truncate flex-1">
+        {videoInfo && `${videoInfo.duration.toFixed(0)}s · ${videoInfo.width}×${videoInfo.height} · ${videoInfo.fps.toFixed(0)}fps`}
+      </span>
+      <button onClick={openPicker} className="text-xs text-accent hover:underline shrink-0">
+        change
+      </button>
     </div>
   );
 }

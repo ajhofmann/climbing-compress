@@ -85,6 +85,7 @@ export default function Home() {
       });
       if (result?.output_id) {
         store.setOutputId(result.output_id);
+        store.setComparisonId(result.comparison_id ?? null);
         store.setProgress(0, `Done! ${result.stats?.output_duration}s video ready`);
       }
     } catch (e: unknown) {
@@ -109,11 +110,9 @@ export default function Home() {
         </p>
       </header>
 
-      {/* Video I/O */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <VideoUpload />
-        <VideoPlayer />
-      </div>
+      {/* Video I/O — stacked: compact upload strip, then full-width player */}
+      <VideoUpload />
+      <VideoPlayer />
 
       {/* Actions */}
       <div className="flex flex-col gap-3">
@@ -150,8 +149,10 @@ export default function Home() {
         <ProgressBar />
       </div>
 
-      {/* Timeline */}
-      <TimelineEditor />
+      {/* Timeline — sticky so it stays visible while adjusting settings */}
+      <div className="sticky top-0 z-30 -mx-6 px-6 py-3 bg-bg/80 backdrop-blur-md border-b border-border/50">
+        <TimelineEditor />
+      </div>
 
       {/* Debug Charts */}
       <DebugCharts />

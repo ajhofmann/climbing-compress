@@ -21,6 +21,7 @@ import numpy as np
 
 from pipeline.constants import MIN_VISIBILITY
 from pipeline.pose import SKELETON_CONNECTIONS, LANDMARKS
+from pipeline.speed_curve import get_time_mapping
 
 
 # ---------------------------------------------------------------------------
@@ -324,13 +325,20 @@ def make_speed_badge_fn(
 # ---------------------------------------------------------------------------
 
 def _draw_frame_info(frame: np.ndarray, src_idx: int, fps: float,
-                     h: int, w: int, mode: str = "progress") -> None:
+                     h: int, w: int, mode: str = "progress",
+                     time_map: np.ndarray | None = None) -> None:
     font = cv2.FONT_HERSHEY_SIMPLEX
     fs = max(0.5, h / 900)
     small = fs * 0.65
     src_t = src_idx / fps if fps > 0 else 0
     tag = "PROG" if mode == "progress" else "ACT"
-    text = f"f{src_idx} | {src_t:.1f}s | {tag}"
+
+    # Include output time when time_map is available
+    if time_map is not None and len(time_map) > 0 and src_idx < len(time_map):
+        out_t = float(time_map[src_idx])
+        text = f"f{src_idx} | {src_t:.1f}s \u2192 {out_t:.1f}s | {tag}"
+    else:
+        text = f"f{src_idx} | {src_t:.1f}s | {tag}"
     tw = cv2.getTextSize(text, font, small, 1)[0][0]
 
     _semi_rect(frame, (5, 5), (tw + 18, 35), (20, 20, 20), 0.65)
@@ -422,18 +430,20 @@ def _prerender_timeline(
     rest_mask: np.ndarray | None,
     pins: list | None,
     flow_scores: np.ndarray | None,
+    time_map: np.ndarray | None = None,
 ) -> np.ndarray:
     """Build a static timeline image (H x W x 3) at canonical width."""
     tw = _TIMELINE_W
     n = len(speed_curve)
-    strip_h = 40
+    out_tick_h = 6  # height of the output-time tick lane
+    strip_h = 40 + out_tick_h
 
     if n == 0:
         return np.full((strip_h, tw, 3), 20, dtype=np.uint8)
 
     speed_lane_h = 22
     divider = 2
-    score_lane_h = strip_h - speed_lane_h - divider
+    score_lane_h = 40 - speed_lane_h - divider  # keep original proportions
     img = np.full((strip_h, tw, 3), 20, dtype=np.uint8)
 
     # Map pixel columns → frame indices
@@ -519,34 +529,91 @@ def _prerender_timeline(
                     cv2.MARKER_DIAMOND, 6, 1, cv2.LINE_AA,
                 )
 
-    # ── time ticks ────────────────────────────────────────────────
+    # ── source time ticks ──────────────────────────────────────────
     total = n / fps if fps > 0 else 0
+    src_strip_bottom = speed_lane_h + divider + score_lane_h  # bottom of original lanes
     tick = _nice_tick(total)
     if tick > 0:
         for ts in np.arange(tick, total, tick):
             px = int(ts * fps * tw / n) if n > 0 else 0
             if 0 < px < tw:
                 cv2.line(img, (px, 0), (px, 3), (80, 80, 80), 1)
-                cv2.line(img, (px, strip_h - 3), (px, strip_h - 1),
+                cv2.line(img, (px, src_strip_bottom - 3), (px, src_strip_bottom - 1),
                          (80, 80, 80), 1)
+
+    # ── output time lane (bottom strip) ──────────────────────────
+    out_lane_top = src_strip_bottom
+    # Dark background for the output-time lane
+    img[out_lane_top:out_lane_top + out_tick_h, :] = (15, 15, 15)
+    # Thin separator line
+    img[out_lane_top, :] = (45, 45, 45)
+
+    if time_map is not None and len(time_map) == n:
+        total_out = float(time_map[-1]) if n > 0 else 0.0
+        if total_out > 0:
+            # Draw output-time ticks at regular output-second intervals,
+            # mapped back to their source-frame position on the timeline.
+            out_tick_interval = _nice_tick(total_out)
+            if out_tick_interval > 0:
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                for ot in np.arange(out_tick_interval, total_out, out_tick_interval):
+                    # Binary-search: find source frame where output time >= ot
+                    src_fi = int(np.searchsorted(time_map, ot))
+                    src_fi = min(src_fi, n - 1)
+                    px = int(src_fi * tw / n)
+                    if 0 < px < tw:
+                        cv2.line(img, (px, out_lane_top + 1),
+                                 (px, out_lane_top + out_tick_h - 1),
+                                 (120, 180, 255), 1)
+                        # Label every other tick to avoid clutter
+                        label = f"{ot:.0f}" if ot == int(ot) else f"{ot:.1f}"
+                        lw = cv2.getTextSize(label, font, 0.22, 1)[0][0]
+                        lx = min(px + 2, tw - lw - 2)
+                        cv2.putText(img, label,
+                                    (lx, out_lane_top + out_tick_h - 1),
+                                    font, 0.22, (100, 150, 220), 1, cv2.LINE_AA)
+
+            # Label on the right: total output duration
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            dur_label = f">{total_out:.0f}s" if total_out == int(total_out) else f">{total_out:.1f}s"
+            dlw = cv2.getTextSize(dur_label, font, 0.25, 1)[0][0]
+            cv2.putText(img, dur_label, (tw - dlw - 4, out_lane_top + out_tick_h - 1),
+                        font, 0.25, (120, 180, 255), 1, cv2.LINE_AA)
 
     return img
 
 
 def _blit_timeline(frame: np.ndarray, tl_resized: np.ndarray,
                    src_idx: int, n_frames: int,
-                   h: int, w: int, strip_h: int) -> None:
-    """Composite the pre-resized timeline and draw the playhead."""
+                   h: int, w: int, strip_h: int,
+                   time_map: np.ndarray | None = None,
+                   total_output_duration: float = 0.0) -> None:
+    """Composite the pre-resized timeline and draw both playheads."""
     y1 = h - strip_h
     region = frame[y1:h, :w]
     cv2.addWeighted(tl_resized, 0.88, region, 0.12, 0, region)
     frame[y1:h, :w] = region
 
     if n_frames > 0:
+        # Source playhead — white
         px = max(0, min(int(src_idx * w / n_frames), w - 1))
         cv2.line(frame, (px, y1), (px, h), (255, 255, 255), 1, cv2.LINE_AA)
         tri = np.array([[px - 3, y1], [px + 3, y1], [px, y1 + 4]])
         cv2.fillPoly(frame, [tri], (255, 255, 255))
+
+        # Output playhead — cyan/blue, shows where we are in output time
+        if (time_map is not None and len(time_map) > 0
+                and total_output_duration > 0 and src_idx < len(time_map)):
+            out_frac = float(time_map[src_idx]) / total_output_duration
+            out_px = max(0, min(int(out_frac * w), w - 1))
+            out_color = (255, 180, 80)  # light cyan-ish (BGR: light blue)
+            cv2.line(frame, (out_px, y1), (out_px, h),
+                     out_color, 1, cv2.LINE_AA)
+            # Upward triangle at bottom edge
+            tri_out = np.array([
+                [out_px - 3, h], [out_px + 3, h], [out_px, h - 4],
+            ])
+            cv2.fillPoly(frame, [tri_out], out_color)
 
 
 # ---------------------------------------------------------------------------
@@ -647,6 +714,10 @@ def make_debug_overlay_fn(
     """
     badge_fn = make_speed_badge_fn(speed_curve)
 
+    # Pre-compute output time mapping for the speed transformation tracker
+    time_map = get_time_mapping(speed_curve, fps) if len(speed_curve) > 0 else np.array([])
+    total_output_duration = float(time_map[-1]) if len(time_map) > 0 else 0.0
+
     # Pre-compute center-of-mass trail
     com_x, com_y = _compute_com(poses)
 
@@ -656,6 +727,7 @@ def make_debug_overlay_fn(
         rest_mask=rest_mask,
         pins=pins,
         flow_scores=flow_scores,
+        time_map=time_map,
     )
 
     # Pre-render stabilization inset
@@ -733,13 +805,14 @@ def make_debug_overlay_fn(
 
         # ── top bar ──
         frame = badge_fn(frame, src_idx, speed)
-        _draw_frame_info(frame, src_idx, fps, h, w, mode)
+        _draw_frame_info(frame, src_idx, fps, h, w, mode, time_map=time_map)
 
         if rest_mask is not None and src_idx < len(rest_mask) and rest_mask[src_idx]:
             _draw_rest_badge(frame, h, w)
 
         # ── bottom layers ──
-        _blit_timeline(frame, tl, src_idx, n_frames, h, w, strip_h)
+        _blit_timeline(frame, tl, src_idx, n_frames, h, w, strip_h,
+                       time_map=time_map, total_output_duration=total_output_duration)
 
         bar_base = h - strip_h - 2
         _draw_score_bars(frame, src_idx, scores, h, w,

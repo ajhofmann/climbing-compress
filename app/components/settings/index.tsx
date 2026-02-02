@@ -209,6 +209,11 @@ export function SettingsPanel() {
               className="accent-accent w-4 h-4 rounded" />
             show debug overlay (skeleton + speed badge)
           </label>
+          <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer">
+            <input type="checkbox" checked={s.renderComparison} onChange={(e) => u("renderComparison", e.target.checked)}
+              className="accent-accent w-4 h-4 rounded" />
+            render comparison (uniform speed for A/B)
+          </label>
         </div>
       </Section>
 
