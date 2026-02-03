@@ -37,32 +37,38 @@ export function VideoUpload() {
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onClick={openPicker}
-        className={`rounded-2xl border border-dashed p-10 text-center cursor-pointer transition-all duration-200 ${
-          isDragging
-            ? "border-accent bg-accent/5 scale-[1.01]"
-            : "border-border hover:border-accent/40 hover:bg-bg-card"
+        className={`rounded retro-panel px-4 py-2 cursor-pointer transition-all duration-200 ${
+          isDragging ? "marching-ants" : ""
         }`}
+        style={isDragging ? {
+          boxShadow: "0 0 20px rgba(0,229,255,0.3), inset 0 0 30px rgba(0,229,255,0.05)",
+          borderColor: "var(--neon-cyan)",
+        } : {}}
       >
-        <p className="text-sm text-text-muted font-medium">drop a climbing video here</p>
-        <p className="text-xs text-text-muted mt-1 opacity-50">or click to browse</p>
+        <div className="flex items-center justify-center gap-3">
+          <span className="text-xs font-pixel text-neon-cyan retro-glow tracking-wide uppercase">
+            {">> DROP VID OR CLICK <<"}
+          </span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 retro-panel rounded px-3 py-2">
       {thumbnails.length > 0 && (
-        <div className="flex gap-0.5 overflow-hidden rounded-lg shrink-0">
+        <div className="flex gap-0.5 overflow-hidden rounded shrink-0 crt-filter">
           {thumbnails.slice(0, 5).map((t, i) => (
-            <img key={i} src={t} alt={`Video thumbnail ${i + 1}`} className="h-10 w-14 object-cover" />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={i} src={t} alt={`Thumb ${i + 1}`} className="h-10 w-14 object-cover" />
           ))}
         </div>
       )}
-      <span className="text-xs text-text-muted font-mono truncate flex-1">
-        {videoInfo && `${videoInfo.duration.toFixed(0)}s · ${videoInfo.width}×${videoInfo.height} · ${videoInfo.fps.toFixed(0)}fps`}
+      <span className="text-sm font-retro led-text truncate flex-1">
+        {videoInfo && `${videoInfo.duration.toFixed(0)}s // ${videoInfo.width}x${videoInfo.height} // ${videoInfo.fps.toFixed(0)}fps`}
       </span>
-      <button onClick={openPicker} className="text-xs text-accent hover:underline shrink-0">
-        change
+      <button onClick={openPicker} className="text-sm font-pixel text-neon-magenta hover:text-white retro-glow-magenta shrink-0 uppercase">
+        [CHANGE]
       </button>
     </div>
   );

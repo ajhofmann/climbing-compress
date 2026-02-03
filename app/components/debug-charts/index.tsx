@@ -161,7 +161,7 @@ function ChartSection({
 // ---------------------------------------------------------------------------
 
 export function DebugCharts() {
-  const { analysis, curve, curveTimes, solveScores, restRegions, settings, stats } = useStore();
+  const { analysis, curve, curveTimes, solveScores, restRegions, settings, stats, playbackTime } = useStore();
   const [isOpen, setIsOpen] = useState(true);
   const [showComparison, setShowComparison] = useState(false);
 
@@ -174,6 +174,23 @@ export function DebugCharts() {
       score: solveScores[i] ?? 0,
     }));
   }, [curve, curveTimes, solveScores]);
+
+  // Map output playback time → source time for the chart tracker
+  const trackerSourceTime = useMemo(() => {
+    if (!curveTimes.length || !curve.length || playbackTime <= 0) return null;
+    let cumOut = 0;
+    for (let i = 1; i < curveTimes.length; i++) {
+      const dt = curveTimes[i] - curveTimes[i - 1];
+      const speed = curve[i - 1] ?? 1;
+      const segOut = dt / speed;
+      if (cumOut + segOut >= playbackTime) {
+        const frac = (playbackTime - cumOut) / segOut;
+        return curveTimes[i - 1] + frac * dt;
+      }
+      cumOut += segOut;
+    }
+    return curveTimes[curveTimes.length - 1];
+  }, [curveTimes, curve, playbackTime]);
 
   // Build score comparison data from analysis (full video, both modes)
   const scoreCompareData = useMemo(() => {
@@ -328,6 +345,17 @@ export function DebugCharts() {
                     }}
                   />
 
+                  {/* Playback tracker */}
+                  {trackerSourceTime !== null && (
+                    <ReferenceLine
+                      yAxisId="speed"
+                      x={parseFloat(trackerSourceTime.toFixed(2))}
+                      stroke="var(--warm)"
+                      strokeWidth={1.5}
+                      strokeOpacity={0.8}
+                    />
+                  )}
+
                   {/* Score as subtle background area */}
                   <Area
                     yAxisId="score"
@@ -450,6 +478,16 @@ export function DebugCharts() {
                       style: { fill: "var(--text-muted)", fontSize: 10 },
                     }}
                   />
+
+                  {/* Playback tracker */}
+                  {trackerSourceTime !== null && (
+                    <ReferenceLine
+                      x={parseFloat(trackerSourceTime.toFixed(2))}
+                      stroke="var(--warm)"
+                      strokeWidth={1.5}
+                      strokeOpacity={0.8}
+                    />
+                  )}
 
                   <Area
                     dataKey="score"

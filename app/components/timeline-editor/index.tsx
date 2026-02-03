@@ -71,8 +71,8 @@ export function TimelineEditor() {
     }
   }, [baseHandlers, analysis, canvasRef]);
 
-  const onMouseLeave = useCallback((e: React.MouseEvent) => {
-    baseHandlers.onMouseLeave(e);
+  const onMouseLeave = useCallback((_e: React.MouseEvent) => {
+    baseHandlers.onMouseLeave();
     setPreviewPos(null);
     setPreviewReady(false);
   }, [baseHandlers]);
@@ -81,7 +81,7 @@ export function TimelineEditor() {
 
   if (!analysis) {
     return (
-      <div className="rounded-xl bg-bg-card border border-border flex items-center justify-center h-44 text-text-muted text-sm">
+      <div className="rounded-lg bg-bg-card border border-border flex items-center justify-center h-24 text-text-muted text-xs font-pixel uppercase tracking-wider opacity-60">
         run analyze to see the speed curve editor
       </div>
     );

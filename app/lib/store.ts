@@ -46,6 +46,10 @@ interface Store {
   setOutputId: (id: string | null) => void;
   setComparisonId: (id: string | null) => void;
 
+  // Playback
+  playbackTime: number;
+  setPlaybackTime: (t: number) => void;
+
   // Progress
   isAnalyzing: boolean;
   isRendering: boolean;
@@ -90,6 +94,9 @@ export const useStore = create<Store>((set) => ({
   comparisonId: null,
   setOutputId: (id) => set({ outputId: id }),
   setComparisonId: (id) => set({ comparisonId: id }),
+
+  playbackTime: 0,
+  setPlaybackTime: (t) => set({ playbackTime: t }),
 
   isAnalyzing: false,
   isRendering: false,

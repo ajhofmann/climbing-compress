@@ -1,15 +1,25 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { useStore } from "@/lib/store";
 import { videoUrl } from "@/lib/api";
 
 export function VideoPlayer() {
-  const { outputId, comparisonId, isRendering } = useStore();
+  const { outputId, comparisonId, isRendering, setPlaybackTime } = useStore();
   const smartRef = useRef<HTMLVideoElement>(null);
   const compRef = useRef<HTMLVideoElement>(null);
+  const singleRef = useRef<HTMLVideoElement>(null);
 
   const hasComparison = !!comparisonId;
+
+  // Track playback position → store (for chart tracker)
+  const onTimeUpdate = useCallback(() => {
+    const vid = smartRef.current ?? singleRef.current;
+    if (vid) setPlaybackTime(vid.currentTime);
+  }, [setPlaybackTime]);
+
+  // Reset playback time when output changes
+  useEffect(() => { setPlaybackTime(0); }, [outputId, setPlaybackTime]);
 
   // Sync both videos: when one plays/pauses/seeks, mirror to the other
   const syncPlay = useCallback(() => {
@@ -24,27 +34,19 @@ export function VideoPlayer() {
     }
   }, []);
 
-  if (!outputId) {
-    return (
-      <div className={`rounded-2xl bg-bg-card-solid border border-border flex items-center justify-center h-48 ${
-        isRendering ? "animate-pulse" : ""
-      }`}>
-        <span className="text-sm text-text-muted">
-          {isRendering ? "rendering..." : "output will appear here"}
-        </span>
-      </div>
-    );
-  }
+  if (!outputId) return null;
 
   if (!hasComparison) {
     return (
       <video
+        ref={singleRef}
         key={outputId}
         src={videoUrl(outputId)}
         controls
         autoPlay
         loop
         playsInline
+        onTimeUpdate={onTimeUpdate}
         className="rounded-2xl w-full max-h-[70vh] object-contain shadow-lg"
       />
     );
@@ -66,6 +68,7 @@ export function VideoPlayer() {
           onPlay={syncPlay}
           onPause={syncPause}
           onSeeked={syncSeek}
+          onTimeUpdate={onTimeUpdate}
         />
       </div>
       <div className="flex flex-col gap-1 flex-1 min-w-0">

@@ -102,12 +102,17 @@ export function useTimeline(config: TimelineConfig) {
       ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#3d5a3e";
       ctx.lineWidth = 2;
       ctx.beginPath();
-      for (let i = 0; i < curveTimes.length; i++) {
+      const n = Math.min(curve.length, curveTimes.length);
+      let started = false;
+      for (let i = 0; i < n; i++) {
+        const cv = curve[i];
+        if (cv == null || !isFinite(cv)) continue;
         const x = timeToX(curveTimes[i], w);
-        const y = speedToY(curve[i], h);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        const y = speedToY(cv, h);
+        if (!isFinite(x) || !isFinite(y)) continue;
+        if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
       }
-      ctx.stroke();
+      if (started) ctx.stroke();
     }
 
     // Trim dimmed regions
@@ -348,7 +353,7 @@ export function useTimeline(config: TimelineConfig) {
       } else if (dragging.type === "pin") {
         const t = xToTime(pos.x, rect.width);
         const s = yToSpeed(pos.y, rect.height);
-        const next = pins.map((p, i) => i === dragging.index ? { time: t, speed: s } : p);
+        const next = pins.map((p, i) => i === dragging.index ? { ...p, time: t, speed: s } : p);
         onPinsChange(next);
       }
     } else {

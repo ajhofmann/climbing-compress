@@ -1,265 +1,235 @@
 "use client";
 
-import { useState } from "react";
 import { useStore } from "@/lib/store";
-import { Settings, DEFAULT_SETTINGS, PRESETS } from "@/lib/types";
+import { Settings } from "@/lib/types";
+import { Knob } from "@/components/knob";
+import { LedCounter } from "@/components/controls/led-counter";
+import { Fader } from "@/components/controls/fader";
+import { ToggleSwitch } from "@/components/controls/toggle-switch";
+import { RotarySelect } from "@/components/controls/rotary-select";
+import { MiniScope } from "@/components/controls/mini-scope";
+import { BodyMap } from "@/components/controls/body-map";
 
-function Slider({ label, info, value, min, max, step, onChange }: {
-  label: string; info?: string; value: number;
-  min: number; max: number; step: number;
-  onChange: (v: number) => void;
-}) {
+function Module({ area, label, children }: { area: string; label: string; children: React.ReactNode }) {
   return (
-    <label className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
-      <div className="flex justify-between items-baseline">
-        <span className="text-xs font-medium text-text">{label}</span>
-        <span className="text-xs font-mono text-accent tabular-nums">{value}</span>
+    <div className="dashboard-module" style={{ gridArea: area }}>
+      <div className="dashboard-module-label">
+        <span>{label}</span>
       </div>
-      <input
-        type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        className="w-full"
-      />
-      {info && <span className="text-[10px] text-text-muted leading-tight">{info}</span>}
-    </label>
-  );
-}
-
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="12" height="12" viewBox="0 0 12 12" fill="none"
-      className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
-      style={{ color: "var(--text-muted)" }}
-    >
-      <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function Section({ title, children, defaultOpen = false }: {
-  title: string; children: React.ReactNode; defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border border-border rounded-xl overflow-hidden bg-bg-card-solid">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full px-4 py-3 text-left text-sm font-medium text-text flex justify-between items-center hover:bg-bg-input transition-colors"
-      >
-        <span>{title}</span>
-        <Chevron open={open} />
-      </button>
-      {open && <div className="px-4 pb-4 pt-2 border-t border-border">{children}</div>}
-    </div>
-  );
-}
-
-function Divider({ label, detail }: { label: string; detail: string }) {
-  return (
-    <div className="flex items-center gap-2.5 pt-2 pb-0.5">
-      <span className="text-[10px] font-semibold uppercase tracking-widest text-accent">{label}</span>
-      <span className="text-[10px] text-text-muted">{detail}</span>
-      <div className="flex-1 border-t border-border/50" />
+      <div className="dashboard-module-body">
+        {children}
+      </div>
     </div>
   );
 }
 
 export function SettingsPanel() {
-  const { settings, updateSettings } = useStore();
+  const store = useStore();
+  const { settings, updateSettings, stats, analysis } = store;
   const s = settings;
   const u = (k: keyof Settings, v: Settings[keyof Settings]) => updateSettings({ [k]: v });
 
-  const applyPreset = (overrides: Partial<Settings>) => {
-    updateSettings({ ...DEFAULT_SETTINGS, ...overrides, trimStart: s.trimStart, trimEnd: s.trimEnd, analyzeStride: s.analyzeStride });
-  };
-
   return (
-    <div className="flex flex-col gap-3">
-      {/* Presets */}
-      <div className="flex gap-1.5 flex-wrap">
-        {PRESETS.map((p) => (
-          <button
-            key={p.name}
-            onClick={() => applyPreset(p.overrides)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border hover:border-accent/40 hover:bg-bg-card transition-colors text-text-muted hover:text-text"
-            title={p.desc}
-          >
-            {p.name}
-          </button>
-        ))}
-      </div>
-
-      <Divider label="Speed Curve" detail="instant preview" />
-
-      {/* Mode toggle */}
-      <div className="flex gap-1 p-1 bg-bg-card-solid rounded-xl border border-border">
-        {([
-          { key: "progress" as const, label: "Constant Progress" },
-          { key: "action" as const, label: "Action Highlight" },
-        ]).map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => u("mode", key)}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
-              s.mode === key
-                ? "bg-accent text-white shadow-sm"
-                : "text-text-muted hover:text-text"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <p className="text-[11px] text-text-muted -mt-1 px-1 leading-relaxed">
-        {s.mode === "progress"
-          ? "at 50% of the video, you're 50% up the boulder. stalling = fast forward, moving = real time."
-          : "big moves get slow-mo, chalk-ups get skipped. classic climbing edit style."}
-      </p>
-
-      {/* Main sliders */}
-      <div className="flex gap-5 flex-wrap">
-        <Slider label="Duration" info="target output length" value={s.targetDuration} min={3} max={120} step={1} onChange={(v) => u("targetDuration", v)} />
-        <Slider label="Sensitivity" info="lower = more generous slow-mo" value={s.sensitivity} min={0.01} max={0.99} step={0.01} onChange={(v) => u("sensitivity", v)} />
-        <Slider label="Max Speed" info="how fast to skip rest" value={s.maxSpeed} min={1} max={30} step={0.5} onChange={(v) => u("maxSpeed", v)} />
-      </div>
-
-      {/* Advanced */}
-      <Section title="Speed Curve">
-        <div className="flex gap-5 flex-wrap">
-          <Slider label="Min Speed" info="0.05 = 20x slow-mo" value={s.minSpeed} min={0.05} max={1} step={0.01} onChange={(v) => u("minSpeed", v)} />
-          {s.mode === "action" && (
-            <Slider label="Steepness" info="sharp vs gradual transitions" value={s.steepness} min={1} max={50} step={1} onChange={(v) => u("steepness", v)} />
-          )}
-          <Slider label="Smoothing" info="seconds of curve blur" value={s.smoothing} min={0.05} max={2} step={0.05} onChange={(v) => u("smoothing", v)} />
-          {s.mode === "progress" && (
-            <>
-              <Slider label="Vertical Bias" info="0.5 = equal, 1.0 = vertical only" value={s.verticalBias} min={0} max={1} step={0.05} onChange={(v) => u("verticalBias", v)} />
-              <Slider label="Down Weight" info="0 = ignore downclimb, 1 = count equally" value={s.downWeight} min={0} max={1} step={0.05} onChange={(v) => u("downWeight", v)} />
-              <Slider label="Rest Skip" info="seconds of stillness before fast-forward" value={s.restThreshold} min={0} max={2} step={0.05} onChange={(v) => u("restThreshold", v)} />
-            </>
-          )}
-        </div>
-      </Section>
-
-      {s.mode === "action" && (
-        <Section title="Body Part Weights">
-          <div className="flex gap-5 flex-wrap">
-            <Slider label="Hands" info="reaching for holds" value={s.handWeight} min={0} max={10} step={0.1} onChange={(v) => u("handWeight", v)} />
-            <Slider label="Feet" info="foot placements" value={s.footWeight} min={0} max={10} step={0.1} onChange={(v) => u("footWeight", v)} />
-            <Slider label="Core" info="dyno detector" value={s.coreWeight} min={0} max={20} step={0.1} onChange={(v) => u("coreWeight", v)} />
-          </div>
-        </Section>
-      )}
-
-      <Divider label="Render" detail="re-render to apply" />
-
-      <Section title="Stabilization" defaultOpen={true}>
-        <div className="flex flex-col gap-3">
-          <label className="flex items-center gap-2 text-xs text-text cursor-pointer">
-            <input type="checkbox" checked={s.stabilize} onChange={(e) => u("stabilize", e.target.checked)}
-              className="accent-accent w-4 h-4 rounded" />
-            <span className="font-medium">enable stabilization</span>
-          </label>
-          {s.stabilize && (
-            <>
-              <p className="text-[10px] text-text-muted leading-tight -mt-1">
-                locks the camera onto the climber&apos;s body. higher crop = more room to correct shake.
-              </p>
-              <div className="flex gap-5 flex-wrap">
-                <Slider label="Strength" info="0 = off, 1 = full gimbal lock" value={s.stabilizeStrength} min={0} max={1} step={0.01} onChange={(v) => u("stabilizeStrength", v)} />
-                <Slider label="Smoothness" info="seconds of trajectory smoothing" value={s.stabilizeSmoothness} min={0.1} max={5} step={0.1} onChange={(v) => u("stabilizeSmoothness", v)} />
-                <Slider label="Crop" info="frame sacrificed for shake room" value={s.stabilizeCrop} min={0.01} max={0.5} step={0.01} onChange={(v) => u("stabilizeCrop", v)} />
+    <div className="retro-panel rounded overflow-hidden">
+      {/* Dashboard Grid */}
+      <div className="dashboard-grid">
+        {/* ═══ PROGRAM ═══ */}
+        <Module area="program" label="Program">
+          <div className="flex items-start gap-3 flex-wrap">
+            {/* Mode selector */}
+            <div className="flex flex-col items-center gap-1">
+              <span className="rack-section-label">MODE</span>
+              <div className="flex flex-col gap-0 retro-inset rounded overflow-hidden" style={{ background: "#080810" }}>
+                {([
+                  { key: "progress" as const, label: "PROGRESS" },
+                  { key: "action" as const, label: "ACTION" },
+                ]).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => u("mode", key)}
+                    title={key === "progress" ? "50% of video = 50% up the wall. Stalling = fast-forward." : "Big moves get slow-mo, chalk-ups get skipped."}
+                    className={`px-3 py-1.5 text-xs font-pixel uppercase tracking-wider transition-all ${
+                      s.mode === key
+                        ? "bg-gradient-to-r from-[#003844] to-[#005f6b] text-neon-cyan"
+                        : "text-text-muted hover:text-text"
+                    }`}
+                    style={s.mode === key ? { textShadow: "0 0 6px rgba(0,229,255,0.4)", boxShadow: "inset 0 0 8px rgba(0,229,255,0.08)" } : {}}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-              <label className="flex items-center gap-2 text-xs text-text cursor-pointer mt-1">
-                <input type="checkbox" checked={s.useFeatureStabilize} onChange={(e) => u("useFeatureStabilize", e.target.checked)}
-                  className="accent-accent w-4 h-4 rounded" />
-                <span className="font-medium">blend feature-based camera motion</span>
-              </label>
-              {s.useFeatureStabilize && (
-                <Slider label="Feature Weight" info="0 = pose only, 1 = features only" value={s.featureStabilizeWeight} min={0} max={1} step={0.05} onChange={(v) => u("featureStabilizeWeight", v)} />
-              )}
-            </>
-          )}
-        </div>
-      </Section>
+            </div>
 
-      <Section title="Export Quality">
-        <div className="flex gap-5 flex-wrap items-end">
-          <Slider label="Resolution" info="0.25 = tiny preview, 1.0 = full res" value={s.scale} min={0.1} max={1} step={0.05} onChange={(v) => u("scale", v)} />
-          <Slider label="Quality" info="lower = sharper, bigger file" value={s.crf} min={10} max={40} step={1} onChange={(v) => u("crf", v)} />
-          <label className="flex flex-col gap-1.5 flex-1 min-w-[120px]">
-            <span className="text-xs font-medium text-text">FPS</span>
-            <select value={s.outputFps} onChange={(e) => u("outputFps", parseInt(e.target.value))}
-              className="bg-bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text">
-              <option value={24}>24 (cinematic)</option>
-              <option value={30}>30 (standard)</option>
-              <option value={60}>60 (smooth)</option>
-            </select>
-          </label>
-        </div>
-        <div className="flex flex-col gap-2 mt-3">
-          <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer">
-            <input type="checkbox" checked={s.includeAudio} onChange={(e) => u("includeAudio", e.target.checked)}
-              className="accent-accent w-4 h-4 rounded" />
-            include audio (time-stretched from source)
-          </label>
-          <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer">
-            <input type="checkbox" checked={s.debugOverlay} onChange={(e) => u("debugOverlay", e.target.checked)}
-              className="accent-accent w-4 h-4 rounded" />
-            show debug overlay (skeleton + speed badge)
-          </label>
-          <label className="flex items-center gap-2 text-xs text-text-muted cursor-pointer">
-            <input type="checkbox" checked={s.renderComparison} onChange={(e) => u("renderComparison", e.target.checked)}
-              className="accent-accent w-4 h-4 rounded" />
-            render comparison (uniform speed for A/B)
-          </label>
-        </div>
-      </Section>
+            {/* Duration -- Nixie tubes */}
+            <LedCounter label="DURATION" value={s.targetDuration} min={3} max={120} step={1} onChange={(v) => u("targetDuration", v)} />
 
-      <Divider label="Analysis" detail="re-analyze to apply" />
+            {/* Speed faders */}
+            {s.mode === "action" && (
+              <Fader label="SENS" value={s.sensitivity} min={0.01} max={0.99} step={0.01} onChange={(v) => u("sensitivity", v)} title="Sensitivity: lower = more generous slow-mo on moves" />
+            )}
+            <Fader label="MAX" value={s.maxSpeed} min={1} max={30} step={0.5} onChange={(v) => u("maxSpeed", v)} color="#76ff03" title="Max Speed: how fast to skip through rest and chalk-ups" />
 
-      <Section title="Analysis">
-        <div className="flex flex-col gap-3">
-          <div className="flex gap-5 flex-wrap items-end">
-            <label className="flex flex-col gap-1.5 flex-1 min-w-[160px]">
-              <div className="flex justify-between items-baseline">
-                <span className="text-xs font-medium text-text">Detection Quality</span>
-                <span className="text-xs font-mono text-accent">
-                  {s.analyzeStride === 1 ? "high" : s.analyzeStride === 2 ? "balanced" : "fast"}
-                </span>
-              </div>
-              <select value={s.analyzeStride} onChange={(e) => u("analyzeStride", parseInt(e.target.value))}
-                className="bg-bg-input border border-border rounded-lg px-3 py-1.5 text-sm text-text">
-                <option value={1}>every frame (slow, best tracking)</option>
-                <option value={2}>every 2nd frame (default)</option>
-                <option value={3}>every 3rd frame (fast, rougher)</option>
-              </select>
-              <span className="text-[10px] text-text-muted leading-tight">re-analyze after changing</span>
-            </label>
+            {/* Analysis quality */}
+            <div className="flex items-center gap-1 ml-auto" style={{ borderLeft: "1px solid #222", paddingLeft: 12 }}>
+              <RotarySelect
+                label="QUAL"
+                value={s.analyzeStride}
+                options={[
+                  { value: 1, label: "HI" },
+                  { value: 2, label: "BAL" },
+                  { value: 3, label: "LO" },
+                ]}
+                onChange={(v) => u("analyzeStride", v)}
+                title="Detection quality: HI = every frame, BAL = every 2nd, LO = every 3rd"
+              />
+              <ToggleSwitch label="TRK" checked={s.useTracker} onChange={(v) => u("useTracker", v)} color="#76ff03" title="Person tracking: YOLO + ByteTrack to isolate the climber" />
+              <ToggleSwitch label="FLOW" checked={s.useFlow} onChange={(v) => u("useFlow", v)} color="#e040fb" title="Optical flow + shake compensation from wall features" />
+            </div>
           </div>
+        </Module>
+
+        {/* ═══ STATUS ═══ */}
+        <Module area="status" label="Status">
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2 text-xs text-text cursor-pointer">
-              <input type="checkbox" checked={s.useTracker} onChange={(e) => u("useTracker", e.target.checked)}
-                className="accent-accent w-4 h-4 rounded" />
-              <span className="font-medium">person tracking</span>
-              <span className="text-[10px] text-text-muted">(YOLOv8 + ByteTrack)</span>
-            </label>
-            <p className="text-[10px] text-text-muted leading-tight ml-6 -mt-1">
-              tracks the climber across frames. rejects belayer, improves pose accuracy on overhangs.
-            </p>
-            <label className="flex items-center gap-2 text-xs text-text cursor-pointer">
-              <input type="checkbox" checked={s.useFlow} onChange={(e) => u("useFlow", e.target.checked)}
-                className="accent-accent w-4 h-4 rounded" />
-              <span className="font-medium">optical flow + shake compensation</span>
-              <span className="text-[10px] text-text-muted">(background-compensated)</span>
-            </label>
-            <p className="text-[10px] text-text-muted leading-tight ml-6 -mt-1">
-              estimates camera motion from the wall and subtracts it from movement scores. prevents shaky footage from being misread as climbing action.
-            </p>
+            {/* Mini scope */}
+            <MiniScope />
+
+            {/* Stats readouts */}
+            {stats ? (
+              <div className="grid grid-cols-2 gap-1">
+                {[
+                  { label: "OUT", value: `${stats.output_duration}s` },
+                  { label: "SPD", value: `${stats.speed_min}x-${stats.speed_max}x` },
+                  { label: "RATIO", value: `${stats.action_rest_ratio}x` },
+                  { label: "RT", value: `${stats.slow_pct}%` },
+                ].map(({ label, value }) => (
+                  <div key={label} className="retro-inset rounded px-1.5 py-0.5 text-center" style={{ background: "#080810" }}>
+                    <span className="text-xs text-text-muted font-pixel">{label} </span>
+                    <span className="text-xs font-retro led-text">{value}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="retro-inset rounded px-2 py-2 text-center" style={{ background: "#080810" }}>
+                <span className="text-xs font-pixel text-text-muted">AWAITING DATA</span>
+              </div>
+            )}
+
+            {/* Feature pilot lights */}
+            {analysis && (
+              <div className="flex gap-2 justify-center flex-wrap">
+                {analysis.tracker_available && (
+                  <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-lime uppercase">
+                    <span className="pilot-light pilot-light-green pilot-light-breathe" />TRK
+                  </span>
+                )}
+                {analysis.flow_available && (
+                  <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-magenta uppercase">
+                    <span className="pilot-light pilot-light-magenta pilot-light-breathe" />FLW
+                  </span>
+                )}
+                {analysis.camera_motion_available && (
+                  <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-orange uppercase">
+                    <span className="pilot-light pilot-light-orange pilot-light-breathe" />SHK
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </Module>
+
+        {/* ═══ MIXER (body map or faders) ═══ */}
+        <Module area="mixer" label={s.mode === "action" ? "Weights" : "Speed"}>
+          {s.mode === "action" ? (
+            <BodyMap
+              handWeight={s.handWeight}
+              footWeight={s.footWeight}
+              coreWeight={s.coreWeight}
+              onHandChange={(v) => u("handWeight", v)}
+              onFootChange={(v) => u("footWeight", v)}
+              onCoreChange={(v) => u("coreWeight", v)}
+            />
+          ) : (
+            <div className="flex gap-2 justify-center">
+              <Fader label="V-BIAS" value={s.verticalBias} min={0} max={1} step={0.05} onChange={(v) => u("verticalBias", v)} color="#00e5ff" title="Vertical Bias: 0.5 = equal weight, 1.0 = vertical movement only" />
+              <Fader label="DOWN" value={s.downWeight} min={0} max={1} step={0.05} onChange={(v) => u("downWeight", v)} color="#e040fb" title="Down Weight: 0 = ignore downclimbing, 1 = count it equally" />
+              <Fader label="REST" value={s.restThreshold} min={0} max={2} step={0.05} onChange={(v) => u("restThreshold", v)} color="#ff6e40" title="Rest Skip: seconds of stillness before fast-forwarding" />
+            </div>
+          )}
+        </Module>
+
+        {/* ═══ TUNE ═══ */}
+        <Module area="tune" label="Tune">
+          <div className="flex gap-2 flex-wrap justify-center">
+            <Knob label="Smooth" info="Seconds of curve blur -- higher = smoother transitions" value={s.smoothing} min={0.05} max={2} step={0.05} onChange={(v) => u("smoothing", v)} />
+            <Knob label="Min Spd" info="Slowest allowed speed (0.05 = 20x slow-mo)" value={s.minSpeed} min={0.05} max={1} step={0.01} onChange={(v) => u("minSpeed", v)} />
+            {s.mode === "action" && (
+              <Knob label="Steep" info="Steepness of speed transitions -- higher = sharper" value={s.steepness} min={1} max={50} step={1} onChange={(v) => u("steepness", v)} />
+            )}
+            {s.mode === "progress" && (
+              <Knob label="P.Floor" info="Minimum progress rate even during rest" value={s.progressFloor} min={0} max={0.2} step={0.005} onChange={(v) => u("progressFloor", v)} />
+            )}
+          </div>
+        </Module>
+
+        {/* ═══ OUTPUT ═══ */}
+        <Module area="output" label="Output">
+          <div className="flex gap-2 flex-wrap items-start">
+            <Knob label="Res" info="Output resolution scale: 0.25 = tiny preview, 1.0 = full res" value={s.scale} min={0.1} max={1} step={0.05} onChange={(v) => u("scale", v)} />
+            <Knob label="CRF" info="Encoding quality: lower = sharper but bigger file" value={s.crf} min={10} max={40} step={1} onChange={(v) => u("crf", v)} />
+            <RotarySelect
+              label="FPS"
+              value={s.outputFps}
+              options={[
+                { value: 24, label: "24" },
+                { value: 30, label: "30" },
+                { value: 60, label: "60" },
+              ]}
+              onChange={(v) => u("outputFps", v)}
+              title="Output frame rate: 24 = cinematic, 30 = standard, 60 = smooth"
+            />
+          </div>
+        </Module>
+
+      </div>
+
+      {/* ═══ OPTIONS — full-width strip below grid ═══ */}
+      <div className="dashboard-module">
+        <div className="dashboard-module-label">
+          <span>Options</span>
+        </div>
+        <div className="dashboard-module-body">
+          <div className="flex items-start gap-4 flex-wrap">
+            <ToggleSwitch label="AUD" checked={s.includeAudio} onChange={(v) => u("includeAudio", v)} title="Include time-stretched audio from source" />
+            <ToggleSwitch label="OVL" checked={s.debugOverlay} onChange={(v) => u("debugOverlay", v)} color="#76ff03" title="Show skeleton + speed badge overlay on video" />
+            <ToggleSwitch label="A/B" checked={s.renderComparison} onChange={(v) => u("renderComparison", v)} color="#e040fb" title="Also render a uniform-speed version for comparison" />
+            <ToggleSwitch label="STAB" checked={s.stabilize} onChange={(v) => u("stabilize", v)} color="#ff6e40" title="Enable pose-anchored video stabilization" />
+            {s.stabilize && (
+              <>
+                <Knob label="Str" info="Stabilize strength: 0 = off, 1 = full gimbal lock" value={s.stabilizeStrength} min={0} max={1} step={0.01} onChange={(v) => u("stabilizeStrength", v)} />
+                <Knob label="Smth" info="Trajectory smoothing in seconds" value={s.stabilizeSmoothness} min={0.1} max={5} step={0.1} onChange={(v) => u("stabilizeSmoothness", v)} />
+                <Knob label="Crop" info="Frame border sacrificed for shake room" value={s.stabilizeCrop} min={0.01} max={0.5} step={0.01} onChange={(v) => u("stabilizeCrop", v)} />
+                <ToggleSwitch label="FEAT" checked={s.useFeatureStabilize} onChange={(v) => u("useFeatureStabilize", v)} color="#e040fb" title="Blend feature-based camera motion estimation" />
+                {s.useFeatureStabilize && (
+                  <Knob label="F.Wt" info="Feature weight: 0 = pose only, 1 = features only" value={s.featureStabilizeWeight} min={0} max={1} step={0.05} onChange={(v) => u("featureStabilizeWeight", v)} />
+                )}
+              </>
+            )}
           </div>
         </div>
-      </Section>
+      </div>
+
+      {/* Signal flow SVG overlay (decorative) */}
+      <svg className="w-full h-[2px] opacity-50" viewBox="0 0 800 2" preserveAspectRatio="none">
+        <line x1="0" y1="1" x2="800" y2="1" className="signal-flow-line" />
+        <circle r="2" className="signal-flow-dot">
+          <animateMotion dur="3s" repeatCount="indefinite" path="M0,1 L800,1" />
+        </circle>
+        <circle r="2" className="signal-flow-dot" style={{ animationDelay: "1.5s" }}>
+          <animateMotion dur="3s" repeatCount="indefinite" path="M0,1 L800,1" begin="1.5s" />
+        </circle>
+      </svg>
     </div>
   );
 }
