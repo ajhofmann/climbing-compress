@@ -9,6 +9,7 @@ import { ToggleSwitch } from "@/components/controls/toggle-switch";
 import { RotarySelect } from "@/components/controls/rotary-select";
 import { MiniScope } from "@/components/controls/mini-scope";
 import { BodyMap } from "@/components/controls/body-map";
+import { Tooltip } from "@/components/tooltip";
 
 function Module({ area, label, children }: { area: string; label: string; children: React.ReactNode }) {
   return (
@@ -41,28 +42,28 @@ export function SettingsPanel() {
               <span className="rack-section-label">MODE</span>
               <div className="flex flex-col gap-0 retro-inset rounded overflow-hidden" style={{ background: "#080810" }}>
                 {([
-                  { key: "progress" as const, label: "PROGRESS" },
-                  { key: "action" as const, label: "ACTION" },
-                ]).map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => u("mode", key)}
-                    title={key === "progress" ? "50% of video = 50% up the wall. Stalling = fast-forward." : "Big moves get slow-mo, chalk-ups get skipped."}
-                    className={`px-3 py-1.5 text-xs font-pixel uppercase tracking-wider transition-all ${
-                      s.mode === key
-                        ? "bg-gradient-to-r from-[#003844] to-[#005f6b] text-neon-cyan"
-                        : "text-text-muted hover:text-text"
-                    }`}
-                    style={s.mode === key ? { textShadow: "0 0 6px rgba(0,229,255,0.4)", boxShadow: "inset 0 0 8px rgba(0,229,255,0.08)" } : {}}
-                  >
-                    {label}
-                  </button>
+                  { key: "progress" as const, label: "PROGRESS", tip: "50% of video = 50% up the wall.\nStalling = fast-forward." },
+                  { key: "action" as const, label: "ACTION", tip: "Big moves get slow-mo,\nchalk-ups get skipped." },
+                ]).map(({ key, label, tip }) => (
+                  <Tooltip key={key} text={tip}>
+                    <button
+                      onClick={() => u("mode", key)}
+                      className={`px-3 py-1.5 text-xs font-pixel uppercase tracking-wider transition-all ${
+                        s.mode === key
+                          ? "bg-gradient-to-r from-[#003844] to-[#005f6b] text-neon-cyan"
+                          : "text-text-muted hover:text-text"
+                      }`}
+                      style={s.mode === key ? { textShadow: "0 0 6px rgba(0,229,255,0.4)", boxShadow: "inset 0 0 8px rgba(0,229,255,0.08)" } : {}}
+                    >
+                      {label}
+                    </button>
+                  </Tooltip>
                 ))}
               </div>
             </div>
 
             {/* Duration -- Nixie tubes */}
-            <LedCounter label="DURATION" value={s.targetDuration} min={3} max={120} step={1} onChange={(v) => u("targetDuration", v)} />
+            <LedCounter label="DURATION" value={s.targetDuration} min={3} max={120} step={1} onChange={(v) => u("targetDuration", v)} title="Target output duration in seconds.\nThe speed curve stretches to hit this." />
 
             {/* Speed faders */}
             {s.mode === "action" && (
@@ -84,6 +85,19 @@ export function SettingsPanel() {
                 title="Detection quality: HI = every frame, BAL = every 2nd, LO = every 3rd"
               />
               <ToggleSwitch label="TRK" checked={s.useTracker} onChange={(v) => u("useTracker", v)} color="#76ff03" title="Person tracking: YOLO + ByteTrack to isolate the climber" />
+              {s.useTracker && (
+                <RotarySelect
+                  label="MODEL"
+                  value={s.trackerModel}
+                  options={[
+                    { value: "yolo26n", label: "FAST" },
+                    { value: "yolo26s", label: "BAL" },
+                    { value: "yolo26m", label: "ACC" },
+                  ]}
+                  onChange={(v) => u("trackerModel", v)}
+                  title="Tracker model: FAST = yolo26n (quick), BAL = yolo26s (balanced), ACC = yolo26m (most accurate)"
+                />
+              )}
               <ToggleSwitch label="FLOW" checked={s.useFlow} onChange={(v) => u("useFlow", v)} color="#e040fb" title="Optical flow + shake compensation from wall features" />
             </div>
           </div>
@@ -99,15 +113,17 @@ export function SettingsPanel() {
             {stats ? (
               <div className="grid grid-cols-2 gap-1">
                 {[
-                  { label: "OUT", value: `${stats.output_duration}s` },
-                  { label: "SPD", value: `${stats.speed_min}x-${stats.speed_max}x` },
-                  { label: "RATIO", value: `${stats.action_rest_ratio}x` },
-                  { label: "RT", value: `${stats.slow_pct}%` },
-                ].map(({ label, value }) => (
-                  <div key={label} className="retro-inset rounded px-1.5 py-0.5 text-center" style={{ background: "#080810" }}>
-                    <span className="text-xs text-text-muted font-pixel">{label} </span>
-                    <span className="text-xs font-retro led-text">{value}</span>
-                  </div>
+                  { label: "OUT", value: `${stats.output_duration}s`, tip: "Output video duration" },
+                  { label: "SPD", value: `${stats.speed_min}x-${stats.speed_max}x`, tip: "Speed range (min to max playback speed)" },
+                  { label: "RATIO", value: `${stats.action_rest_ratio}x`, tip: "Ratio of action to rest segments" },
+                  { label: "RT", value: `${stats.slow_pct}%`, tip: "Percentage of output in slow motion" },
+                ].map(({ label, value, tip }) => (
+                  <Tooltip key={label} text={tip}>
+                    <div className="retro-inset rounded px-1.5 py-0.5 text-center" style={{ background: "#080810" }}>
+                      <span className="text-xs text-text-muted font-pixel">{label} </span>
+                      <span className="text-xs font-retro led-text">{value}</span>
+                    </div>
+                  </Tooltip>
                 ))}
               </div>
             ) : (
@@ -120,19 +136,25 @@ export function SettingsPanel() {
             {analysis && (
               <div className="flex gap-2 justify-center flex-wrap">
                 {analysis.tracker_available && (
-                  <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-lime uppercase">
-                    <span className="pilot-light pilot-light-green pilot-light-breathe" />TRK
-                  </span>
+                  <Tooltip text="Person tracker data is available">
+                    <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-lime uppercase">
+                      <span className="pilot-light pilot-light-green pilot-light-breathe" />TRK
+                    </span>
+                  </Tooltip>
                 )}
                 {analysis.flow_available && (
-                  <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-magenta uppercase">
-                    <span className="pilot-light pilot-light-magenta pilot-light-breathe" />FLW
-                  </span>
+                  <Tooltip text="Optical flow data is available">
+                    <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-magenta uppercase">
+                      <span className="pilot-light pilot-light-magenta pilot-light-breathe" />FLW
+                    </span>
+                  </Tooltip>
                 )}
                 {analysis.camera_motion_available && (
-                  <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-orange uppercase">
-                    <span className="pilot-light pilot-light-orange pilot-light-breathe" />SHK
-                  </span>
+                  <Tooltip text="Camera shake data is available">
+                    <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-orange uppercase">
+                      <span className="pilot-light pilot-light-orange pilot-light-breathe" />SHK
+                    </span>
+                  </Tooltip>
                 )}
               </div>
             )}

@@ -1,8 +1,14 @@
 """Person detection + tracking for climbing videos.
 
-Uses YOLOv8 for detection and ByteTrack for multi-frame identity.
-Identifies the climber (vs belayer, spectators) by vertical progress
-heuristic: the person moving highest on the wall over time.
+Uses YOLOv8 (configurable size via YOLO_MODEL constant) for detection
+and ByteTrack for multi-frame identity.  Identifies the climber (vs
+belayer, spectators) by vertical progress heuristic.
+
+Includes loss-of-track recovery:
+  - Consecutive miss counter with automatic ByteTrack reinit
+  - Max-jump gate to reject identity switches
+  - Fallback re-detection at lower confidence / higher resolution
+  - Configurable via constants in pipeline.constants
 
 Optional dependency — the rest of the pipeline works without it.
 """
@@ -13,6 +19,16 @@ from collections.abc import Callable
 
 import numpy as np
 
+from pipeline.constants import (
+    BYTETRACK_LOST_TRACK_BUFFER,
+    TRACK_EDGE_FILL_MAX_FRAMES,
+    TRACK_FALLBACK_CONF,
+    TRACK_FALLBACK_RESOLUTION,
+    TRACK_LOST_GAP_FRAMES,
+    TRACK_MAX_JUMP_NORM,
+    YOLO_MODEL,
+)
+
 try:
     from ultralytics import YOLO
     import supervision as sv
@@ -21,37 +37,100 @@ except ImportError:
     HAS_TRACKER = False
 
 
-_yolo_model = None
+_yolo_models: dict[str, "YOLO"] = {}
 
 
-def _get_yolo():
-    """Lazy-load YOLOv8 nano model (downloads on first use)."""
-    global _yolo_model
-    if _yolo_model is None:
-        _yolo_model = YOLO("yolov8n.pt")
-    return _yolo_model
+def _get_yolo(model_name: str = YOLO_MODEL) -> "YOLO":
+    """Lazy-load a YOLOv8 model (downloads on first use)."""
+    if model_name not in _yolo_models:
+        _yolo_models[model_name] = YOLO(model_name)
+    return _yolo_models[model_name]
 
 
 class ClimberTracker:
     """Track persons across frames and identify the climber.
 
     Uses YOLOv8 for detection and ByteTrack for temporal identity.
-    Selects the "climber" track by vertical progress heuristic.
+    Selects the "climber" track by vertical progress + proximity heuristic.
+    Includes fallback re-detection and automatic recovery on loss.
     """
 
-    def __init__(self, conf_threshold: float = 0.3, frame_rate: int = 30):
+    def __init__(
+        self,
+        conf_threshold: float = 0.3,
+        frame_rate: int = 30,
+        model_name: str | None = None,
+    ):
         if not HAS_TRACKER:
             raise ImportError(
                 "Install tracking extras: pip install climb-ramp[tracking]"
             )
-        self.model = _get_yolo()
+        # Resolve model file name: accept "yolo11m" or "yolo11m.pt"
+        if model_name:
+            resolved = model_name if model_name.endswith(".pt") else f"{model_name}.pt"
+        else:
+            resolved = YOLO_MODEL
+        self.model = _get_yolo(resolved)
         self.tracker = sv.ByteTrack(
             track_activation_threshold=conf_threshold,
+            lost_track_buffer=BYTETRACK_LOST_TRACK_BUFFER,
             frame_rate=frame_rate,
         )
         self.conf_threshold = conf_threshold
+        self.frame_rate = frame_rate
         self.climber_track_id: int | None = None
         self._track_history: dict[int, list[tuple[int, float]]] = {}
+        self.last_bbox_norm: tuple[float, float, float, float] | None = None
+        self.last_frame_idx: int | None = None
+        self.consecutive_misses = 0
+        self.recovery_mode = False
+
+    def _reset_tracker(self) -> None:
+        """Reset ByteTrack and clear per-track history after a loss."""
+        self.tracker = sv.ByteTrack(
+            track_activation_threshold=self.conf_threshold,
+            lost_track_buffer=BYTETRACK_LOST_TRACK_BUFFER,
+            frame_rate=self.frame_rate,
+        )
+        self._track_history = {}
+        self.climber_track_id = None
+        self.last_bbox_norm = None
+        self.last_frame_idx = None
+
+    def _fallback_detect(self, frame_bgr: np.ndarray):
+        """Retry detection with lower confidence and higher resolution.
+
+        Called when primary detection misses for 2+ consecutive frames.
+        Uses the same model but relaxes the confidence threshold and
+        optionally upscales small frames to catch hard-to-detect poses.
+        """
+        import cv2
+
+        h, w = frame_bgr.shape[:2]
+        short_side = min(h, w)
+
+        # Upscale if frame is small relative to the fallback target
+        if short_side < TRACK_FALLBACK_RESOLUTION:
+            scale = TRACK_FALLBACK_RESOLUTION / short_side
+            upscaled = cv2.resize(
+                frame_bgr,
+                (int(w * scale), int(h * scale)),
+                interpolation=cv2.INTER_LINEAR,
+            )
+        else:
+            upscaled = frame_bgr
+
+        results = self.model(
+            upscaled, classes=[0], conf=TRACK_FALLBACK_CONF, verbose=False
+        )[0]
+        return sv.Detections.from_ultralytics(results)
+
+    def _register_miss(self) -> None:
+        """Track consecutive misses and enter recovery when threshold hit."""
+        self.consecutive_misses += 1
+        if self.consecutive_misses >= TRACK_LOST_GAP_FRAMES and not self.recovery_mode:
+            self.recovery_mode = True
+            self._reset_tracker()
 
     def process_frame(
         self,
@@ -75,12 +154,19 @@ class ClimberTracker:
         )[0]
         detections = sv.Detections.from_ultralytics(results)
 
+        # Fallback: if primary detection missed entirely, retry with
+        # lower confidence and optionally higher resolution.
+        if len(detections) == 0 and self.consecutive_misses >= 2:
+            detections = self._fallback_detect(frame_bgr)
+
         if len(detections) == 0:
+            self._register_miss()
             return None
 
         tracked = self.tracker.update_with_detections(detections)
 
         if len(tracked) == 0:
+            self._register_miss()
             return None
 
         # Update vertical position history per track
@@ -92,26 +178,38 @@ class ClimberTracker:
                 self._track_history[tid] = []
             self._track_history[tid].append((frame_idx, center_y))
 
-        climber_idx = self._select_climber(tracked, h, w)
+        climber_idx = self._select_climber(tracked, h, w, frame_idx)
+        if climber_idx is None:
+            self._register_miss()
+            return None
 
         bbox = tracked.xyxy[climber_idx]
         track_id = int(tracked.tracker_id[climber_idx])
         conf = float(tracked.confidence[climber_idx])
+        bbox_norm = (
+            float(bbox[0] / w),
+            float(bbox[1] / h),
+            float(bbox[2] / w),
+            float(bbox[3] / h),
+        )
+        recovered = self.recovery_mode
+
+        self.consecutive_misses = 0
+        self.recovery_mode = False
+        self.last_bbox_norm = bbox_norm
+        self.last_frame_idx = frame_idx
+        self.climber_track_id = track_id
 
         return {
             "bbox": (int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])),
-            "bbox_norm": (
-                float(bbox[0] / w),
-                float(bbox[1] / h),
-                float(bbox[2] / w),
-                float(bbox[3] / h),
-            ),
+            "bbox_norm": bbox_norm,
             "track_id": track_id,
             "confidence": conf,
             "n_persons": len(tracked),
+            "recovered": recovered,
         }
 
-    def _select_climber(self, tracked, h: int, w: int) -> int:
+    def _select_climber(self, tracked, h: int, w: int, frame_idx: int) -> int | None:
         """Pick the climber from tracked persons.
 
         Heuristics in priority order:
@@ -120,23 +218,44 @@ class ClimberTracker:
         3. Height — highest position in frame (lowest y)
         4. Size — largest bounding box (closest to camera, on wall)
         """
-        if len(tracked) == 1:
-            self.climber_track_id = int(tracked.tracker_id[0])
-            return 0
+        if len(tracked) == 0:
+            return None
 
-        # Continuity: keep the same track if still visible
+        last_bbox = self.last_bbox_norm
+        frame_gap = 1
+        if self.last_frame_idx is not None and frame_idx > self.last_frame_idx:
+            frame_gap = max(1, frame_idx - self.last_frame_idx)
+        max_jump = min(TRACK_MAX_JUMP_NORM * frame_gap, 0.9)
+
+        def _center_dist(bbox: np.ndarray) -> float:
+            if last_bbox is None:
+                return 0.0
+            cx = (bbox[0] + bbox[2]) / 2 / w
+            cy = (bbox[1] + bbox[3]) / 2 / h
+            last_cx = (last_bbox[0] + last_bbox[2]) / 2
+            last_cy = (last_bbox[1] + last_bbox[3]) / 2
+            return float(np.hypot(cx - last_cx, cy - last_cy))
+
+        # Continuity: keep the same track if still visible and plausible
         if self.climber_track_id is not None:
             for i, tid in enumerate(tracked.tracker_id):
                 if int(tid) == self.climber_track_id:
-                    return i
+                    dist = _center_dist(tracked.xyxy[i])
+                    if self.recovery_mode or last_bbox is None or dist <= max_jump:
+                        return i
+                    break
 
         # Score each track
-        best_idx = 0
+        best_idx: int | None = None
         best_score = -float("inf")
 
         for i, track_id in enumerate(tracked.tracker_id):
             tid = int(track_id)
             bbox = tracked.xyxy[i]
+
+            dist = _center_dist(bbox)
+            if last_bbox is not None and dist > max_jump and not self.recovery_mode:
+                continue
 
             # Vertical progress: how much has center_y decreased (moved up)?
             progress = 0.0
@@ -151,11 +270,27 @@ class ClimberTracker:
             # Size: larger = more prominent
             area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) / (w * h)
 
-            score = progress * 3.0 + height_score * 1.0 + area * 0.5
+            # Proximity: prefer candidates near the last bbox
+            proximity = 0.0
+            if last_bbox is not None and max_jump > 0:
+                proximity = max(0.0, 1.0 - min(dist / max_jump, 1.0))
+
+            conf = float(tracked.confidence[i]) if tracked.confidence is not None else 0.0
+
+            score = (
+                progress * 3.0
+                + height_score * 1.0
+                + area * 0.5
+                + proximity * 1.5
+                + conf * 0.5
+            )
 
             if score > best_score:
                 best_score = score
                 best_idx = i
+
+        if best_idx is None:
+            return None
 
         self.climber_track_id = int(tracked.tracker_id[best_idx])
         return best_idx
@@ -166,8 +301,13 @@ def track_video(
     stride: int = 1,
     max_short_side: int = 640,
     progress_cb: Callable[[float], None] | None = None,
+    model_name: str | None = None,
 ) -> tuple[list[dict | None], float]:
     """Run person tracking on entire video.
+
+    Args:
+        model_name: YOLO model to use (e.g. "yolo11m").  Appends ".pt"
+            automatically.  Falls back to YOLO_MODEL constant if None.
 
     Returns:
         (tracks, fps) where tracks[i] is the tracking result for frame i,
@@ -189,7 +329,10 @@ def track_video(
         if results is None:
             fps = meta["fps"]
             total_frames = meta["total_frames"]
-            tracker = ClimberTracker(frame_rate=int(fps) or 30)
+            tracker = ClimberTracker(
+                frame_rate=int(fps) or 30,
+                model_name=model_name,
+            )
             results = [None] * total_frames
 
         result = tracker.process_frame(frame, frame_idx)
@@ -217,12 +360,19 @@ def _interpolate_tracks(tracks: list[dict | None]) -> list[dict | None]:
     if len(valid) < 2:
         return tracks
 
+    def _mark_interpolated(track: dict) -> dict:
+        return {**track, "interpolated": True}
+
     # Interpolate between consecutive valid frames
     for vi in range(len(valid) - 1):
         i1, t1 = valid[vi]
         i2, t2 = valid[vi + 1]
 
         if i2 - i1 <= 1:
+            continue
+        if i2 - i1 - 1 > TRACK_EDGE_FILL_MAX_FRAMES:
+            continue
+        if t1.get("bbox_norm") is None or t2.get("bbox_norm") is None:
             continue
 
         b1 = np.array(t1["bbox_norm"])
@@ -240,12 +390,16 @@ def _interpolate_tracks(tracks: list[dict | None]) -> list[dict | None]:
             }
 
     # Forward/backward fill edges
-    if valid[0][0] > 0:
-        for i in range(valid[0][0]):
-            tracks[i] = valid[0][1]
-    if valid[-1][0] < n - 1:
-        for i in range(valid[-1][0] + 1, n):
-            tracks[i] = valid[-1][1]
+    first_idx = valid[0][0]
+    if first_idx > 0:
+        edge = min(first_idx, TRACK_EDGE_FILL_MAX_FRAMES)
+        for i in range(first_idx - edge, first_idx):
+            tracks[i] = _mark_interpolated(valid[0][1])
+    last_idx = valid[-1][0]
+    if last_idx < n - 1:
+        edge = min(n - 1 - last_idx, TRACK_EDGE_FILL_MAX_FRAMES)
+        for i in range(last_idx + 1, last_idx + 1 + edge):
+            tracks[i] = _mark_interpolated(valid[-1][1])
 
     return tracks
 

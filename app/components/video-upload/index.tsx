@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { useStore } from "@/lib/store";
 import { uploadVideo } from "@/lib/api";
+import { Tooltip } from "@/components/tooltip";
 
 export function VideoUpload() {
   const { videoId, videoInfo, thumbnails, setVideo, setProgress } = useStore();
@@ -37,39 +38,50 @@ export function VideoUpload() {
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onClick={openPicker}
-        className={`rounded retro-panel px-4 py-2 cursor-pointer transition-all duration-200 ${
-          isDragging ? "marching-ants" : ""
+        className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
+          isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
-        style={isDragging ? {
-          boxShadow: "0 0 20px rgba(0,229,255,0.3), inset 0 0 30px rgba(0,229,255,0.05)",
-          borderColor: "var(--neon-cyan)",
-        } : {}}
+        style={{
+          minHeight: 100,
+          background: "linear-gradient(180deg, rgba(0,229,255,0.02) 0%, transparent 60%)",
+          ...(isDragging ? {
+            boxShadow: "0 0 30px rgba(0,229,255,0.3), inset 0 0 40px rgba(0,229,255,0.05)",
+            borderColor: "var(--neon-cyan)",
+          } : {}),
+        }}
       >
-        <div className="flex items-center justify-center gap-3">
-          <span className="text-xs font-pixel text-neon-cyan retro-glow tracking-wide uppercase">
-            {">> DROP VID OR CLICK <<"}
-          </span>
-        </div>
+        {/* Corner brackets */}
+        <svg className="absolute top-1.5 left-1.5 opacity-20" width="14" height="14">
+          <polyline points="0,10 0,0 10,0" stroke="#00e5ff" strokeWidth="1" fill="none" />
+        </svg>
+        <svg className="absolute top-1.5 right-1.5 opacity-20" width="14" height="14">
+          <polyline points="14,10 14,0 4,0" stroke="#00e5ff" strokeWidth="1" fill="none" />
+        </svg>
+        <svg className="absolute bottom-1.5 left-1.5 opacity-15" width="14" height="14">
+          <polyline points="0,4 0,14 10,14" stroke="#e040fb" strokeWidth="1" fill="none" />
+        </svg>
+        <svg className="absolute bottom-1.5 right-1.5 opacity-15" width="14" height="14">
+          <polyline points="14,4 14,14 4,14" stroke="#e040fb" strokeWidth="1" fill="none" />
+        </svg>
+
+        <span className="text-xs font-pixel led-text tracking-widest">
+          {">> DROP VIDEO OR CLICK TO START <<"}
+        </span>
+        <span className="text-sm font-retro text-text-muted">[ or click to browse ]</span>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center gap-3 retro-panel rounded px-3 py-2">
-      {thumbnails.length > 0 && (
-        <div className="flex gap-0.5 overflow-hidden rounded shrink-0 crt-filter">
-          {thumbnails.slice(0, 5).map((t, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={i} src={t} alt={`Thumb ${i + 1}`} className="h-10 w-14 object-cover" />
-          ))}
-        </div>
-      )}
-      <span className="text-sm font-retro led-text truncate flex-1">
-        {videoInfo && `${videoInfo.duration.toFixed(0)}s // ${videoInfo.width}x${videoInfo.height} // ${videoInfo.fps.toFixed(0)}fps`}
+    <div className="flex items-center gap-2 shrink-0">
+      <span className="text-[11px] font-retro led-text whitespace-nowrap">
+        {videoInfo && `${videoInfo.duration.toFixed(0)}s / ${videoInfo.width}x${videoInfo.height} / ${videoInfo.fps.toFixed(0)}fps`}
       </span>
-      <button onClick={openPicker} className="text-sm font-pixel text-neon-magenta hover:text-white retro-glow-magenta shrink-0 uppercase">
-        [CHANGE]
-      </button>
+      <Tooltip text="Replace the current video with a new one">
+        <button onClick={openPicker} className="text-[11px] font-pixel text-neon-magenta hover:text-white retro-glow-magenta shrink-0 uppercase">
+          [SWAP]
+        </button>
+      </Tooltip>
     </div>
   );
 }

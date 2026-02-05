@@ -1,5 +1,7 @@
 "use client";
 
+import { Tooltip } from "@/components/tooltip";
+
 const MIN_ANGLE = -135;
 const MAX_ANGLE = 135;
 
@@ -19,8 +21,8 @@ export function RotarySelect<T extends string | number>({ label, value, options,
     onChange(options[nextIdx].value);
   };
 
-  return (
-    <div className="flex flex-col items-center gap-1.5 select-none" style={{ minWidth: 110 }} title={title}>
+  const content = (
+    <div className="flex flex-col items-center gap-1.5 select-none" style={{ minWidth: 110 }}>
       <span className="rack-section-label">{label}</span>
 
       {/* Knob + position labels */}
@@ -94,4 +96,6 @@ export function RotarySelect<T extends string | number>({ label, value, options,
       </span>
     </div>
   );
+
+  return title ? <Tooltip text={title}>{content}</Tooltip> : content;
 }

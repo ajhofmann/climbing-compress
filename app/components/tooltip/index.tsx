@@ -2,13 +2,13 @@
 
 import { useState, useRef, useCallback } from "react";
 
-export function Tooltip({ text, children }: { text: string; children: React.ReactNode }) {
+export function Tooltip({ text, children, className, style }: { text: string; children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const ref = useRef<HTMLDivElement>(null);
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const show = useCallback((e: React.MouseEvent) => {
+  const show = useCallback(() => {
     if (timeout.current) clearTimeout(timeout.current);
     timeout.current = setTimeout(() => {
       const rect = ref.current?.getBoundingClientRect();
@@ -25,7 +25,7 @@ export function Tooltip({ text, children }: { text: string; children: React.Reac
   }, []);
 
   return (
-    <div ref={ref} onMouseEnter={show} onMouseLeave={hide} onMouseDown={hide} className="relative">
+    <div ref={ref} onMouseEnter={show} onMouseLeave={hide} onMouseDown={hide} className={`relative ${className ?? ""}`} style={style}>
       {children}
       {visible && (
         <div

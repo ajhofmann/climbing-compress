@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { Tooltip } from "@/components/tooltip";
 
 const MIN_ANGLE = -135; // 7 o'clock position
 const MAX_ANGLE = 135;  // 5 o'clock position
@@ -88,7 +89,7 @@ export function Knob({ label, info, value, min, max, step, onChange }: {
   const displayValue = step >= 1 ? value.toFixed(0) : value.toFixed(step < 0.1 ? 2 : 1);
   const pct = (value - min) / (max - min);
 
-  return (
+  const knobContent = (
     <div className="flex flex-col items-center gap-1.5 select-none" style={{ minWidth: 130 }}>
       {/* Label */}
       <span className="text-base font-pixel text-text-muted uppercase tracking-wider text-center leading-tight">
@@ -103,7 +104,6 @@ export function Knob({ label, info, value, min, max, step, onChange }: {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onWheel={handleWheel}
-        title={info}
       >
         {/* SVG tick marks + glow ring */}
         <svg
@@ -229,12 +229,8 @@ export function Knob({ label, info, value, min, max, step, onChange }: {
         </span>
       </div>
 
-      {/* Info text */}
-      {info && (
-        <span className="text-xs text-text-muted text-center leading-tight max-w-[120px]">
-          {info}
-        </span>
-      )}
     </div>
   );
+
+  return info ? <Tooltip text={info}>{knobContent}</Tooltip> : knobContent;
 }

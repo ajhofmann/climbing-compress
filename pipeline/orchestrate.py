@@ -180,7 +180,8 @@ def run_analysis(
     """Run the full analysis pipeline: track → pose → flow → score.
 
     Progress events are sent via *emit*.
-    *req* must expose ``stride``, ``force``, ``use_tracker``, ``use_flow``.
+    *req* must expose ``stride``, ``force``, ``use_tracker``, ``use_flow``,
+    and optionally ``tracker_model``.
     """
     cached = load_analysis(video_path, expected_stride=req.stride) if not req.force else None
 
@@ -204,7 +205,13 @@ def run_analysis(
                         "message": f"Tracking persons... {int(p * 100)}%",
                     })
 
-                tracks, _ = track_video(video_path, stride=req.stride, progress_cb=track_progress)
+                tracker_model = getattr(req, "tracker_model", None)
+                tracks, _ = track_video(
+                    video_path,
+                    stride=req.stride,
+                    progress_cb=track_progress,
+                    model_name=tracker_model,
+                )
                 if tracks:
                     save_tracks(video_path, tracks, fps=0, stride=req.stride)
 

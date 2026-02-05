@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Tooltip } from "@/components/tooltip";
 
 export interface TunerPreset {
   name: string;
@@ -69,21 +70,23 @@ export function PresetTuner({ presets, onSelect }: {
               const pos = presets.length > 1 ? (i / (presets.length - 1)) * 100 : 50;
               const isActive = i === activeIdx;
               return (
-                <button
+                <Tooltip
                   key={p.name}
-                  onClick={() => handleSelect(i)}
-                  className="absolute -translate-x-1/2 text-sm font-pixel uppercase tracking-wider cursor-pointer transition-all z-10 px-1"
-                  style={{
-                    left: `${pos}%`,
-                    color: isActive ? "var(--neon-cyan)" : "var(--text-muted)",
-                    textShadow: isActive ? "0 0 6px rgba(0,229,255,0.5)" : "none",
-                    top: "50%",
-                    transform: "translate(-50%, -50%)",
-                  }}
-                  title={p.desc}
+                  text={p.desc}
+                  className="absolute -translate-x-1/2 z-10"
+                  style={{ left: `${pos}%`, top: "50%", transform: "translate(-50%, -50%)" }}
                 >
-                  {p.name}
-                </button>
+                  <button
+                    onClick={() => handleSelect(i)}
+                    className="text-sm font-pixel uppercase tracking-wider cursor-pointer transition-all px-1"
+                    style={{
+                      color: isActive ? "var(--neon-cyan)" : "var(--text-muted)",
+                      textShadow: isActive ? "0 0 6px rgba(0,229,255,0.5)" : "none",
+                    }}
+                  >
+                    {p.name}
+                  </button>
+                </Tooltip>
               );
             })}
           </div>

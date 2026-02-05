@@ -14,6 +14,18 @@ from pipeline.constants import MIN_VISIBILITY
 from pipeline.signal import smooth_and_normalize
 
 
+def _debiased_cumsum(values: np.ndarray) -> np.ndarray:
+    """Cumulative sum with mean-subtraction to prevent drift.
+
+    Camera-motion estimation can have a tiny per-frame systematic bias
+    (e.g. ORB matching favouring one direction on a textured wall).
+    Over thousands of frames the bias accumulates into large drift.
+    Subtracting the global mean removes the DC component while
+    preserving the AC (frame-to-frame shake) signal.
+    """
+    return np.cumsum(values - np.mean(values))
+
+
 def score_movement(
     poses: list[dict | None],
     fps: float,
@@ -202,17 +214,17 @@ def score_progress(
     com_x = np.interp(indices, indices[valid], com_x[valid])
     com_y = np.interp(indices, indices[valid], com_y[valid])
 
-    # Subtract cumulative camera motion from COM so shake is removed
+    # Subtract cumulative camera motion from COM so shake is removed.
+    # Mean-subtracted to prevent systematic estimation bias from drifting.
     if camera_motion is not None:
         cam_dx, cam_dy = camera_motion
         if len(cam_dx) == n:
-            com_x -= np.cumsum(cam_dx)
-            com_y -= np.cumsum(cam_dy)
+            com_x -= _debiased_cumsum(cam_dx)
+            com_y -= _debiased_cumsum(cam_dy)
 
-    # Smooth positions to remove jitter
-    pos_sigma = max(1, fps * 0.5)
-    com_x = gaussian_filter1d(com_x, sigma=pos_sigma)
-    com_y = gaussian_filter1d(com_y, sigma=pos_sigma)
+    # NOTE: No position pre-smoothing here — the upstream One Euro filter
+    # (smooth.py) already handles pose jitter.  Removing this stage avoids
+    # a triple-Gaussian cascade that was blurring short climbing moves.
 
     # Per-frame displacement
     dx = np.diff(com_x, prepend=com_x[0])
@@ -234,12 +246,19 @@ def score_progress(
     # --- Directional consistency filter ---
     # Weight displacement by how consistently dy points in one direction
     # over a sliding window.  Oscillatory rest sway → consistency ≈ 0.
+    #
+    # Uses a magnitude-weighted soft sign instead of bare np.sign so
+    # that tiny jitter (pose noise) contributes less to the consistency
+    # metric than genuine displacement.
     cw = float(max(consistency_window_s, 0))
     cf = float(np.clip(consistency_floor, 0.0, 1.0))
     if cw > 0 and fps > 0:
-        sign_dy = np.sign(dy)
+        # Soft sign: dy / (|dy| + epsilon) — continuous, magnitude-aware
+        soft_eps = float(np.percentile(np.abs(dy[dy != 0]), 25)) if np.any(dy != 0) else 1e-6
+        soft_eps = max(soft_eps, 1e-9)
+        weighted_sign = dy / (np.abs(dy) + soft_eps)
         sigma_c = max(1, fps * cw * 0.5)
-        consistency = np.abs(gaussian_filter1d(sign_dy, sigma=sigma_c))
+        consistency = np.abs(gaussian_filter1d(weighted_sign, sigma=sigma_c))
         displacement *= np.maximum(consistency, cf)
 
     # Smooth and normalize displacement rate
@@ -258,9 +277,10 @@ def analyze_rest_signals(
 
     Returns a dict with two 1-D arrays (length = len(poses)):
 
-    * **com_variance** — sliding-window variance of the COM y-position.
-      Low values mean the body is stationary even if there is
-      frame-to-frame jitter.
+    * **com_variance** — sliding-window variance of the COM position
+      (X + Y).  Low values mean the body is stationary even if there
+      is frame-to-frame jitter.  Includes both axes so traverses
+      (horizontal movement) are not misclassified as rest.
     * **limb_ratio** — ratio of limb velocity (wrists + ankles) to COM
       velocity.  High values mean the limbs are active but the body
       centre is still — classic rest/shakeout pattern.
@@ -291,17 +311,16 @@ def analyze_rest_signals(
     com_x = np.interp(indices, indices[valid], com_x[valid])
     com_y = np.interp(indices, indices[valid], com_y[valid])
 
-    # Subtract cumulative camera motion from COM
+    # Subtract cumulative camera motion from COM (debiased to prevent drift)
     if camera_motion is not None:
         cam_dx, cam_dy = camera_motion
         if len(cam_dx) == n:
-            com_x -= np.cumsum(cam_dx)
-            com_y -= np.cumsum(cam_dy)
+            com_x -= _debiased_cumsum(cam_dx)
+            com_y -= _debiased_cumsum(cam_dy)
 
-    # Smooth COM to match score_progress behaviour
-    pos_sigma = max(1, fps * 0.5)
-    com_x_s = gaussian_filter1d(com_x, sigma=pos_sigma)
-    com_y_s = gaussian_filter1d(com_y, sigma=pos_sigma)
+    # NOTE: No position pre-smoothing — matches score_progress (One Euro
+    # handles jitter upstream).  The sliding-window variance and per-signal
+    # Gaussian smoothing below provide their own noise suppression.
 
     # --- COM variance (sliding window) ---
     win = max(1, int(fps * window_s))
@@ -310,9 +329,16 @@ def analyze_rest_signals(
     #   var = E[x^2] - E[x]^2
     from scipy.ndimage import uniform_filter1d
 
-    mean_y = uniform_filter1d(com_y_s, size=win, mode="nearest")
-    mean_y2 = uniform_filter1d(com_y_s ** 2, size=win, mode="nearest")
-    com_variance = np.maximum(mean_y2 - mean_y ** 2, 0.0)
+    # 2D variance (X + Y) so traverses aren't misclassified as rest
+    mean_x = uniform_filter1d(com_x, size=win, mode="nearest")
+    mean_x2 = uniform_filter1d(com_x ** 2, size=win, mode="nearest")
+    var_x = np.maximum(mean_x2 - mean_x ** 2, 0.0)
+
+    mean_y = uniform_filter1d(com_y, size=win, mode="nearest")
+    mean_y2 = uniform_filter1d(com_y ** 2, size=win, mode="nearest")
+    var_y = np.maximum(mean_y2 - mean_y ** 2, 0.0)
+
+    com_variance = var_x + var_y
 
     # --- Limb velocity vs COM velocity ---
     limb_names = ("left_wrist", "right_wrist", "left_ankle", "right_ankle")
@@ -344,8 +370,8 @@ def analyze_rest_signals(
     total_limb_vel = np.zeros(n)
     total_limb_vel[1:] = limb_vel.sum(axis=1)
 
-    com_dx = np.diff(com_x_s, prepend=com_x_s[0])
-    com_dy = np.diff(com_y_s, prepend=com_y_s[0])
+    com_dx = np.diff(com_x, prepend=com_x[0])
+    com_dy = np.diff(com_y, prepend=com_y[0])
     com_vel = np.sqrt(com_dx ** 2 + com_dy ** 2)
 
     # Smooth both signals before computing ratio

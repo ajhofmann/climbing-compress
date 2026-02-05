@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { Tooltip } from "@/components/tooltip";
 
 const TRACK_HEIGHT = 160;
 const CAP_HEIGHT = 24;
@@ -46,8 +47,8 @@ export function Fader({ label, value, min, max, step, onChange, color = "#00e5ff
 
   const displayValue = step >= 1 ? value.toFixed(0) : value.toFixed(step < 0.1 ? 2 : 1);
 
-  return (
-    <div className="flex flex-col items-center gap-1.5 select-none" style={{ minWidth: 60 }} title={title}>
+  const content = (
+    <div className="flex flex-col items-center gap-1.5 select-none" style={{ minWidth: 60 }}>
       <span className="rack-section-label text-center">{label}</span>
 
       {/* Fader track */}
@@ -124,4 +125,6 @@ export function Fader({ label, value, min, max, step, onChange, color = "#00e5ff
       </span>
     </div>
   );
+
+  return title ? <Tooltip text={title}>{content}</Tooltip> : content;
 }

@@ -115,6 +115,7 @@ class AnalyzeRequest(BaseModel):
     force: bool = False
     use_tracker: bool = True
     use_flow: bool = True
+    tracker_model: str = "yolo26m"
 
 
 # ---- Helpers ----

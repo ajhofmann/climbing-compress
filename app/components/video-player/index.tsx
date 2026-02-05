@@ -38,50 +38,56 @@ export function VideoPlayer() {
 
   if (!hasComparison) {
     return (
-      <video
-        ref={singleRef}
-        key={outputId}
-        src={videoUrl(outputId)}
-        controls
-        autoPlay
-        loop
-        playsInline
-        onTimeUpdate={onTimeUpdate}
-        className="rounded-2xl w-full max-h-[70vh] object-contain shadow-lg"
-      />
-    );
-  }
-
-  return (
-    <div className="flex flex-col sm:flex-row gap-3">
-      <div className="flex flex-col gap-1 flex-1 min-w-0">
-        <span className="text-[10px] font-medium text-accent text-center uppercase tracking-widest">smart ramp</span>
+      <div className="neon-video-frame overflow-hidden">
         <video
-          ref={smartRef}
+          ref={singleRef}
           key={outputId}
           src={videoUrl(outputId)}
           controls
           autoPlay
           loop
           playsInline
-          className="rounded-xl w-full max-h-[70vh] object-contain shadow-lg"
-          onPlay={syncPlay}
-          onPause={syncPause}
-          onSeeked={syncSeek}
           onTimeUpdate={onTimeUpdate}
+          className="w-full max-h-[70vh] object-contain"
         />
       </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col sm:flex-row gap-3">
       <div className="flex flex-col gap-1 flex-1 min-w-0">
-        <span className="text-[10px] font-medium text-text-muted text-center uppercase tracking-widest">uniform speed</span>
-        <video
-          ref={compRef}
-          key={comparisonId}
-          src={videoUrl(comparisonId)}
-          loop
-          playsInline
-          muted
-          className="rounded-xl w-full max-h-[70vh] object-contain shadow-lg"
-        />
+        <span className="text-[10px] font-pixel text-center uppercase tracking-[0.2em]" style={{ color: "var(--neon-cyan)", textShadow: "0 0 6px rgba(0,229,255,0.4)" }}>smart ramp</span>
+        <div className="neon-video-frame overflow-hidden">
+          <video
+            ref={smartRef}
+            key={outputId}
+            src={videoUrl(outputId)}
+            controls
+            autoPlay
+            loop
+            playsInline
+            className="w-full max-h-[70vh] object-contain"
+            onPlay={syncPlay}
+            onPause={syncPause}
+            onSeeked={syncSeek}
+            onTimeUpdate={onTimeUpdate}
+          />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1 flex-1 min-w-0">
+        <span className="text-[10px] font-pixel text-center uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>uniform speed</span>
+        <div className="neon-video-frame overflow-hidden" style={{ borderColor: "rgba(224,64,251,0.08)", boxShadow: "0 0 15px rgba(224,64,251,0.05)" }}>
+          <video
+            ref={compRef}
+            key={comparisonId}
+            src={videoUrl(comparisonId)}
+            loop
+            playsInline
+            muted
+            className="w-full max-h-[70vh] object-contain"
+          />
+        </div>
       </div>
     </div>
   );

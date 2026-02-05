@@ -340,8 +340,9 @@ class TestDirectionalConsistency:
         scores_filtered = score_progress(poses, fps, consistency_window_s=1.0)
         scores_unfiltered = score_progress(poses, fps, consistency_window_s=0.0)
 
-        # Unfiltered oscillation should have higher scores
-        assert scores_unfiltered.mean() >= scores_filtered.mean()
+        # Unfiltered oscillation should have higher (or equal) scores
+        # Tolerance for floating-point noise when both paths are nearly identical
+        assert scores_unfiltered.mean() >= scores_filtered.mean() - 1e-10
 
 
 class TestAnalyzeRestSignals:

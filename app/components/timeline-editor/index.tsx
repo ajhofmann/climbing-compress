@@ -4,6 +4,7 @@ import { useRef, useCallback, useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { videoUrl } from "@/lib/api";
 import { useTimeline } from "./use-timeline";
+import { Tooltip } from "@/components/tooltip";
 
 const THUMB_W = 160;
 const THUMB_H = 90;
@@ -105,9 +106,11 @@ export function TimelineEditor() {
           <span>scroll to resize</span>
           <span>right-click to delete</span>
           {pins.length > 0 && (
-            <button onClick={() => setPins([])} className="text-danger hover:underline">
-              clear all
-            </button>
+            <Tooltip text="Remove all speed pins from the timeline">
+              <button onClick={() => setPins([])} className="text-danger hover:underline">
+                clear all
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>

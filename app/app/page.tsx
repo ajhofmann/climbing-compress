@@ -44,7 +44,7 @@ export default function Home() {
     store.setAnalyzing(true);
     store.setProgress(0, force ? "Re-analyzing (fresh)..." : "Starting analysis...");
     try {
-      const result = await analyzeVideo(videoId, settings.analyzeStride, force, (p, msg) => { store.setProgress(p, msg); }, settings.useTracker, settings.useFlow);
+      const result = await analyzeVideo(videoId, settings.analyzeStride, force, (p, msg) => { store.setProgress(p, msg); }, settings.useTracker, settings.useFlow, settings.trackerModel);
       if (result) {
         store.setAnalysis(result, currentParams);
         if (settings.trimEnd === 0) store.updateSettings({ trimEnd: result.duration });
@@ -90,46 +90,53 @@ export default function Home() {
 
       {/* Video output -- appears at top once rendered */}
       <VideoPlayer />
+      <div className="neon-divider w-full" />
 
-      {/* Compact upload bar */}
-      <VideoUpload />
-
-      {/* Transport + Timeline */}
+      {/* Transport + Timeline (doubles as upload zone when no video) */}
       <div className="px-3 py-2 retro-panel rounded">
-        {/* Transport bar */}
-        <div className="flex items-center gap-3 mb-2">
-          <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb."}>
-            <button
-              onClick={handleAnalyze}
-              disabled={!videoId || store.isAnalyzing}
-              className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
-                store.isAnalyzing ? "retro-btn-primary opacity-70"
-                  : videoId && !hasAnalysis ? "retro-btn-primary pulse-border"
-                  : "retro-btn"
-              } disabled:opacity-30 disabled:cursor-not-allowed`}
-            >
-              {store.isAnalyzing ? "ANALYZING..." : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
-            </button>
-          </Tooltip>
-          <div className="flex-1 min-w-0">
-            <ProgressBar />
-          </div>
-          <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel."}>
-            <button
-              onClick={handleRender}
-              disabled={!videoId || !hasAnalysis || store.isRendering}
-              className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
-                store.isRendering ? "retro-btn opacity-70" : hasAnalysis ? "retro-btn-primary" : "retro-btn"
-              } disabled:opacity-30 disabled:cursor-not-allowed`}
-              style={store.isRendering ? { borderColor: "var(--neon-orange)", color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.5)" } : {}}
-            >
-              {store.isRendering ? "RENDERING..." : "RENDER"}
-            </button>
-          </Tooltip>
-        </div>
-        <TimelineEditor />
+        {!videoId ? (
+          <VideoUpload />
+        ) : (
+          <>
+            {/* Transport bar */}
+            <div className="flex items-center gap-3 mb-2">
+              <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb."}>
+                <button
+                  onClick={handleAnalyze}
+                  disabled={!videoId || store.isAnalyzing}
+                  className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
+                    store.isAnalyzing ? "retro-btn-primary opacity-70"
+                      : videoId && !hasAnalysis ? "retro-btn-primary pulse-border"
+                      : "retro-btn"
+                  } disabled:opacity-30 disabled:cursor-not-allowed`}
+                >
+                  {store.isAnalyzing ? "ANALYZING..." : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
+                </button>
+              </Tooltip>
+              <div className="flex-1 min-w-0">
+                <ProgressBar />
+              </div>
+              {/* Video info inline */}
+              <VideoUpload />
+              <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel."}>
+                <button
+                  onClick={handleRender}
+                  disabled={!videoId || !hasAnalysis || store.isRendering}
+                  className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
+                    store.isRendering ? "retro-btn opacity-70" : hasAnalysis ? "retro-btn-primary" : "retro-btn"
+                  } disabled:opacity-30 disabled:cursor-not-allowed`}
+                  style={store.isRendering ? { borderColor: "var(--neon-orange)", color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.5)" } : {}}
+                >
+                  {store.isRendering ? "RENDERING..." : "RENDER"}
+                </button>
+              </Tooltip>
+            </div>
+            <TimelineEditor />
+          </>
+        )}
       </div>
 
+      <div className="neon-divider w-full" />
       {/* Settings Dashboard */}
       <SettingsPanel />
 
@@ -137,10 +144,35 @@ export default function Home() {
       <DebugCharts />
 
       {/* Footer */}
-      <footer className="text-center py-3">
-        <p className="text-xs font-pixel text-text-muted tracking-wider uppercase opacity-50">
-SENDIT v2.0 // SPEED RAMP SYSTEM
+      <footer className="relative mt-4 pt-4 pb-3 flex flex-col items-center gap-3">
+        <div className="neon-divider w-full" />
+
+        {/* Mini synthwave grid decoration */}
+        <svg className="opacity-15" width="240" height="28" viewBox="0 0 240 28">
+          {Array.from({ length: 11 }).map((_, i) => (
+            <line key={`v${i}`} x1={120 + (i - 5) * 4} y1={0} x2={120 + (i - 5) * 24} y2={28} stroke="#00e5ff" strokeWidth="0.5" opacity={0.5 - Math.abs(i - 5) * 0.07} />
+          ))}
+          {Array.from({ length: 4 }).map((_, i) => {
+            const y = 4 + i * 8;
+            const spread = 0.3 + (i / 3) * 0.7;
+            return <line key={`h${i}`} x1={120 - 120 * spread} y1={y} x2={120 + 120 * spread} y2={y} stroke="#00e5ff" strokeWidth="0.4" opacity={0.25 + i * 0.05} />;
+          })}
+        </svg>
+
+        <p
+          className="text-xs font-pixel tracking-[0.2em] uppercase"
+          style={{ color: "var(--neon-cyan)", opacity: 0.3, textShadow: "0 0 8px rgba(0,229,255,0.3)" }}
+        >
+          SENDIT v2.0 // SPEED RAMP SYSTEM
         </p>
+
+        <div className="flex items-center gap-2 opacity-25">
+          <span className="pilot-light pilot-light-cyan" style={{ width: 4, height: 4 }} />
+          <span className="text-[8px] font-retro tracking-[0.2em]" style={{ color: "var(--chrome-dark)" }}>SYSTEM NOMINAL</span>
+          <span className="pilot-light pilot-light-cyan" style={{ width: 4, height: 4 }} />
+        </div>
+
+        <div className="neon-divider-magenta w-48" />
       </footer>
     </main>
   );

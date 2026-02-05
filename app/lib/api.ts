@@ -22,6 +22,7 @@ export async function analyzeVideo(
   onProgress: (progress: number, message: string) => void,
   useTracker: boolean = true,
   useFlow: boolean = true,
+  trackerModel: string = "yolo26m",
 ): Promise<AnalysisData | null> {
   const res = await fetch(`${API}/api/analyze`, {
     method: "POST",
@@ -32,6 +33,7 @@ export async function analyzeVideo(
       force,
       use_tracker: useTracker,
       use_flow: useFlow,
+      tracker_model: trackerModel,
     }),
   });
 

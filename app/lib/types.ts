@@ -65,6 +65,7 @@ export interface Settings {
   analyzeStride: number;
   useTracker: boolean;
   useFlow: boolean;
+  trackerModel: string;
   // Constant progress mode
   progressFloor: number;
   verticalBias: number;
@@ -104,6 +105,7 @@ export const DEFAULT_SETTINGS: Settings = {
   analyzeStride: 1,
   useTracker: true,
   useFlow: true,
+  trackerModel: "yolo26m",
   progressFloor: 0.02,
   verticalBias: 0.7,
   downWeight: 0.15,

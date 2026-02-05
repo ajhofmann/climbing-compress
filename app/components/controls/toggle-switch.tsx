@@ -1,5 +1,7 @@
 "use client";
 
+import { Tooltip } from "@/components/tooltip";
+
 export function ToggleSwitch({ label, checked, onChange, color = "#00e5ff", title }: {
   label: string;
   checked: boolean;
@@ -7,12 +9,11 @@ export function ToggleSwitch({ label, checked, onChange, color = "#00e5ff", titl
   color?: string;
   title?: string;
 }) {
-  return (
+  const content = (
     <button
       onClick={() => onChange(!checked)}
       className="flex flex-col items-center gap-1 select-none cursor-pointer group"
       style={{ minWidth: 64 }}
-      title={title}
     >
       <span className="rack-section-label text-center">{label}</span>
 
@@ -54,4 +55,6 @@ export function ToggleSwitch({ label, checked, onChange, color = "#00e5ff", titl
       </span>
     </button>
   );
+
+  return title ? <Tooltip text={title}>{content}</Tooltip> : content;
 }

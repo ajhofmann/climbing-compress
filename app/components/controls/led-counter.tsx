@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
+import { Tooltip } from "@/components/tooltip";
 
 // 7-segment digit paths for SVG rendering -- now styled as Nixie tubes
 const SEGMENTS: Record<string, boolean[]> = {
@@ -80,13 +81,14 @@ function NixieDigit({ char }: { char: string }) {
   );
 }
 
-export function LedCounter({ label, value, min, max, step, onChange }: {
+export function LedCounter({ label, value, min, max, step, onChange, title }: {
   label: string;
   value: number;
   min: number;
   max: number;
   step: number;
   onChange: (v: number) => void;
+  title?: string;
 }) {
   const increment = useCallback(() => {
     const next = Math.min(max, value + step);
@@ -113,13 +115,12 @@ export function LedCounter({ label, value, min, max, step, onChange }: {
     displayChars = String(Math.round(value)).padStart(3, " ").split("").map(c => c === " " ? "0" : c);
   }
 
-  return (
+  const content = (
     <div className="flex flex-col items-center gap-1.5">
       <span className="rack-section-label">{label}</span>
       <div className="flex items-center gap-1.5">
         <button
           onClick={decrement}
-          title={`Decrease ${label}`}
           className="retro-btn w-10 h-14 flex items-center justify-center font-retro leading-none"
           style={{ fontSize: "24px", padding: 0, color: NIXIE_ON }}
         >
@@ -141,7 +142,6 @@ export function LedCounter({ label, value, min, max, step, onChange }: {
 
         <button
           onClick={increment}
-          title={`Increase ${label}`}
           className="retro-btn w-10 h-14 flex items-center justify-center font-retro leading-none"
           style={{ fontSize: "24px", padding: 0, color: NIXIE_ON }}
         >
@@ -150,4 +150,6 @@ export function LedCounter({ label, value, min, max, step, onChange }: {
       </div>
     </div>
   );
+
+  return title ? <Tooltip text={title}>{content}</Tooltip> : content;
 }

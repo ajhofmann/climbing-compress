@@ -19,6 +19,7 @@ import numpy as np
 import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions, vision
 
+from pipeline.constants import TRACK_RECOVERY_MARGIN
 from pipeline.smooth import smooth_poses
 from utils.bbox import crop_to_bbox
 from utils.video_io import iter_video_frames
@@ -155,12 +156,20 @@ def extract_poses(
                 and frame_idx < len(tracks)
                 and tracks[frame_idx] is not None
             ):
-                crop, crop_origin = _crop_to_track(
-                    frame_rgb, tracks[frame_idx], margin=0.2
-                )
-                # Only use crop if it's reasonably sized
-                if crop.shape[0] > 50 and crop.shape[1] > 50:
-                    frame_rgb = crop
+                track = tracks[frame_idx]
+                if track.get("bbox_norm") is not None:
+                    low_quality = bool(
+                        track.get("interpolated") or track.get("recovered")
+                    )
+                    margin = TRACK_RECOVERY_MARGIN if low_quality else 0.2
+                    crop, crop_origin = _crop_to_track(
+                        frame_rgb, track, margin=margin
+                    )
+                    # Only use crop if it's reasonably sized
+                    if crop.shape[0] > 50 and crop.shape[1] > 50:
+                        frame_rgb = crop
+                    else:
+                        crop_origin = None
                 else:
                     crop_origin = None
 

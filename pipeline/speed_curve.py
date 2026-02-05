@@ -89,25 +89,14 @@ def solve_speed_curve(
     # Apply pin points (smooth Gaussian attractors)
     speeds = _apply_pins(speeds, fps, pins, min_speed, max_speed)
 
-    # Iteratively solve for target duration
-    for _ in range(20):
-        current_duration = np.sum(dt / speeds)
-        ratio = current_duration / target_duration
-        if abs(ratio - 1.0) < SOLVER_TOLERANCE_ACTION:
-            break
-        speeds *= ratio
-        speeds = np.clip(speeds, min_speed, max_speed)
-
-    # Smooth
+    # Smooth before duration solve (same pattern as progress mode)
     sigma_frames = max(1, fps * smoothing)
     speeds = gaussian_filter1d(speeds, sigma=sigma_frames)
     speeds = np.clip(speeds, min_speed, max_speed)
 
-    # Final duration adjustment
-    current_duration = np.sum(dt / speeds)
-    if current_duration > 0:
-        speeds *= current_duration / target_duration
-        speeds = np.clip(speeds, min_speed, max_speed)
+    # Bisect to hit target duration — replaces the old iterative scaler
+    # which could oscillate when many speeds hit clamp boundaries.
+    speeds = _bisect_duration(speeds, dt, target_duration, min_speed, max_speed)
 
     return speeds
 
@@ -161,24 +150,24 @@ def solve_constant_progress(
     input_duration = n * dt
     target_duration = min(target_duration, input_duration)
 
-    # --- Step 1: Detect rest sections ---
-    rest_mask = detect_rest(
+    # --- Step 1: Compute continuous rest confidence ---
+    rest_conf = rest_confidence(
         progress_rate, fps, rest_threshold_s,
         com_variance=com_variance,
         limb_ratio=limb_ratio,
     )
 
     # --- Step 2: Build effective progress rate ---
-    # Rest frames contribute zero progress (will be fast-forwarded).
-    # Non-rest frames get a floor to prevent extreme speed spikes.
-    effective = progress_rate.copy()
-    effective[rest_mask] = 0.0
+    # Multiply progress by (1 - rest_confidence) for a smooth transition
+    # instead of the old binary zeroing.  Non-rest frames get a floor to
+    # prevent extreme speed spikes.
+    effective = progress_rate * (1.0 - rest_conf)
 
-    non_rest = ~rest_mask
-    if non_rest.any() and floor > 0:
-        p95_nr = np.percentile(effective[non_rest], NORM_PERCENTILE) if non_rest.sum() > 1 else 1.0
+    active = rest_conf < 0.5
+    if active.any() and floor > 0:
+        p95_nr = np.percentile(effective[active], NORM_PERCENTILE) if active.sum() > 1 else 1.0
         min_rate = floor * p95_nr if p95_nr > 0 else floor
-        effective[non_rest] = np.maximum(effective[non_rest], min_rate)
+        effective[active] = np.maximum(effective[active], min_rate)
 
     total_progress = effective.sum()
     if total_progress <= 0:
@@ -212,6 +201,95 @@ def solve_constant_progress(
     return speeds
 
 
+def rest_confidence(
+    progress_rate: np.ndarray,
+    fps: float,
+    threshold_s: float = 0.3,
+    com_variance: np.ndarray | None = None,
+    limb_ratio: np.ndarray | None = None,
+    com_var_thresh: float = DEFAULT_REST_COM_VARIANCE_THRESH,
+    limb_ratio_thresh: float = DEFAULT_REST_LIMB_RATIO_THRESH,
+) -> np.ndarray:  # float [0, 1]
+    """Compute a continuous rest-confidence signal.
+
+    Returns a per-frame value in [0, 1] where 1.0 = certainly resting
+    and 0.0 = certainly active.  This replaces the old binary mask with
+    a smooth signal so the speed-curve transition at rest boundaries is
+    gradual instead of a cliff.
+
+    Three soft signals are combined:
+
+    1. **Progress level** — a sigmoid around an adaptive threshold
+       (10 % of median non-zero progress).  Below the threshold
+       saturates toward 1; above decays toward 0.
+    2. **COM variance** (optional) — low variance → high rest
+       confidence.  Sigmoid centred at *com_var_thresh*.
+    3. **Limb ratio** (optional) — high ratio (limbs active, body
+       still) → high rest confidence.  Sigmoid centred at
+       *limb_ratio_thresh*.
+
+    A temporal minimum-duration requirement is enforced by smoothing
+    the combined confidence with a Gaussian whose sigma equals
+    *threshold_s / 2*, then thresholding at 0.5 and re-smoothing.
+    This acts like the old run-length filter but with soft edges.
+    """
+    n = len(progress_rate)
+    if threshold_s <= 0 or n == 0:
+        return np.zeros(n, dtype=float)
+
+    # --- Adaptive threshold ---
+    nonzero = progress_rate[progress_rate > 0]
+    if len(nonzero) == 0:
+        return np.ones(n, dtype=float)
+
+    thresh = float(np.median(nonzero) * 0.1)
+    if thresh <= 0:
+        return np.ones(n, dtype=float)
+
+    # Sigmoid: high confidence when progress << thresh, low when >> thresh
+    # Steepness chosen so the transition spans roughly [0, 3*thresh]
+    steepness = 6.0 / max(thresh, 1e-9)
+    prog_conf = 1.0 / (1.0 + np.exp(steepness * (progress_rate - thresh)))
+
+    # --- Auxiliary signals (soft, gated to borderline range) ---
+    # Aux can only boost confidence for *borderline* frames (progress
+    # between thresh and ~3x thresh).  Clearly active frames (high
+    # progress) are never flagged as rest regardless of aux signals.
+    conf = prog_conf.copy()
+
+    relaxed_thresh = thresh * 3.0
+    gate_steep = 6.0 / max(relaxed_thresh, 1e-9)
+    borderline_gate = 1.0 / (1.0 + np.exp(gate_steep * (progress_rate - relaxed_thresh)))
+
+    aux_conf = np.zeros(n, dtype=float)
+    if com_variance is not None and len(com_variance) == n:
+        # Low COM variance → high confidence (body is still)
+        cv_steep = 6.0 / max(com_var_thresh, 1e-9)
+        cv_conf = 1.0 / (1.0 + np.exp(cv_steep * (com_variance - com_var_thresh)))
+        aux_conf = np.maximum(aux_conf, cv_conf)
+
+    if limb_ratio is not None and len(limb_ratio) == n:
+        # High limb ratio → high confidence (shakeout pattern)
+        lr_steep = 2.0 / max(limb_ratio_thresh, 1e-9)
+        lr_conf = 1.0 / (1.0 + np.exp(-lr_steep * (limb_ratio - limb_ratio_thresh)))
+        aux_conf = np.maximum(aux_conf, lr_conf)
+
+    # Apply gated aux boost
+    conf = np.maximum(conf, borderline_gate * aux_conf)
+
+    # --- Temporal minimum-duration filter ---
+    # Smooth → threshold → re-smooth produces soft edges that still
+    # require sustained stillness (replaces hard run-length filter).
+    sigma_dur = max(1, fps * threshold_s * 0.5)
+    conf = gaussian_filter1d(conf, sigma=sigma_dur)
+    # Soft threshold: values below 0.5 are suppressed (brief flickers)
+    conf = 1.0 / (1.0 + np.exp(-12.0 * (conf - 0.5)))
+    # Final smooth for clean edges
+    conf = gaussian_filter1d(conf, sigma=max(1, sigma_dur * 0.5))
+
+    return np.clip(conf, 0.0, 1.0)
+
+
 def detect_rest(
     progress_rate: np.ndarray,
     fps: float,
@@ -223,62 +301,20 @@ def detect_rest(
 ) -> np.ndarray:  # bool mask
     """Detect sustained rest sections in the progress signal.
 
-    A rest is a contiguous run of frames where progress is below an
-    adaptive threshold (10% of median non-zero progress) for at least
-    threshold_s seconds.
-
-    When auxiliary signals from ``analyze_rest_signals`` are provided,
-    additional frames can be classified as rest even if the progress
-    signal is slightly above the base threshold:
-
-    * **Low COM variance** — body position is stable over a sliding
-      window, indicating no real wall progress despite small jitter.
-    * **High limb ratio** — limbs are active but body centre is still,
-      a classic rest/shakeout pattern.
+    Thin wrapper around :func:`rest_confidence` that returns a boolean
+    mask (confidence >= 0.5).  Kept for backward compatibility and for
+    the debug overlay which needs a crisp mask.
 
     Returns boolean mask: True = resting frame.
     """
-    n = len(progress_rate)
-    if threshold_s <= 0 or n == 0:
-        return np.zeros(n, dtype=bool)
-
-    min_frames = max(1, int(threshold_s * fps))
-
-    # Adaptive threshold: < 10% of median non-zero progress
-    nonzero = progress_rate[progress_rate > 0]
-    if len(nonzero) == 0:
-        return np.ones(n, dtype=bool)
-
-    thresh = float(np.median(nonzero) * 0.1)
-    is_low = progress_rate < thresh
-
-    # --- Enhanced rest: widen detection with auxiliary signals ---
-    # Use a relaxed threshold (3x base) combined with corroborating
-    # evidence from COM variance or limb ratio.
-    has_aux = (com_variance is not None and len(com_variance) == n) or \
-              (limb_ratio is not None and len(limb_ratio) == n)
-    if has_aux:
-        relaxed_thresh = thresh * 3.0
-        is_borderline = (progress_rate >= thresh) & (progress_rate < relaxed_thresh)
-
-        aux_confirms = np.zeros(n, dtype=bool)
-        if com_variance is not None and len(com_variance) == n:
-            aux_confirms |= (com_variance < com_var_thresh)
-        if limb_ratio is not None and len(limb_ratio) == n:
-            aux_confirms |= (limb_ratio > limb_ratio_thresh)
-
-        is_low = is_low | (is_borderline & aux_confirms)
-
-    # Vectorised run-length detection
-    rest_mask = np.zeros(n, dtype=bool)
-    changes = np.diff(is_low.astype(np.int8), prepend=0, append=0)
-    starts = np.where(changes == 1)[0]
-    ends = np.where(changes == -1)[0]
-    long_enough = (ends - starts) >= min_frames
-    for s, e in zip(starts[long_enough], ends[long_enough]):
-        rest_mask[s:e] = True
-
-    return rest_mask
+    conf = rest_confidence(
+        progress_rate, fps, threshold_s,
+        com_variance=com_variance,
+        limb_ratio=limb_ratio,
+        com_var_thresh=com_var_thresh,
+        limb_ratio_thresh=limb_ratio_thresh,
+    )
+    return conf >= 0.5
 
 
 def _bisect_duration(
@@ -288,10 +324,16 @@ def _bisect_duration(
     min_speed: float,
     max_speed: float,
 ) -> np.ndarray:
-    """Adjust speeds via multiplicative bisection to hit target duration.
+    """Adjust speeds via constrained bisection to hit target duration.
 
-    Unlike the old iterative scaler (which gave up after 20 steps at
-    clamp boundaries), bisection is guaranteed to converge.
+    Only scales the *unclamped* portion of the speed array, keeping
+    values that are already at ``min_speed`` or ``max_speed`` fixed.
+    This preserves proportionality among active frames instead of
+    uniformly distorting the entire curve.
+
+    Falls back to the simpler uniform bisection when all speeds are
+    clamped (nothing left to scale) or when the constrained pass
+    cannot reach the target.
     """
     base = speeds.copy()
 
@@ -300,7 +342,57 @@ def _bisect_duration(
     if abs(cur - target_duration) / max(target_duration, 1e-6) < SOLVER_TOLERANCE:
         return base
 
-    # Bisect on a multiplicative factor
+    # Identify which frames are interior (not at a clamp boundary)
+    eps = 1e-6
+    at_min = base <= min_speed + eps
+    at_max = base >= max_speed - eps
+    free = ~(at_min | at_max)
+
+    if not free.any():
+        # Everything is clamped — fall through to uniform bisection
+        return _bisect_duration_uniform(base, dt, target_duration, min_speed, max_speed)
+
+    # Duration contributed by the fixed (clamped) frames
+    fixed_dur = float(np.sum(dt / base[~free])) if (~free).any() else 0.0
+    remaining_target = target_duration - fixed_dur
+
+    if remaining_target <= 0:
+        # Even clamped frames alone overshoot — uniform fallback
+        return _bisect_duration_uniform(base, dt, target_duration, min_speed, max_speed)
+
+    # Bisect on a multiplicative factor applied only to free frames
+    free_base = base[free]
+    lo, hi = BISECT_LO, BISECT_HI
+
+    for _ in range(BISECT_MAX_ITER):
+        mid = (lo + hi) / 2.0
+        trial_free = np.clip(free_base * mid, min_speed, max_speed)
+        dur_free = float(np.sum(dt / trial_free))
+
+        if abs(dur_free - remaining_target) / max(remaining_target, 1e-6) < SOLVER_TOLERANCE:
+            result = base.copy()
+            result[free] = trial_free
+            return result
+
+        if dur_free > remaining_target:
+            lo = mid
+        else:
+            hi = mid
+
+    result = base.copy()
+    result[free] = np.clip(free_base * ((lo + hi) / 2.0), min_speed, max_speed)
+    return result
+
+
+def _bisect_duration_uniform(
+    speeds: np.ndarray,
+    dt: float,
+    target_duration: float,
+    min_speed: float,
+    max_speed: float,
+) -> np.ndarray:
+    """Simple uniform multiplicative bisection (fallback)."""
+    base = speeds.copy()
     lo, hi = BISECT_LO, BISECT_HI
 
     for _ in range(BISECT_MAX_ITER):
@@ -312,7 +404,7 @@ def _bisect_duration(
             return trial
 
         if dur > target_duration:
-            lo = mid   # too long -> need faster speeds -> higher multiplier
+            lo = mid
         else:
             hi = mid
 

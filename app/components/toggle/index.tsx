@@ -1,5 +1,7 @@
 "use client";
 
+import { Tooltip } from "@/components/tooltip";
+
 /**
  * Retro hardware toggle switch — chunky, beveled, with LED indicator.
  * Replaces plain checkboxes in the settings panel.
@@ -10,12 +12,14 @@ export function Toggle({
   label,
   detail,
   color = "cyan",
+  title,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label: string;
   detail?: string;
   color?: "cyan" | "magenta" | "orange" | "lime";
+  title?: string;
 }) {
   const colors = {
     cyan: { on: "#00e5ff", glow: "rgba(0,229,255,0.5)", bg: "#005f6b" },
@@ -25,7 +29,7 @@ export function Toggle({
   };
   const c = colors[color];
 
-  return (
+  const content = (
     <button
       type="button"
       onClick={() => onChange(!checked)}
@@ -93,4 +97,6 @@ export function Toggle({
       </div>
     </button>
   );
+
+  return title ? <Tooltip text={title}>{content}</Tooltip> : content;
 }

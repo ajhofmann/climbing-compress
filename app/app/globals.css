@@ -53,6 +53,18 @@ body {
   letter-spacing: 0.02em;
 }
 
+/* Ambient neon glow on page (top = cyan, bottom = magenta) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% -10%, rgba(0,229,255,0.03) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 110%, rgba(224,64,251,0.02) 0%, transparent 55%);
+}
+
 /* ---- Scan lines overlay ---- */
 body::before {
   content: '';
@@ -121,7 +133,18 @@ body::before {
   box-shadow:
     inset 1px 1px 0 rgba(255,255,255,0.06),
     inset -1px -1px 0 rgba(0,0,0,0.3),
-    0 4px 12px rgba(0,0,0,0.5);
+    0 4px 12px rgba(0,0,0,0.5),
+    0 0 15px rgba(0, 229, 255, 0.03);
+  transition: box-shadow 0.4s ease, border-color 0.4s ease;
+}
+.retro-panel:hover {
+  border-color: rgba(0, 229, 255, 0.15);
+  box-shadow:
+    inset 1px 1px 0 rgba(255,255,255,0.06),
+    inset -1px -1px 0 rgba(0,0,0,0.3),
+    0 4px 12px rgba(0,0,0,0.5),
+    0 0 20px rgba(0, 229, 255, 0.06),
+    0 0 40px rgba(0, 229, 255, 0.02);
 }
 
 .retro-panel-metal {
@@ -444,6 +467,15 @@ select:focus {
     inset 1px 1px 0 rgba(255,255,255,0.03),
     inset -1px -1px 0 rgba(0,0,0,0.3),
     0 2px 6px rgba(0,0,0,0.4);
+  transition: box-shadow 0.35s ease, border-color 0.35s ease;
+}
+.dashboard-module:hover {
+  border-color: rgba(0, 229, 255, 0.12);
+  box-shadow:
+    inset 1px 1px 0 rgba(255,255,255,0.03),
+    inset -1px -1px 0 rgba(0,0,0,0.3),
+    0 2px 6px rgba(0,0,0,0.4),
+    0 0 12px rgba(0, 229, 255, 0.05);
 }
 .dashboard-module-label {
   display: flex;
@@ -453,6 +485,15 @@ select:focus {
   background-image: url('/retro/rack-panel.png');
   background-size: 256px;
   border-bottom: 1px solid #222;
+}
+.dashboard-module-label::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 4px var(--neon-cyan), 0 0 8px rgba(0,229,255,0.3);
+  flex-shrink: 0;
 }
 .dashboard-module-label span {
   font-family: 'Press Start 2P', monospace;
@@ -466,7 +507,7 @@ select:focus {
   content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, #333, transparent);
+  background: linear-gradient(90deg, rgba(0,229,255,0.15), transparent);
 }
 .dashboard-module-body {
   padding: 8px;
@@ -517,6 +558,52 @@ select:focus {
 }
 .pilot-light-breathe {
   animation: pilot-breathe 2s ease-in-out infinite;
+}
+
+/* ---- Neon divider line ---- */
+.neon-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, rgba(0,229,255,0.2) 30%, rgba(0,229,255,0.3) 50%, rgba(0,229,255,0.2) 70%, transparent 95%);
+  box-shadow: 0 0 8px rgba(0,229,255,0.08), 0 0 20px rgba(0,229,255,0.04);
+}
+.neon-divider-magenta {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 5%, rgba(224,64,251,0.15) 30%, rgba(224,64,251,0.25) 50%, rgba(224,64,251,0.15) 70%, transparent 95%);
+  box-shadow: 0 0 8px rgba(224,64,251,0.06);
+}
+
+/* ---- Neon video frame ---- */
+.neon-video-frame {
+  border: 1px solid rgba(0, 229, 255, 0.1);
+  box-shadow:
+    0 0 20px rgba(0, 229, 255, 0.08),
+    0 0 40px rgba(0, 229, 255, 0.03),
+    inset 0 0 20px rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
+  transition: box-shadow 0.4s ease;
+}
+.neon-video-frame:hover {
+  border-color: rgba(0, 229, 255, 0.18);
+  box-shadow:
+    0 0 25px rgba(0, 229, 255, 0.12),
+    0 0 50px rgba(0, 229, 255, 0.05),
+    inset 0 0 20px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- Drop zone glow ---- */
+@keyframes drop-zone-pulse {
+  0%, 100% {
+    border-color: rgba(0, 229, 255, 0.08);
+    box-shadow: 0 0 8px rgba(0, 229, 255, 0.03), inset 0 0 20px rgba(0, 229, 255, 0.01);
+  }
+  50% {
+    border-color: rgba(0, 229, 255, 0.16);
+    box-shadow: 0 0 16px rgba(0, 229, 255, 0.06), inset 0 0 30px rgba(0, 229, 255, 0.02);
+  }
+}
+.drop-zone-glow {
+  border: 1px solid rgba(0, 229, 255, 0.08);
+  animation: drop-zone-pulse 3s ease-in-out infinite;
 }
 
 /* ---- Header title neon pulse ---- */
