@@ -76,6 +76,7 @@ export interface Metrics {
   avg_duration_by_type?: Record<string, number>;
   db_size_bytes?: number;
   output_storage_bytes?: number;
+  input_storage_bytes?: number;
 }
 
 export interface JobRecord {
