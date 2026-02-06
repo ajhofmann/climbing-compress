@@ -80,6 +80,7 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
     assert output["project_name"] == "Project API"
     assert output["project_id"] == project_id
     assert output["video_filename"] == "demo.mp4"
+    assert output["job_id"] == "job-api"
     assert output["output_duration"] == 1.5
     assert output["size_bytes"] == len(b"payload")
     assert output_missing["output_duration"] is None
