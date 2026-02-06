@@ -550,34 +550,23 @@ def list_outputs(video_id: str | None = None, project_id: str | None = None) -> 
     conn = _connect()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+
+    base_query = "SELECT outputs.*, videos.filename as video_filename, videos.project_id as project_id FROM outputs JOIN videos ON outputs.video_id = videos.id"
+    conditions = []
+    params: list[Any] = []
+
     if project_id == "unassigned":
-        cur.execute(
-            """
-            SELECT outputs.*
-            FROM outputs
-            JOIN videos ON outputs.video_id = videos.id
-            WHERE videos.project_id IS NULL
-            ORDER BY outputs.created_at DESC
-            """
-        )
+        conditions.append("videos.project_id IS NULL")
     elif project_id is not None:
-        cur.execute(
-            """
-            SELECT outputs.*
-            FROM outputs
-            JOIN videos ON outputs.video_id = videos.id
-            WHERE videos.project_id = ?
-            ORDER BY outputs.created_at DESC
-            """,
-            (project_id,),
-        )
-    elif video_id is not None:
-        cur.execute(
-            "SELECT * FROM outputs WHERE video_id = ? ORDER BY created_at DESC",
-            (video_id,),
-        )
-    else:
-        cur.execute("SELECT * FROM outputs ORDER BY created_at DESC")
+        conditions.append("videos.project_id = ?")
+        params.append(project_id)
+
+    if video_id is not None:
+        conditions.append("outputs.video_id = ?")
+        params.append(video_id)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    cur.execute(f"{base_query} {where} ORDER BY outputs.created_at DESC", params)
     rows = cur.fetchall()
     conn.close()
     return [_row_to_dict(cur, row) for row in rows]

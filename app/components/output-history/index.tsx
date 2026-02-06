@@ -28,6 +28,7 @@ export function OutputHistory() {
             <div key={output.id} className={styles.row}>
               <span className="uppercase text-text-muted">{output.output_type}</span>
               <span className={styles.meta}>{formatDate(output.created_at)}</span>
+              <span className={styles.meta}>{output.video_filename ?? output.video_id}</span>
               <span className={styles.meta}>{output.id}</span>
               <button className={styles.button} onClick={() => loadOutput(output)}>
                 Load

@@ -7,6 +7,8 @@ import { listOutputs } from "@/lib/api";
 interface OutputRecord {
   id: string;
   video_id: string;
+  video_filename?: string | null;
+  project_id?: string | null;
   job_id: string;
   output_type: string;
   path: string;
