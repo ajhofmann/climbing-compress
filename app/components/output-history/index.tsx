@@ -19,6 +19,12 @@ function formatDuration(duration?: number | null) {
   return `${seconds}s`;
 }
 
+function formatOutputType(outputType: string) {
+  if (outputType === "main") return "render";
+  if (outputType === "comparison") return "compare";
+  return outputType;
+}
+
 function formatBytes(size?: number | null) {
   if (!size) return "";
   const kb = size / 1024;
@@ -47,7 +53,7 @@ export function OutputHistory() {
         <div className={styles.list}>
           {outputs.slice(0, 5).map((output) => (
             <div key={output.id} className={styles.row}>
-              <span className="uppercase text-text-muted">{output.output_type}</span>
+              <span className="uppercase text-text-muted">{formatOutputType(output.output_type)}</span>
               <span className={styles.meta}>{formatAge(output.created_at)}</span>
               {output.output_duration && (
                 <span className={styles.meta}>{formatDuration(output.output_duration)}</span>
