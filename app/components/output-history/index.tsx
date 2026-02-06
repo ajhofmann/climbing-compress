@@ -2,6 +2,7 @@
 
 import { useOutputHistory } from "./use-output-history";
 import { styles } from "./styles";
+import { useStore } from "@/lib/store";
 
 function formatAge(timestamp?: number) {
   if (!timestamp) return "";
@@ -37,6 +38,7 @@ function formatBytes(size?: number | null) {
 
 export function OutputHistory() {
   const { outputs, error, refresh, loadOutput } = useOutputHistory();
+  const { outputId, previewId, comparisonId } = useStore();
 
   return (
     <div className={styles.panel}>
@@ -52,7 +54,10 @@ export function OutputHistory() {
       ) : (
         <div className={styles.list}>
           {outputs.slice(0, 5).map((output) => (
-            <div key={output.id} className={styles.row}>
+            <div
+              key={output.id}
+              className={`${styles.row} ${output.id === outputId || output.id === previewId || output.id === comparisonId ? styles.rowActive : ""}`}
+            >
               <span className="uppercase text-text-muted">{formatOutputType(output.output_type)}</span>
               <span className={styles.meta}>{formatAge(output.created_at)}</span>
               {output.output_duration && (
