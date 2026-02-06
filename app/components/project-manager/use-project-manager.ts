@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { assignVideoProject, createProject, listProjects, updateProject } from "@/lib/api";
+import { assignVideoProject, createProject, listProjects, updateProject, getProjectSummary } from "@/lib/api";
+import { ProjectSummary } from "@/lib/types";
 
 export function useProjectManager() {
   const {
@@ -17,6 +18,7 @@ export function useProjectManager() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<ProjectSummary | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -40,6 +42,23 @@ export function useProjectManager() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const refreshSummary = useCallback(async (projectId: string | null) => {
+    if (!projectId) {
+      setSummary(null);
+      return;
+    }
+    try {
+      const data = await getProjectSummary(projectId);
+      setSummary(data);
+    } catch {
+      setSummary(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSummary(selectedProjectId);
+  }, [refreshSummary, selectedProjectId]);
 
   const selectProject = useCallback(async (projectId: string | null) => {
     setSelectedProjectId(projectId);
@@ -115,5 +134,6 @@ export function useProjectManager() {
     selectProject,
     create,
     update,
+    summary,
   };
 }

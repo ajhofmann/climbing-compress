@@ -1,4 +1,4 @@
-import { AnalysisData, Pin, Settings, SolveResult, Project, Metrics, JobRecord } from "./types";
+import { AnalysisData, Pin, Settings, SolveResult, Project, Metrics, JobRecord, ProjectSummary } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -40,6 +40,12 @@ export async function updateProject(projectId: string, name?: string, descriptio
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, description }),
   });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getProjectSummary(projectId: string): Promise<ProjectSummary> {
+  const res = await fetch(`${API}/api/projects/${projectId}/summary`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

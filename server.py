@@ -45,6 +45,7 @@ from db import (
     insert_project,
     update_project,
     get_project,
+    get_project_summary,
     list_projects as db_list_projects,
     insert_job,
     update_job,
@@ -723,6 +724,14 @@ async def update_project_endpoint(project_id: str, req: ProjectUpdateRequest):
         "description": refreshed["description"],
         "created_at": refreshed["created_at"],
     }
+
+
+@app.get("/api/projects/{project_id}/summary")
+async def project_summary(project_id: str):
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    return get_project_summary(project_id)
 
 
 @app.post("/api/videos/{video_id}/project")

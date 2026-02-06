@@ -53,6 +53,17 @@ export interface Project {
   created_at?: number;
 }
 
+export interface ProjectSummary {
+  videos: number;
+  outputs: number;
+  jobs: number;
+  latest_output?: {
+    id: string;
+    output_type: string;
+    created_at: number;
+  } | null;
+}
+
 export interface Metrics {
   videos: number;
   outputs: number;

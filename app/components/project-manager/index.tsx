@@ -5,7 +5,7 @@ import { useProjectManager } from "./use-project-manager";
 import { styles } from "./styles";
 
 export function ProjectManager() {
-  const { projects, selectedProjectId, loading, error, refresh, selectProject, create, update } = useProjectManager();
+  const { projects, selectedProjectId, loading, error, refresh, selectProject, create, update, summary } = useProjectManager();
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState("");
@@ -76,6 +76,17 @@ export function ProjectManager() {
 
       {selected?.description && (
         <p className={styles.helper}>{selected.description}</p>
+      )}
+
+      {summary && (
+        <div className="flex gap-3 text-[10px] text-text-muted flex-wrap">
+          <span>videos: <span className="font-mono text-text">{summary.videos}</span></span>
+          <span>outputs: <span className="font-mono text-text">{summary.outputs}</span></span>
+          <span>jobs: <span className="font-mono text-text">{summary.jobs}</span></span>
+          {summary.latest_output && (
+            <span>latest: <span className="font-mono text-text">{summary.latest_output.output_type}</span></span>
+          )}
+        </div>
       )}
 
       {isCreating && (

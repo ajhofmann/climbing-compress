@@ -316,6 +316,62 @@ def list_projects() -> list[dict[str, Any]]:
     return [_row_to_dict(cur, row) for row in rows]
 
 
+def get_project_summary(project_id: str) -> dict[str, Any]:
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) as count FROM videos WHERE project_id = ?", (project_id,))
+    video_count = cur.fetchone()["count"]
+
+    cur.execute(
+        """
+        SELECT COUNT(*) as count
+        FROM outputs
+        JOIN videos ON outputs.video_id = videos.id
+        WHERE videos.project_id = ?
+        """,
+        (project_id,),
+    )
+    output_count = cur.fetchone()["count"]
+
+    cur.execute(
+        """
+        SELECT COUNT(*) as count
+        FROM jobs
+        JOIN videos ON jobs.video_id = videos.id
+        WHERE videos.project_id = ?
+        """,
+        (project_id,),
+    )
+    job_count = cur.fetchone()["count"]
+
+    cur.execute(
+        """
+        SELECT outputs.id, outputs.output_type, outputs.created_at
+        FROM outputs
+        JOIN videos ON outputs.video_id = videos.id
+        WHERE videos.project_id = ?
+        ORDER BY outputs.created_at DESC
+        LIMIT 1
+        """,
+        (project_id,),
+    )
+    latest = cur.fetchone()
+    conn.close()
+
+    return {
+        "videos": video_count,
+        "outputs": output_count,
+        "jobs": job_count,
+        "latest_output": {
+            "id": latest["id"],
+            "output_type": latest["output_type"],
+            "created_at": latest["created_at"],
+        } if latest else None,
+    }
+
+
 def insert_job(
     job_id: str,
     video_id: str,
