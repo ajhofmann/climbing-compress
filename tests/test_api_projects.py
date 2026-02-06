@@ -100,3 +100,12 @@ def test_project_assignment_api(tmp_path, monkeypatch):
     assert videos_response.status_code == 200
     video = videos_response.json()[0]
     assert video["project_name"] == "Project Assign"
+
+    delete_response = client.delete(f"/api/projects/{project_id}")
+    assert delete_response.status_code == 200
+
+    videos_response = client.get("/api/videos")
+    assert videos_response.status_code == 200
+    video = videos_response.json()[0]
+    assert video["project_name"] is None
+    assert video["project_id"] is None
