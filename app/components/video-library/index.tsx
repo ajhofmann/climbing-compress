@@ -2,6 +2,7 @@
 
 import { useVideoLibrary } from "./use-video-library";
 import { styles } from "./styles";
+import { useStore } from "@/lib/store";
 
 const formatAge = (timestamp?: number) => {
   if (!timestamp) return "";
@@ -25,6 +26,7 @@ const formatBytes = (size?: number) => {
 
 export function VideoLibrary() {
   const { videos, error, refresh, loadVideo } = useVideoLibrary();
+  const { videoId } = useStore();
 
   return (
     <div className={styles.panel}>
@@ -40,7 +42,10 @@ export function VideoLibrary() {
       ) : (
         <div className={styles.list}>
           {videos.slice(0, 5).map((video) => (
-            <div key={video.video_id} className={styles.row}>
+            <div
+              key={video.video_id}
+              className={`${styles.row} ${video.video_id === videoId ? styles.rowActive : ""}`}
+            >
               <span className="text-text">{video.filename}</span>
               {video.created_at && (
                 <span className={styles.meta}>{formatAge(video.created_at)}</span>
