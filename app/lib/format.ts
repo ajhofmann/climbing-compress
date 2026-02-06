@@ -27,3 +27,8 @@ export const formatOutputType = (outputType: string) => {
   if (outputType === "preview") return "preview";
   return outputType.replace(/_/g, " ");
 };
+
+export const formatDuration = (duration?: number | null) => {
+  if (duration === null || duration === undefined) return "";
+  return `${Math.round(duration)}s`;
+};

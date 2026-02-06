@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useProjectManager } from "./use-project-manager";
 import { styles } from "./styles";
-import { formatAge, formatOutputType } from "@/lib/format";
+import { formatAge, formatDuration, formatOutputType } from "@/lib/format";
 
 export function ProjectManager() {
   const { projects, selectedProjectId, loading, error, refresh, selectProject, create, update, summary, remove, lastUpdated } = useProjectManager();
@@ -11,11 +11,6 @@ export function ProjectManager() {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-
-  const formatDuration = (duration?: number | null) => {
-    if (duration === null || duration === undefined) return "";
-    return `${Math.round(duration)}s`;
-  };
 
   const selected = projects.find((project) => project.id === selectedProjectId) ?? null;
 
