@@ -64,6 +64,7 @@ def test_jobs_api_filters(tmp_path, monkeypatch):
     assert len(unassigned_jobs) == 1
     assert unassigned_jobs[0]["id"] == "job-unassigned"
     assert unassigned_jobs[0]["project_name"] is None
+    assert unassigned_jobs[0]["project_id"] is None
 
     response = client.get("/api/jobs?status=failed")
     assert response.status_code == 200
