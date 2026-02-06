@@ -71,3 +71,9 @@ def test_outputs_api_filters_by_project_and_video(tmp_path, monkeypatch):
     video_outputs = response.json()
     assert len(video_outputs) == 1
     assert video_outputs[0]["id"] == "output-project"
+
+    response = client.get(f"/api/outputs?project_id={project_id}&video_id=video-project")
+    assert response.status_code == 200
+    combined_outputs = response.json()
+    assert len(combined_outputs) == 1
+    assert combined_outputs[0]["id"] == "output-project"
