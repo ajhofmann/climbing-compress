@@ -1,4 +1,5 @@
 import importlib
+import sqlite3
 
 
 def test_list_outputs_includes_project_name(tmp_path, monkeypatch):
@@ -42,8 +43,16 @@ def test_list_outputs_includes_project_name(tmp_path, monkeypatch):
         path="/tmp/out-unassigned.mp4",
     )
 
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE outputs SET created_at = ? WHERE id = ?", (10.0, "output-unassigned"))
+    cur.execute("UPDATE outputs SET created_at = ? WHERE id = ?", (20.0, "output-assigned"))
+    conn.commit()
+    conn.close()
+
     outputs = db_module.list_outputs()
     assert {output["id"] for output in outputs} == {"output-assigned", "output-unassigned"}
+    assert outputs[0]["id"] == "output-assigned"
     assigned = next(output for output in outputs if output["id"] == "output-assigned")
     unassigned = next(output for output in outputs if output["id"] == "output-unassigned")
     assert assigned["project_id"] == project_id
