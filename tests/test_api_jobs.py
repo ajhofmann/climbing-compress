@@ -55,5 +55,6 @@ def test_jobs_api_includes_project_and_duration(tmp_path, monkeypatch):
     assert job["project_name"] == "Project Jobs API"
     assert job["project_id"] == project_id
     assert job["video_filename"] == "jobs.mp4"
+    assert job["job_type"] == "analysis"
     assert job["duration"] is not None
     assert job["duration"] >= 0
