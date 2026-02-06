@@ -583,6 +583,7 @@ async def job_status(job_id: str):
         "message": job["message"],
         "created_at": job["created_at"],
         "updated_at": job["updated_at"],
+        "duration": (job["updated_at"] - job["created_at"]) if job.get("updated_at") and job.get("created_at") else None,
         "result": result,
         "request": request,
     }

@@ -93,6 +93,7 @@ export interface JobRecord {
   message?: string | null;
   created_at?: number;
   updated_at?: number;
+  duration?: number | null;
   result?: any;
 }
 
