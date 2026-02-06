@@ -48,6 +48,11 @@ def test_project_crud_api(tmp_path, monkeypatch):
     assert rename_response.status_code == 200
     assert rename_response.json()["name"] == "Project B"
 
+    noop_response = client.patch(f"/api/projects/{project_id}", json={})
+    assert noop_response.status_code == 200
+    assert noop_response.json()["name"] == "Project B"
+    assert noop_response.json()["description"] == "Updated"
+
     delete_response = client.delete(f"/api/projects/{project_id}")
     assert delete_response.status_code == 200
     assert delete_response.json()["deleted"] is True
