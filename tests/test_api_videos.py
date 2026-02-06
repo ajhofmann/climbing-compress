@@ -39,6 +39,14 @@ def test_videos_api_includes_project_and_size(tmp_path, monkeypatch):
         info=info,
         project_id=project_id,
     )
+    db_module.register_video(
+        video_id="video-missing",
+        filename="missing.mp4",
+        path="/tmp/missing.mp4",
+        file_hash="hash-missing",
+        info=info,
+        project_id=project_id,
+    )
 
     import server as server_module
     importlib.reload(server_module)
