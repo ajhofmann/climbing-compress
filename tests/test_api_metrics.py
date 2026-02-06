@@ -1,4 +1,5 @@
 import importlib
+import sqlite3
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -51,6 +52,12 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
         job_type="render",
         status="failed",
     )
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (10.0, 15.0, "job-analyze"))
+    cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (20.0, 23.0, "job-render"))
+    conn.commit()
+    conn.close()
 
     import server as server_module
     importlib.reload(server_module)
@@ -67,6 +74,8 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
     assert payload["jobs_by_status"]["failed"] == 1
     assert payload["jobs_by_type"]["analysis"] == 1
     assert payload["jobs_by_type"]["render"] == 1
+    assert payload["avg_duration_by_type"]["analysis"] == 5.0
+    assert payload["avg_duration_by_type"]["render"] == 3.0
 
     db_size = Path(db_path).stat().st_size
     input_size = input_path.stat().st_size
