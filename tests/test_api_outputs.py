@@ -84,6 +84,9 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
     assert output["output_type"] == "main"
     assert output_missing["output_type"] == "preview"
     assert output_invalid["output_type"] == "main"
+    assert output["created_at"] is not None
+    assert output_missing["created_at"] is not None
+    assert output_invalid["created_at"] is not None
     assert output["output_duration"] == 1.5
     assert output["size_bytes"] == len(b"payload")
     assert output_missing["output_duration"] is None
