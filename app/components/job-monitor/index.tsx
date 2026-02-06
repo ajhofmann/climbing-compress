@@ -26,9 +26,9 @@ function formatAge(timestamp?: number) {
   return `${hours}h`;
 }
 
-function formatDuration(start?: number, end?: number) {
-  if (!start || !end) return "";
-  const seconds = Math.max(0, Math.floor(end - start));
+function formatDurationSeconds(duration?: number | null) {
+  if (duration === null || duration === undefined) return "";
+  const seconds = Math.max(0, Math.floor(duration));
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `${minutes}m`;
@@ -58,8 +58,11 @@ export function JobMonitor() {
             >
               {(() => {
                 const isDone = job.status === "success" || job.status === "failed" || job.status === "cancelled";
+                const durationSeconds = job.duration ?? (
+                  job.updated_at && job.created_at ? job.updated_at - job.created_at : null
+                );
                 const timeLabel = isDone
-                  ? formatDuration(job.created_at, job.updated_at)
+                  ? formatDurationSeconds(durationSeconds)
                   : formatAge(job.created_at);
                 const timePrefix = isDone ? "dur " : "";
                 return (
