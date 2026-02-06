@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
+import { formatDuration } from "@/lib/format";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -407,7 +408,7 @@ export function DebugCharts() {
                     fastest: <span className="font-mono font-medium" style={{ color: "var(--accent)" }}>{stats.speed_max}x</span>
                   </span>
                   <span>
-                    output: <span className="font-mono font-medium" style={{ color: "var(--text)" }}>{stats.output_duration}s</span>
+                    output: <span className="font-mono font-medium" style={{ color: "var(--text)" }}>{formatDuration(stats.output_duration)}</span>
                   </span>
                   <span>
                     action/rest ratio: <span className="font-mono font-medium">{stats.action_rest_ratio}x</span>

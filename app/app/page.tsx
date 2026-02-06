@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useStore, AnalysisParams } from "@/lib/store";
 import { analyzeVideo, solveCurve, renderVideo, previewVideo, enqueueAnalyze, enqueueRender, enqueuePreview, awaitJobResult } from "@/lib/api";
+import { formatDuration } from "@/lib/format";
 import { VideoUpload } from "@/components/video-upload";
 import { VideoPlayer } from "@/components/video-player";
 import { TimelineEditor } from "@/components/timeline-editor";
@@ -91,7 +92,8 @@ export default function Home() {
       if (result?.output_id) {
         store.setOutputId(result.output_id);
         store.setComparisonId(result.comparison_id ?? null);
-        store.setProgress(0, `Done! ${result.stats?.output_duration}s video ready`);
+        const durationLabel = formatDuration(result.stats?.output_duration) || "0s";
+        store.setProgress(0, `Done! ${durationLabel} video ready`);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error";

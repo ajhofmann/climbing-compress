@@ -1,6 +1,7 @@
 "use client";
 
 import { useStore } from "@/lib/store";
+import { formatDuration } from "@/lib/format";
 import { Settings } from "@/lib/types";
 import { Knob } from "@/components/knob";
 import { LedCounter } from "@/components/controls/led-counter";
@@ -129,7 +130,7 @@ export function SettingsPanel() {
             {stats ? (
               <div className="grid grid-cols-2 gap-1">
                 {[
-                  { label: "OUT", value: `${stats.output_duration}s`, tip: "Output video duration" },
+                  { label: "OUT", value: formatDuration(stats.output_duration), tip: "Output video duration" },
                   { label: "SPD", value: `${stats.speed_min}x-${stats.speed_max}x`, tip: "Speed range (min to max playback speed)" },
                   { label: "RATIO", value: `${stats.action_rest_ratio}x`, tip: "Ratio of action to rest segments" },
                   { label: "RT", value: `${stats.slow_pct}%`, tip: "Percentage of output in slow motion" },

@@ -2,6 +2,7 @@
 
 import { useRef, useCallback, useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
+import { formatDuration } from "@/lib/format";
 import { videoUrl } from "@/lib/api";
 import { useTimeline } from "./use-timeline";
 import { Tooltip } from "@/components/tooltip";
@@ -151,7 +152,7 @@ export function TimelineEditor() {
         </span>
         {stats && (
           <span className="font-mono">
-            output: {stats.output_duration}s
+            output: {formatDuration(stats.output_duration)}
           </span>
         )}
         <span>{analysis.duration.toFixed(0)}s</span>
