@@ -51,6 +51,14 @@ export interface Project {
   created_at?: number;
 }
 
+export interface Metrics {
+  videos: number;
+  outputs: number;
+  projects: number;
+  jobs_by_type: Record<string, number>;
+  jobs_by_status: Record<string, number>;
+}
+
 export type SpeedMode = "progress" | "action" | "highlight";
 
 export interface Settings {

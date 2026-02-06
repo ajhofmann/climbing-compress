@@ -1,4 +1,4 @@
-import { AnalysisData, Pin, Settings, SolveResult, Project } from "./types";
+import { AnalysisData, Pin, Settings, SolveResult, Project, Metrics } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -38,6 +38,12 @@ export async function assignVideoProject(videoId: string, projectId: string | nu
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ project_id: projectId }),
   });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function getMetrics(): Promise<Metrics> {
+  const res = await fetch(`${API}/api/metrics`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

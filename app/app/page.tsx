@@ -12,6 +12,7 @@ import { ProgressBar } from "@/components/progress-bar";
 import { Tooltip } from "@/components/tooltip";
 import { HeaderArt } from "@/components/header-art";
 import { ProjectManager } from "@/components/project-manager";
+import { SystemMetrics } from "@/components/system-metrics";
 
 export default function Home() {
   const store = useStore();
@@ -119,6 +120,7 @@ export default function Home() {
       <HeaderArt />
 
       <ProjectManager />
+      <SystemMetrics />
 
       {/* Video output -- appears at top once rendered */}
       <VideoPlayer />
