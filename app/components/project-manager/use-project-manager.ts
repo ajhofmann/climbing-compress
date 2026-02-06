@@ -33,9 +33,17 @@ export function useProjectManager() {
         setSelectedProjectId(null);
         return;
       }
+      const storedMatch = stored ? data.find((p) => p.id === stored) : null;
       if (!selectedProjectId && data.length > 0) {
-        const match = stored ? data.find((p) => p.id === stored) : null;
-        setSelectedProjectId(match?.id ?? data[0].id);
+        setSelectedProjectId(storedMatch?.id ?? data[0].id);
+        return;
+      }
+      if (selectedProjectId && !data.some((p) => p.id === selectedProjectId)) {
+        const fallback = storedMatch?.id ?? data[0]?.id ?? null;
+        setSelectedProjectId(fallback);
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem("projectId", fallback ?? "unassigned");
+        }
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load projects";
