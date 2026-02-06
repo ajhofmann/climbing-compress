@@ -7,11 +7,18 @@ function formatLabel(label: string) {
   return label.replace(/_/g, " ");
 }
 
+function formatOutputType(label: string) {
+  if (label === "main") return "render";
+  if (label === "comparison") return "compare";
+  return formatLabel(label);
+}
+
 export function SystemMetrics() {
   const { metrics, error } = useSystemMetrics();
 
   const jobStatuses = metrics?.jobs_by_status ?? {};
   const jobTypes = metrics?.jobs_by_type ?? {};
+  const outputTypes = metrics?.outputs_by_type ?? {};
   const avgDurations = metrics?.avg_duration_by_type ?? {};
 
   return (
@@ -52,6 +59,17 @@ export function SystemMetrics() {
           </div>
         ))}
       </div>
+
+      {Object.keys(outputTypes).length > 0 && (
+        <div className={styles.list}>
+          {Object.entries(outputTypes).map(([type, count]) => (
+            <div key={type} className={styles.pill} style={{ background: "#080810" }}>
+              <span>out {formatOutputType(type)}</span>
+              <span className="font-mono text-text">{count}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {Object.keys(avgDurations).length > 0 && (
         <div className={styles.list}>
