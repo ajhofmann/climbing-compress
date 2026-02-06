@@ -11,12 +11,14 @@ export function useJobMonitor() {
   const [isCancelling, setIsCancelling] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState<string | null>(null);
   const { selectedProjectId } = useStore();
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const data = await listJobs(selectedProjectId ?? "unassigned");
       setJobs(data.slice(0, 10));
       setError(null);
+      setLastUpdated(Date.now());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load jobs";
       setError(msg);
@@ -55,5 +57,5 @@ export function useJobMonitor() {
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  return { jobs, error, refresh, cancel, isCancelling, retry, isRetrying };
+  return { jobs, error, refresh, cancel, isCancelling, retry, isRetrying, lastUpdated };
 }

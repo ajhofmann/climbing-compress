@@ -39,7 +39,7 @@ function formatDurationSeconds(duration?: number | null) {
 }
 
 export function JobMonitor() {
-  const { jobs, error, refresh, cancel, isCancelling, retry, isRetrying } = useJobMonitor();
+  const { jobs, error, refresh, cancel, isCancelling, retry, isRetrying, lastUpdated } = useJobMonitor();
   const { videoId } = useStore();
 
   return (
@@ -48,6 +48,11 @@ export function JobMonitor() {
         <span className={styles.title} style={{ color: "var(--neon-orange)" }}>job monitor</span>
         <div className="flex items-center gap-2">
           {error && <span className="text-[10px] text-danger">{error}</span>}
+          {lastUpdated && (
+            <span className="text-[10px] text-text-muted">
+              {new Date(lastUpdated).toLocaleTimeString()}
+            </span>
+          )}
           <button className={styles.button} onClick={refresh}>Refresh</button>
         </div>
       </div>
