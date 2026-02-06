@@ -44,6 +44,7 @@ def test_output_detail_api_returns_stats(tmp_path, monkeypatch):
     assert payload["id"] == "output-detail"
     assert payload["output_type"] == "preview"
     assert payload["stats"]["output_duration"] == 3.3
+    assert payload["created_at"] is not None
 
 
 def test_output_detail_invalid_stats(tmp_path, monkeypatch):
@@ -91,3 +92,4 @@ def test_output_detail_invalid_stats(tmp_path, monkeypatch):
     payload = response.json()
     assert payload["output_type"] == "preview"
     assert payload["stats"] is None
+    assert payload["created_at"] is not None
