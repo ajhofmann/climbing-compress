@@ -15,7 +15,7 @@ export function useJobMonitor() {
   const refresh = useCallback(async () => {
     try {
       const data = await listJobs(selectedProjectId ?? "unassigned");
-      setJobs(data.slice(0, 6));
+      setJobs(data.slice(0, 10));
       setError(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load jobs";
