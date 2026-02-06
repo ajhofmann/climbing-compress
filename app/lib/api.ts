@@ -50,8 +50,9 @@ export async function getMetrics(): Promise<Metrics> {
   return res.json();
 }
 
-export async function listJobs(): Promise<JobRecord[]> {
-  const res = await fetch(`${API}/api/jobs`);
+export async function listJobs(projectId?: string | null): Promise<JobRecord[]> {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  const res = await fetch(`${API}/api/jobs${query}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

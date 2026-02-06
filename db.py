@@ -404,26 +404,33 @@ def list_jobs(
     video_id: str | None = None,
     job_type: str | None = None,
     status: str | None = None,
+    project_id: str | None = None,
 ) -> list[dict[str, Any]]:
     conn = _connect()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    conditions = []
     params: list[Any] = []
+    conditions = []
+
+    base_query = "SELECT jobs.* FROM jobs"
+    if project_id is not None:
+        base_query += " JOIN videos ON jobs.video_id = videos.id"
+        conditions.append("videos.project_id = ?")
+        params.append(project_id)
 
     if video_id is not None:
-        conditions.append("video_id = ?")
+        conditions.append("jobs.video_id = ?")
         params.append(video_id)
     if job_type is not None:
-        conditions.append("job_type = ?")
+        conditions.append("jobs.job_type = ?")
         params.append(job_type)
     if status is not None:
-        conditions.append("status = ?")
+        conditions.append("jobs.status = ?")
         params.append(status)
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    cur.execute(f"SELECT * FROM jobs {where} ORDER BY created_at DESC", params)
+    cur.execute(f"{base_query} {where} ORDER BY jobs.created_at DESC", params)
     rows = cur.fetchall()
     conn.close()
     return [_row_to_dict(cur, row) for row in rows]

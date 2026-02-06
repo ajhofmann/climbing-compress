@@ -620,8 +620,14 @@ async def list_jobs(
     video_id: str | None = Query(default=None),
     job_type: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    project_id: str | None = Query(default=None),
 ):
-    jobs = db_list_jobs(video_id=video_id, job_type=job_type, status=status)
+    jobs = db_list_jobs(
+        video_id=video_id,
+        job_type=job_type,
+        status=status,
+        project_id=project_id,
+    )
     payload = []
     for job in jobs:
         payload.append({
