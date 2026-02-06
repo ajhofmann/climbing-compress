@@ -55,6 +55,7 @@ def test_metrics_output_types_and_avg_duration(tmp_path, monkeypatch):
     db_module.insert_job(job_id="job-a", video_id=video_id, job_type="analysis", status="success")
     db_module.insert_job(job_id="job-b", video_id=video_id, job_type="analysis", status="failed")
     db_module.insert_job(job_id="job-c", video_id=video_id, job_type="render", status="success")
+    db_module.insert_job(job_id="job-d", video_id=video_id, job_type="analysis", status="running")
 
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -62,6 +63,7 @@ def test_metrics_output_types_and_avg_duration(tmp_path, monkeypatch):
     cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (10.0, 15.0, "job-a"))
     cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (20.0, 28.0, "job-b"))
     cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (30.0, 33.0, "job-c"))
+    cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (40.0, 55.0, "job-d"))
     conn.commit()
     conn.close()
 
