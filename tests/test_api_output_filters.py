@@ -81,3 +81,7 @@ def test_outputs_api_filters_by_project_and_video(tmp_path, monkeypatch):
     response = client.get("/api/outputs?project_id=missing")
     assert response.status_code == 200
     assert response.json() == []
+
+    response = client.get("/api/outputs?video_id=missing")
+    assert response.status_code == 200
+    assert response.json() == []
