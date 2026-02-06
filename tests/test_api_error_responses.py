@@ -30,3 +30,9 @@ def test_api_error_responses(tmp_path, monkeypatch):
 
     response = client.post("/api/jobs/missing/cancel")
     assert response.status_code == 404
+
+    response = client.get("/api/jobs/missing")
+    assert response.status_code == 404
+
+    response = client.get("/api/outputs/missing")
+    assert response.status_code == 404
