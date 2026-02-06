@@ -50,6 +50,9 @@ export function useProjectManager() {
           const nextId = storedMatch?.id ?? data[0].id;
           setSelectedProjectId(nextId);
           targetId = nextId;
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem("projectId", nextId);
+          }
         } else if (selectedProjectId && !data.some((p) => p.id === selectedProjectId)) {
           const fallback = storedMatch?.id ?? data[0]?.id ?? null;
           setSelectedProjectId(fallback);
