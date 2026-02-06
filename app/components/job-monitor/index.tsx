@@ -15,6 +15,16 @@ function formatJobType(jobType: string) {
   return jobType.replace(/_/g, " ");
 }
 
+function formatAge(timestamp?: number) {
+  if (!timestamp) return "";
+  const seconds = Math.max(0, Math.floor(Date.now() / 1000 - timestamp));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h`;
+}
+
 export function JobMonitor() {
   const { jobs, error, cancel, isCancelling, retry, isRetrying } = useJobMonitor();
 
@@ -36,6 +46,9 @@ export function JobMonitor() {
               </span>
               <span className="uppercase text-text-muted">{formatJobType(job.job_type)}</span>
               <span className="font-mono text-text">{Math.round((job.progress ?? 0) * 100)}%</span>
+              {job.created_at && (
+                <span className="text-text-muted">{formatAge(job.created_at)}</span>
+              )}
               {job.message && (
                 <span className="text-text-muted truncate max-w-[160px]">{job.message}</span>
               )}
