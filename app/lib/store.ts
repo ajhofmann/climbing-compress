@@ -72,6 +72,14 @@ interface Store {
   setProgress: (p: number, msg: string) => void;
 }
 
+const getInitialQueueMode = () => {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS.queueMode;
+  const stored = window.localStorage.getItem("queueMode");
+  if (stored === "true") return true;
+  if (stored === "false") return false;
+  return DEFAULT_SETTINGS.queueMode;
+};
+
 export const useStore = create<Store>((set) => ({
   videoId: null,
   videoInfo: null,
@@ -99,8 +107,14 @@ export const useStore = create<Store>((set) => ({
   removePin: (i) => set((s) => ({ pins: s.pins.filter((_, j) => j !== i) })),
   updatePin: (i, pin) => set((s) => ({ pins: s.pins.map((p, j) => j === i ? pin : p) })),
 
-  settings: { ...DEFAULT_SETTINGS },
-  updateSettings: (partial) => set((s) => ({ settings: { ...s.settings, ...partial } })),
+  settings: { ...DEFAULT_SETTINGS, queueMode: getInitialQueueMode() },
+  updateSettings: (partial) => set((s) => {
+    const next = { ...s.settings, ...partial };
+    if (partial.queueMode !== undefined && typeof window !== "undefined") {
+      window.localStorage.setItem("queueMode", String(partial.queueMode));
+    }
+    return { settings: next };
+  }),
 
   outputId: null,
   comparisonId: null,
