@@ -50,6 +50,12 @@ export async function getProjectSummary(projectId: string): Promise<ProjectSumma
   return res.json();
 }
 
+export async function deleteProject(projectId: string): Promise<{ id: string; deleted: boolean }> {
+  const res = await fetch(`${API}/api/projects/${projectId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function assignVideoProject(videoId: string, projectId: string | null) {
   const res = await fetch(`${API}/api/videos/${videoId}/project`, {
     method: "POST",

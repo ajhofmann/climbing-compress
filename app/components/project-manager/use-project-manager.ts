@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { assignVideoProject, createProject, listProjects, updateProject, getProjectSummary } from "@/lib/api";
+import { assignVideoProject, createProject, listProjects, updateProject, getProjectSummary, deleteProject } from "@/lib/api";
 import { ProjectSummary } from "@/lib/types";
 
 export function useProjectManager() {
@@ -120,6 +120,26 @@ export function useProjectManager() {
     }
   }, [projects, setProjects]);
 
+  const remove = useCallback(async (projectId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      await deleteProject(projectId);
+      const updated = projects.filter((p) => p.id !== projectId);
+      setProjects(updated);
+      setSelectedProjectId(null);
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem("projectId");
+      }
+      setSummary(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete project";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [projects, setProjects, setSelectedProjectId]);
+
   useEffect(() => {
     if (!videoId || !selectedProjectId) return;
     assignVideoProject(videoId, selectedProjectId).catch(() => undefined);
@@ -135,5 +155,6 @@ export function useProjectManager() {
     create,
     update,
     summary,
+    remove,
   };
 }

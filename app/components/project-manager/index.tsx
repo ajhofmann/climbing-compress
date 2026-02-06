@@ -5,7 +5,7 @@ import { useProjectManager } from "./use-project-manager";
 import { styles } from "./styles";
 
 export function ProjectManager() {
-  const { projects, selectedProjectId, loading, error, refresh, selectProject, create, update, summary } = useProjectManager();
+  const { projects, selectedProjectId, loading, error, refresh, selectProject, create, update, summary, remove } = useProjectManager();
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState("");
@@ -48,6 +48,18 @@ export function ProjectManager() {
           {selected && !isEditing && (
             <button className={styles.button} onClick={startEdit}>
               Edit
+            </button>
+          )}
+          {selected && !isEditing && (
+            <button
+              className={styles.button}
+              onClick={() => {
+                if (confirm(`Delete project "${selected.name}"? Videos will be unassigned.`)) {
+                  remove(selected.id);
+                }
+              }}
+            >
+              Delete
             </button>
           )}
           <button className={styles.button} onClick={refresh}>

@@ -374,6 +374,15 @@ def get_project_summary(project_id: str) -> dict[str, Any]:
     }
 
 
+def delete_project(project_id: str) -> None:
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute("UPDATE videos SET project_id = NULL WHERE project_id = ?", (project_id,))
+    cur.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+    conn.commit()
+    conn.close()
+
+
 def insert_job(
     job_id: str,
     video_id: str,

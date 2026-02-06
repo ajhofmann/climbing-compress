@@ -46,6 +46,7 @@ from db import (
     update_project,
     get_project,
     get_project_summary,
+    delete_project,
     list_projects as db_list_projects,
     insert_job,
     update_job,
@@ -732,6 +733,15 @@ async def project_summary(project_id: str):
     if not project:
         raise HTTPException(404, "Project not found")
     return get_project_summary(project_id)
+
+
+@app.delete("/api/projects/{project_id}")
+async def delete_project_endpoint(project_id: str):
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    delete_project(project_id)
+    return {"id": project_id, "deleted": True}
 
 
 @app.post("/api/videos/{video_id}/project")
