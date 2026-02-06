@@ -61,3 +61,5 @@ def test_jobs_api_includes_project_and_duration(tmp_path, monkeypatch):
     assert job["message"] == "Processing"
     assert job["duration"] is not None
     assert job["duration"] >= 0
+    assert job["created_at"] is not None
+    assert job["updated_at"] is not None
