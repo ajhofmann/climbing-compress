@@ -1,17 +1,44 @@
-import { AnalysisData, Pin, Settings, SolveResult } from "./types";
+import { AnalysisData, Pin, Settings, SolveResult, Project } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export async function uploadVideo(file: File) {
+export async function uploadVideo(file: File, projectId?: string | null) {
   const form = new FormData();
   form.append("file", file);
-  const res = await fetch(`${API}/api/upload`, { method: "POST", body: form });
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  const res = await fetch(`${API}/api/upload${query}`, { method: "POST", body: form });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 
 export async function listVideos() {
   const res = await fetch(`${API}/api/videos`);
+  return res.json();
+}
+
+export async function listProjects(): Promise<Project[]> {
+  const res = await fetch(`${API}/api/projects`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function createProject(name: string, description?: string): Promise<Project> {
+  const res = await fetch(`${API}/api/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, description }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function assignVideoProject(videoId: string, projectId: string | null) {
+  const res = await fetch(`${API}/api/videos/${videoId}/project`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project_id: projectId }),
+  });
+  if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 

@@ -42,6 +42,13 @@ export interface AnalysisData {
   camera_motion_available?: boolean;
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  description?: string | null;
+  created_at?: number;
+}
+
 export type SpeedMode = "progress" | "action";
 
 export interface Settings {

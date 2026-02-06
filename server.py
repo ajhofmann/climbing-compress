@@ -198,6 +198,8 @@ async def upload_video(file: UploadFile = File(...), project_id: str | None = Qu
             existing_path = Path(existing["path"])
             if existing_path.exists():
                 tmp.unlink()
+                if project_id is not None:
+                    set_video_project(existing_id, project_id)
                 info = (
                     json.loads(existing["info_json"])
                     if existing.get("info_json")

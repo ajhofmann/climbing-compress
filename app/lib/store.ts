@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { Pin, Settings, CurveStats, AnalysisData, VideoInfo, DEFAULT_SETTINGS } from "./types";
+import { Pin, Settings, CurveStats, AnalysisData, VideoInfo, DEFAULT_SETTINGS, Project } from "./types";
 
 export interface AnalysisParams {
   stride: number;
@@ -47,6 +47,13 @@ interface Store {
   setComparisonId: (id: string | null) => void;
   previewId: string | null;
   setPreviewId: (id: string | null) => void;
+
+  // Projects
+  projects: Project[];
+  selectedProjectId: string | null;
+  setProjects: (projects: Project[]) => void;
+  addProject: (project: Project) => void;
+  setSelectedProjectId: (id: string | null) => void;
 
   // Playback
   playbackTime: number;
@@ -100,6 +107,12 @@ export const useStore = create<Store>((set) => ({
   setComparisonId: (id) => set({ comparisonId: id }),
   previewId: null,
   setPreviewId: (id) => set({ previewId: id }),
+
+  projects: [],
+  selectedProjectId: null,
+  setProjects: (projects) => set({ projects }),
+  addProject: (project) => set((s) => ({ projects: [project, ...s.projects] })),
+  setSelectedProjectId: (id) => set({ selectedProjectId: id }),
 
   playbackTime: 0,
   setPlaybackTime: (t) => set({ playbackTime: t }),

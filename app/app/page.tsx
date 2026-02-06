@@ -11,6 +11,7 @@ import { SettingsPanel } from "@/components/settings";
 import { ProgressBar } from "@/components/progress-bar";
 import { Tooltip } from "@/components/tooltip";
 import { HeaderArt } from "@/components/header-art";
+import { ProjectManager } from "@/components/project-manager";
 
 export default function Home() {
   const store = useStore();
@@ -116,6 +117,8 @@ export default function Home() {
     <main className="max-w-[1400px] mx-auto px-8 py-6 flex flex-col gap-4">
       {/* Header */}
       <HeaderArt />
+
+      <ProjectManager />
 
       {/* Video output -- appears at top once rendered */}
       <VideoPlayer />
