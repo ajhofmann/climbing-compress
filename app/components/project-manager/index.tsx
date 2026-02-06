@@ -11,6 +11,16 @@ export function ProjectManager() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
+  const formatAge = (timestamp?: number) => {
+    if (!timestamp) return "";
+    const seconds = Math.max(0, Math.floor(Date.now() / 1000 - timestamp));
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h`;
+  };
+
   const selected = projects.find((project) => project.id === selectedProjectId) ?? null;
 
   const onCreate = async () => {
@@ -96,7 +106,12 @@ export function ProjectManager() {
           <span>outputs: <span className="font-mono text-text">{summary.outputs}</span></span>
           <span>jobs: <span className="font-mono text-text">{summary.jobs}</span></span>
           {summary.latest_output && (
-            <span>latest: <span className="font-mono text-text">{summary.latest_output.output_type}</span></span>
+            <span>
+              latest: <span className="font-mono text-text">{summary.latest_output.output_type}</span>
+              {summary.latest_output.created_at && (
+                <span className="ml-1 text-text-muted">{formatAge(summary.latest_output.created_at)}</span>
+              )}
+            </span>
           )}
         </div>
       )}
