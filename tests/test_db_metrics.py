@@ -48,3 +48,4 @@ def test_metrics_output_types_and_avg_duration(tmp_path, monkeypatch):
     assert metrics["outputs_by_type"]["preview"] == 1
     assert metrics["avg_output_duration_by_type"]["main"] == 2.0
     assert metrics["avg_output_duration_by_type"]["preview"] == 2.0
+    assert metrics["db_size_bytes"] > 0
