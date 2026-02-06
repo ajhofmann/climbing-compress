@@ -11,8 +11,10 @@ export async function uploadVideo(file: File, projectId?: string | null) {
   return res.json();
 }
 
-export async function listVideos() {
-  const res = await fetch(`${API}/api/videos`);
+export async function listVideos(projectId?: string | null) {
+  const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+  const res = await fetch(`${API}/api/videos${query}`);
+  if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
 

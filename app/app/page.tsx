@@ -14,6 +14,7 @@ import { HeaderArt } from "@/components/header-art";
 import { ProjectManager } from "@/components/project-manager";
 import { SystemMetrics } from "@/components/system-metrics";
 import { JobMonitor } from "@/components/job-monitor";
+import { VideoLibrary } from "@/components/video-library";
 
 export default function Home() {
   const store = useStore();
@@ -123,6 +124,7 @@ export default function Home() {
       <ProjectManager />
       <SystemMetrics />
       <JobMonitor />
+      <VideoLibrary />
 
       {/* Video output -- appears at top once rendered */}
       <VideoPlayer />
