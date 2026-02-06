@@ -13,6 +13,7 @@ import { Tooltip } from "@/components/tooltip";
 import { HeaderArt } from "@/components/header-art";
 import { ProjectManager } from "@/components/project-manager";
 import { SystemMetrics } from "@/components/system-metrics";
+import { JobMonitor } from "@/components/job-monitor";
 
 export default function Home() {
   const store = useStore();
@@ -121,6 +122,7 @@ export default function Home() {
 
       <ProjectManager />
       <SystemMetrics />
+      <JobMonitor />
 
       {/* Video output -- appears at top once rendered */}
       <VideoPlayer />

@@ -59,6 +59,17 @@ export interface Metrics {
   jobs_by_status: Record<string, number>;
 }
 
+export interface JobRecord {
+  id: string;
+  video_id: string;
+  job_type: string;
+  status: string;
+  progress: number;
+  message?: string | null;
+  created_at?: number;
+  updated_at?: number;
+}
+
 export type SpeedMode = "progress" | "action" | "highlight";
 
 export interface Settings {

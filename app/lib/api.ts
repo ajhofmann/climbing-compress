@@ -1,4 +1,4 @@
-import { AnalysisData, Pin, Settings, SolveResult, Project, Metrics } from "./types";
+import { AnalysisData, Pin, Settings, SolveResult, Project, Metrics, JobRecord } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -44,6 +44,12 @@ export async function assignVideoProject(videoId: string, projectId: string | nu
 
 export async function getMetrics(): Promise<Metrics> {
   const res = await fetch(`${API}/api/metrics`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function listJobs(): Promise<JobRecord[]> {
+  const res = await fetch(`${API}/api/jobs`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
