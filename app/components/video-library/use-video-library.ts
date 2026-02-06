@@ -10,6 +10,7 @@ interface VideoRecord {
   filename: string;
   info: VideoInfo;
   project_id?: string | null;
+  project_name?: string | null;
   cached?: boolean;
 }
 

@@ -170,15 +170,16 @@ def list_videos(project_id: str | None = None) -> list[dict[str, Any]]:
     conn = _connect()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    if project_id is None:
-        cur.execute("SELECT * FROM videos ORDER BY created_at DESC")
-    elif project_id == "unassigned":
-        cur.execute("SELECT * FROM videos WHERE project_id IS NULL ORDER BY created_at DESC")
-    else:
-        cur.execute(
-            "SELECT * FROM videos WHERE project_id = ? ORDER BY created_at DESC",
-            (project_id,),
-        )
+    base_query = "SELECT videos.*, projects.name as project_name FROM videos LEFT JOIN projects ON videos.project_id = projects.id"
+    conditions = []
+    params: list[Any] = []
+    if project_id == "unassigned":
+        conditions.append("videos.project_id IS NULL")
+    elif project_id is not None:
+        conditions.append("videos.project_id = ?")
+        params.append(project_id)
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    cur.execute(f"{base_query} {where} ORDER BY videos.created_at DESC", params)
     rows = cur.fetchall()
     conn.close()
     return [_row_to_dict(cur, row) for row in rows]
