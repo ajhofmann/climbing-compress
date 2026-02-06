@@ -39,6 +39,18 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
         path=str(output_path),
         stats={"output_duration": 2.0},
     )
+    db_module.insert_job(
+        job_id="job-analyze",
+        video_id="video-api",
+        job_type="analysis",
+        status="success",
+    )
+    db_module.insert_job(
+        job_id="job-render",
+        video_id="video-api",
+        job_type="render",
+        status="failed",
+    )
 
     import server as server_module
     importlib.reload(server_module)
@@ -51,6 +63,10 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
     assert payload["outputs"] == 1
     assert payload["outputs_by_type"]["main"] == 1
     assert payload["avg_output_duration_by_type"]["main"] == 2.0
+    assert payload["jobs_by_status"]["success"] == 1
+    assert payload["jobs_by_status"]["failed"] == 1
+    assert payload["jobs_by_type"]["analysis"] == 1
+    assert payload["jobs_by_type"]["render"] == 1
 
     db_size = Path(db_path).stat().st_size
     input_size = input_path.stat().st_size
