@@ -495,6 +495,20 @@ def get_metrics() -> dict[str, Any]:
     cur.execute("SELECT status, COUNT(*) as count FROM jobs GROUP BY status")
     jobs_by_status = {row["status"]: row["count"] for row in cur.fetchall()}
 
+    cur.execute(
+        """
+        SELECT job_type, AVG(updated_at - created_at) as avg_duration
+        FROM jobs
+        WHERE status IN ('success', 'failed')
+        GROUP BY job_type
+        """
+    )
+    avg_duration_by_type = {
+        row["job_type"]: round(float(row["avg_duration"]), 2)
+        for row in cur.fetchall()
+        if row["avg_duration"] is not None
+    }
+
     conn.close()
     return {
         "videos": video_count,
@@ -502,5 +516,6 @@ def get_metrics() -> dict[str, Any]:
         "projects": project_count,
         "jobs_by_type": jobs_by_type,
         "jobs_by_status": jobs_by_status,
+        "avg_duration_by_type": avg_duration_by_type,
     }
 

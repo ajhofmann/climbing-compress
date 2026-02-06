@@ -59,6 +59,7 @@ export interface Metrics {
   projects: number;
   jobs_by_type: Record<string, number>;
   jobs_by_status: Record<string, number>;
+  avg_duration_by_type?: Record<string, number>;
 }
 
 export interface JobRecord {
