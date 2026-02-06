@@ -37,4 +37,9 @@ def test_metrics_api_cache_entries(tmp_path, monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload["cache_entries"] == 2
-    assert payload["cache_storage_bytes"] == len(b"cache-a") + len(b"cache-b")
+    cache_bytes = len(b"cache-a") + len(b"cache-b")
+    assert payload["cache_storage_bytes"] == cache_bytes
+    assert payload["input_storage_bytes"] == 0
+    assert payload["output_storage_bytes"] == 0
+    assert payload["db_size_bytes"] == db_path.stat().st_size
+    assert payload["total_storage_bytes"] == payload["db_size_bytes"] + cache_bytes
