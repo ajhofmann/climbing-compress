@@ -71,3 +71,28 @@ def test_unassigned_summary_includes_output_duration(tmp_path, monkeypatch):
 
     summary = db_module.get_project_summary("unassigned")
     assert summary["latest_output"]["output_duration"] == 4.5
+
+
+def test_project_summary_without_outputs(tmp_path, monkeypatch):
+    db_path = tmp_path / "summary-empty.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    import db as db_module
+    importlib.reload(db_module)
+
+    db_module.init_db()
+
+    project_id = "proj-empty"
+    db_module.insert_project(project_id, "Empty Project")
+    db_module.register_video(
+        video_id="video-empty",
+        filename="empty.mp4",
+        path="/tmp/empty.mp4",
+        file_hash="hash-empty",
+        project_id=project_id,
+    )
+
+    summary = db_module.get_project_summary(project_id)
+    assert summary["videos"] == 1
+    assert summary["outputs"] == 0
+    assert summary["latest_output"] is None
