@@ -82,3 +82,11 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
     analysis_failed = db_module.list_jobs(job_type="analysis", status="failed")
     assert len(analysis_failed) == 1
     assert analysis_failed[0]["id"] == "job-assigned"
+
+    analysis_jobs = db_module.list_jobs(job_type="analysis")
+    assert len(analysis_jobs) == 1
+    assert analysis_jobs[0]["id"] == "job-assigned"
+
+    preview_jobs = db_module.list_jobs(job_type="preview")
+    assert len(preview_jobs) == 1
+    assert preview_jobs[0]["id"] == "job-unassigned"
