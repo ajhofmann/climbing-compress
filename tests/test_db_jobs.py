@@ -1,4 +1,5 @@
 import importlib
+import sqlite3
 
 
 def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
@@ -39,8 +40,16 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
         job_type="preview",
     )
 
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE jobs SET updated_at = ? WHERE id = ?", (10.0, "job-unassigned"))
+    cur.execute("UPDATE jobs SET updated_at = ? WHERE id = ?", (20.0, "job-assigned"))
+    conn.commit()
+    conn.close()
+
     jobs = db_module.list_jobs()
     assert {job["id"] for job in jobs} == {"job-assigned", "job-unassigned"}
+    assert jobs[0]["id"] == "job-assigned"
     assigned = next(job for job in jobs if job["id"] == "job-assigned")
     unassigned = next(job for job in jobs if job["id"] == "job-unassigned")
     assert assigned["project_id"] == project_id
