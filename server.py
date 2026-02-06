@@ -819,8 +819,9 @@ async def metrics():
     metrics_payload["output_storage_bytes"] = output_storage_bytes
     metrics_payload["input_storage_bytes"] = input_storage_bytes
     metrics_payload["cache_storage_bytes"] = cache_storage_bytes
+    db_size_bytes = metrics_payload.get("db_size_bytes", 0) or 0
     metrics_payload["total_storage_bytes"] = (
-        output_storage_bytes + input_storage_bytes + cache_storage_bytes
+        output_storage_bytes + input_storage_bytes + cache_storage_bytes + db_size_bytes
     )
     return metrics_payload
 
