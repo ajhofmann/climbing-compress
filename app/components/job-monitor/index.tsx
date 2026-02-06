@@ -2,6 +2,7 @@
 
 import { useJobMonitor } from "./use-job-monitor";
 import { styles } from "./styles";
+import { useStore } from "@/lib/store";
 
 const STATUS_COLORS: Record<string, string> = {
   queued: "var(--neon-cyan)",
@@ -37,6 +38,7 @@ function formatDuration(start?: number, end?: number) {
 
 export function JobMonitor() {
   const { jobs, error, cancel, isCancelling, retry, isRetrying } = useJobMonitor();
+  const { videoId } = useStore();
 
   return (
     <div className={styles.panel}>
@@ -50,7 +52,10 @@ export function JobMonitor() {
       ) : (
         <div className={styles.list}>
           {jobs.map((job) => (
-            <div key={job.id} className={styles.row}>
+            <div
+              key={job.id}
+              className={`${styles.row} ${job.video_id === videoId ? styles.rowActive : ""}`}
+            >
               {(() => {
                 const isDone = job.status === "success" || job.status === "failed" || job.status === "cancelled";
                 const timeLabel = isDone
