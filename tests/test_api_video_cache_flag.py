@@ -10,7 +10,6 @@ def test_videos_api_cached_flag(tmp_path, monkeypatch):
     input_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
     cache_version = "test-cache"
-    cache_dir = tmp_path / "data" / "cache" / cache_version
 
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setenv("INPUT_DIR", str(input_dir))
