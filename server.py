@@ -189,6 +189,33 @@ def _ensure_job_active(job_id: str) -> None:
         raise JobCancelled()
 
 
+def _build_preview_request(req: PreviewRequest, path: Path) -> RenderRequest:
+    info = get_video_info(str(path))
+    duration = float(info.get("duration", 0))
+    start = max(0.0, req.preview_start)
+    preview_len = max(0.5, req.preview_duration)
+    end = start + preview_len
+    if duration > 0:
+        end = min(end, duration)
+
+    payload = _model_dump(req)
+    for key in [
+        "preview_start", "preview_duration", "preview_scale",
+        "preview_fps", "preview_crf", "preview_debug_overlay",
+    ]:
+        payload.pop(key, None)
+    payload.update({
+        "trim_start": start,
+        "trim_end": end,
+        "scale": req.preview_scale,
+        "output_fps": req.preview_fps,
+        "crf": req.preview_crf,
+        "debug_overlay": req.preview_debug_overlay,
+        "render_comparison": False,
+    })
+    return RenderRequest(**payload)
+
+
 def _analysis_job_worker(job_id: str, path: Path, req: AnalyzeRequest, emit) -> None:
     update_job(job_id, status="running", progress=0.0, message="Starting analysis")
 
@@ -473,84 +500,38 @@ async def preview_video(req: PreviewRequest):
     path = _get_video_path(req.video_id)
     job_id = uuid.uuid4().hex[:12]
     insert_job(job_id, req.video_id, "preview", status="queued", message="Queued", request=_model_dump(req))
-
-    info = get_video_info(str(path))
-    duration = float(info.get("duration", 0))
-    start = max(0.0, req.preview_start)
-    preview_len = max(0.5, req.preview_duration)
-    end = start + preview_len
-    if duration > 0:
-        end = min(end, duration)
-
-    payload = _model_dump(req)
-    for key in [
-        "preview_start", "preview_duration", "preview_scale",
-        "preview_fps", "preview_crf", "preview_debug_overlay",
-    ]:
-        payload.pop(key, None)
-    payload.update({
-        "trim_start": start,
-        "trim_end": end,
-        "scale": req.preview_scale,
-        "output_fps": req.preview_fps,
-        "crf": req.preview_crf,
-        "debug_overlay": req.preview_debug_overlay,
-        "render_comparison": False,
-    })
-    preview_req = RenderRequest(**payload)
-
+    preview_req = _build_preview_request(req, path)
     return sse_response(lambda emit: _preview_job_worker(job_id, path, preview_req, emit))
 
 
 @app.post("/api/jobs/analyze")
-async def enqueue_analyze(req: AnalyzeRequest):
+async def enqueue_analyze(req: AnalyzeRequest, run_background: bool = Query(default=True)):
     path = _get_video_path(req.video_id)
     job_id = uuid.uuid4().hex[:12]
     insert_job(job_id, req.video_id, "analyze", status="queued", message="Queued", request=_model_dump(req))
-    _start_background(_analysis_job_worker, job_id, path, req)
+    if run_background:
+        _start_background(_analysis_job_worker, job_id, path, req)
     return {"job_id": job_id}
 
 
 @app.post("/api/jobs/render")
-async def enqueue_render(req: RenderRequest):
+async def enqueue_render(req: RenderRequest, run_background: bool = Query(default=True)):
     path = _get_video_path(req.video_id)
     job_id = uuid.uuid4().hex[:12]
     insert_job(job_id, req.video_id, "render", status="queued", message="Queued", request=_model_dump(req))
-    _start_background(_render_job_worker, job_id, path, req)
+    if run_background:
+        _start_background(_render_job_worker, job_id, path, req)
     return {"job_id": job_id}
 
 
 @app.post("/api/jobs/preview")
-async def enqueue_preview(req: PreviewRequest):
+async def enqueue_preview(req: PreviewRequest, run_background: bool = Query(default=True)):
     path = _get_video_path(req.video_id)
     job_id = uuid.uuid4().hex[:12]
     insert_job(job_id, req.video_id, "preview", status="queued", message="Queued", request=_model_dump(req))
-
-    info = get_video_info(str(path))
-    duration = float(info.get("duration", 0))
-    start = max(0.0, req.preview_start)
-    preview_len = max(0.5, req.preview_duration)
-    end = start + preview_len
-    if duration > 0:
-        end = min(end, duration)
-
-    payload = _model_dump(req)
-    for key in [
-        "preview_start", "preview_duration", "preview_scale",
-        "preview_fps", "preview_crf", "preview_debug_overlay",
-    ]:
-        payload.pop(key, None)
-    payload.update({
-        "trim_start": start,
-        "trim_end": end,
-        "scale": req.preview_scale,
-        "output_fps": req.preview_fps,
-        "crf": req.preview_crf,
-        "debug_overlay": req.preview_debug_overlay,
-        "render_comparison": False,
-    })
-    preview_req = RenderRequest(**payload)
-    _start_background(_preview_job_worker, job_id, path, preview_req)
+    preview_req = _build_preview_request(req, path)
+    if run_background:
+        _start_background(_preview_job_worker, job_id, path, preview_req)
     return {"job_id": job_id}
 
 

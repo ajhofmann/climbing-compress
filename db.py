@@ -487,6 +487,27 @@ def list_outputs(video_id: str | None = None) -> list[dict[str, Any]]:
     return [_row_to_dict(cur, row) for row in rows]
 
 
+def claim_next_job() -> dict[str, Any] | None:
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("BEGIN IMMEDIATE")
+    cur.execute(
+        "SELECT * FROM jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1"
+    )
+    row = cur.fetchone()
+    if row:
+        cur.execute(
+            "UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?",
+            ("running", time.time(), row["id"]),
+        )
+    conn.commit()
+    conn.close()
+    if row is None:
+        return None
+    return _row_to_dict(cur, row)
+
+
 def get_metrics() -> dict[str, Any]:
     conn = _connect()
     conn.row_factory = sqlite3.Row
