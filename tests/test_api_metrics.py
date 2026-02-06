@@ -40,6 +40,16 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
         path=str(output_path),
         stats={"output_duration": 2.0},
     )
+    output_path_compare = output_dir / "output-compare.mp4"
+    output_path_compare.write_bytes(b"compare-bytes")
+    db_module.insert_output(
+        output_id="output-compare",
+        video_id="video-api",
+        job_id="job-compare",
+        output_type="comparison",
+        path=str(output_path_compare),
+        stats={"output_duration": 1.2},
+    )
     db_module.insert_job(
         job_id="job-analyze",
         video_id="video-api",
@@ -73,9 +83,11 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload["videos"] == 1
-    assert payload["outputs"] == 1
+    assert payload["outputs"] == 2
     assert payload["outputs_by_type"]["main"] == 1
+    assert payload["outputs_by_type"]["comparison"] == 1
     assert payload["avg_output_duration_by_type"]["main"] == 2.0
+    assert payload["avg_output_duration_by_type"]["comparison"] == 1.2
     assert payload["jobs_by_status"]["success"] == 1
     assert payload["jobs_by_status"]["failed"] == 1
     assert payload["jobs_by_status"]["running"] == 1
@@ -86,7 +98,7 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
 
     db_size = Path(db_path).stat().st_size
     input_size = input_path.stat().st_size
-    output_size = output_path.stat().st_size
+    output_size = output_path.stat().st_size + output_path_compare.stat().st_size
     assert payload["input_storage_bytes"] == input_size
     assert payload["output_storage_bytes"] == output_size
     assert payload["cache_storage_bytes"] == 0
