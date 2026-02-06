@@ -37,6 +37,7 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
         job_id="job-api",
         output_type="main",
         path=str(output_path),
+        stats={"output_duration": 2.0},
     )
 
     import server as server_module
@@ -48,6 +49,8 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
     payload = response.json()
     assert payload["videos"] == 1
     assert payload["outputs"] == 1
+    assert payload["outputs_by_type"]["main"] == 1
+    assert payload["avg_output_duration_by_type"]["main"] == 2.0
 
     db_size = Path(db_path).stat().st_size
     input_size = input_path.stat().st_size
