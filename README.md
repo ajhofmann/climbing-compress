@@ -40,18 +40,39 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000), drop in a climbing video, hit **analyze**, tweak the curve, and **render**.
 
+## Background jobs (optional)
+
+The API now records analyze/render/preview jobs in SQLite. You can run work
+in-process (default) or queue jobs for a background worker:
+
+```bash
+# Start the worker loop (executes queued jobs)
+python worker.py
+```
+
+To enqueue jobs without running them on the API thread, call:
+
+- `POST /api/jobs/analyze?run_background=false`
+- `POST /api/jobs/render?run_background=false`
+- `POST /api/jobs/preview?run_background=false`
+
+Use `POST /api/jobs/{job_id}/cancel` to cancel queued/running work.
+
 ## Speed-ramp modes
 
 **Constant Progress** (default) — allocates output time proportional to wall progress. At 50% of the output you're ~50% up the boulder. Rest sections are detected automatically and fast-forwarded.
 
-**Action Highlight** — velocity-based scoring with per-limb weights. Big moves get slow-mo, chalk-ups get skipped. Classic climbing edit style.
+**Action** — velocity-based scoring with per-limb weights. Big moves get slow-mo, chalk-ups get skipped. Classic climbing edit style.
+
+**Highlight** — blend of action + progress for crux-heavy highlight reels.
 
 Both modes support **pin points** — click the timeline to override the speed at any moment, with adjustable radius of influence.
 
 ## Architecture
 
 ```
-server.py            FastAPI backend (upload, analyze, solve, render)
+server.py            FastAPI backend (upload, analyze, solve, render, jobs)
+worker.py            Background job worker (polls SQLite queue)
 pipeline/
   pose.py            MediaPipe pose detection + sanitization
   movement.py        Movement & progress scoring
