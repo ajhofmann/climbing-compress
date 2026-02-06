@@ -35,10 +35,18 @@ def test_project_crud_api(tmp_path, monkeypatch):
 
     update_response = client.patch(
         f"/api/projects/{project_id}",
-        json={"name": "Project B", "description": "Updated"},
+        json={"description": "Updated"},
     )
     assert update_response.status_code == 200
-    assert update_response.json()["name"] == "Project B"
+    assert update_response.json()["name"] == "Project A"
+    assert update_response.json()["description"] == "Updated"
+
+    rename_response = client.patch(
+        f"/api/projects/{project_id}",
+        json={"name": "Project B"},
+    )
+    assert rename_response.status_code == 200
+    assert rename_response.json()["name"] == "Project B"
 
     delete_response = client.delete(f"/api/projects/{project_id}")
     assert delete_response.status_code == 200
