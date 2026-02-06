@@ -1,4 +1,5 @@
 import importlib
+import sqlite3
 
 
 def test_list_videos_filters_and_names(tmp_path, monkeypatch):
@@ -28,8 +29,16 @@ def test_list_videos_filters_and_names(tmp_path, monkeypatch):
         project_id=None,
     )
 
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE videos SET created_at = ? WHERE id = ?", (10.0, "video-unassigned"))
+    cur.execute("UPDATE videos SET created_at = ? WHERE id = ?", (20.0, "video-assigned"))
+    conn.commit()
+    conn.close()
+
     videos = db_module.list_videos()
     assert {video["id"] for video in videos} == {"video-assigned", "video-unassigned"}
+    assert videos[0]["id"] == "video-assigned"
     assigned = next(video for video in videos if video["id"] == "video-assigned")
     unassigned = next(video for video in videos if video["id"] == "video-unassigned")
     assert assigned["project_id"] == project_id
