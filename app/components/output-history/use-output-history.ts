@@ -15,6 +15,7 @@ interface OutputRecord {
   path: string;
   created_at?: number;
   output_duration?: number | null;
+  size_bytes?: number | null;
 }
 
 export function useOutputHistory() {

@@ -19,6 +19,16 @@ function formatDuration(duration?: number | null) {
   return `${seconds}s`;
 }
 
+function formatBytes(size?: number | null) {
+  if (!size) return "";
+  const kb = size / 1024;
+  if (kb < 1024) return `${Math.round(kb)}kb`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)}mb`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(1)}gb`;
+}
+
 export function OutputHistory() {
   const { outputs, error, refresh, loadOutput } = useOutputHistory();
 
@@ -41,6 +51,9 @@ export function OutputHistory() {
               <span className={styles.meta}>{formatAge(output.created_at)}</span>
               {output.output_duration && (
                 <span className={styles.meta}>{formatDuration(output.output_duration)}</span>
+              )}
+              {output.size_bytes && (
+                <span className={styles.meta}>{formatBytes(output.size_bytes)}</span>
               )}
               <span className={styles.meta}>{output.video_filename ?? output.video_id}</span>
               <span className={styles.meta}>{output.project_name ?? "unassigned"}</span>

@@ -686,6 +686,14 @@ async def list_outputs(
     outputs = db_list_outputs(video_id=video_id, project_id=project_id)
     payload = []
     for output in outputs:
+        size_bytes = None
+        output_path = Path(output.get("path", ""))
+        if output_path.exists():
+            size_bytes = output_path.stat().st_size
+        else:
+            fallback = OUTPUT_DIR / f"{output.get('id')}.mp4"
+            if fallback.exists():
+                size_bytes = fallback.stat().st_size
         stats = None
         if output.get("stats_json"):
             try:
@@ -703,6 +711,7 @@ async def list_outputs(
             "path": output["path"],
             "created_at": output["created_at"],
             "output_duration": stats.get("output_duration") if stats else None,
+            "size_bytes": size_bytes,
         })
     return payload
 
