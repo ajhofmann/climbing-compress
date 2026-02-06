@@ -30,6 +30,7 @@ export function useOutputHistory() {
   } = useStore();
   const [outputs, setOutputs] = useState<OutputRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -37,6 +38,7 @@ export function useOutputHistory() {
       const data = await listOutputs(videoId, projectFilter);
       setOutputs(data ?? []);
       setError(null);
+      setLastUpdated(Date.now());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load outputs";
       setError(msg);
@@ -67,5 +69,5 @@ export function useOutputHistory() {
     }
   }, [setOutputId, setPreviewId, setComparisonId, setProgress, setSelectedProjectId]);
 
-  return { outputs, error, refresh, loadOutput };
+  return { outputs, error, refresh, loadOutput, lastUpdated };
 }
