@@ -73,3 +73,5 @@ def test_videos_api_includes_project_and_size(tmp_path, monkeypatch):
     assert video["size_bytes"] == len(b"video-bytes")
     assert video["info"]["duration"] == 1.0
     assert video_zero["size_bytes"] == 0
+    assert video["created_at"] is not None
+    assert video_zero["created_at"] is not None
