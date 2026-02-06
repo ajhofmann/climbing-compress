@@ -19,6 +19,7 @@ export function SystemMetrics() {
   const jobStatuses = metrics?.jobs_by_status ?? {};
   const jobTypes = metrics?.jobs_by_type ?? {};
   const outputTypes = metrics?.outputs_by_type ?? {};
+  const avgOutputDurations = metrics?.avg_output_duration_by_type ?? {};
   const avgDurations = metrics?.avg_duration_by_type ?? {};
 
   return (
@@ -66,6 +67,17 @@ export function SystemMetrics() {
             <div key={type} className={styles.pill} style={{ background: "#080810" }}>
               <span>out {formatOutputType(type)}</span>
               <span className="font-mono text-text">{count}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {Object.keys(avgOutputDurations).length > 0 && (
+        <div className={styles.list}>
+          {Object.entries(avgOutputDurations).map(([type, duration]) => (
+            <div key={type} className={styles.pill} style={{ background: "#080810" }}>
+              <span>out {formatOutputType(type)} avg</span>
+              <span className="font-mono text-text">{duration}s</span>
             </div>
           ))}
         </div>

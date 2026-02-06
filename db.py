@@ -674,6 +674,29 @@ def get_metrics() -> dict[str, Any]:
     cur.execute("SELECT output_type, COUNT(*) as count FROM outputs GROUP BY output_type")
     outputs_by_type = {row["output_type"]: row["count"] for row in cur.fetchall()}
 
+    cur.execute("SELECT output_type, stats_json FROM outputs WHERE stats_json IS NOT NULL")
+    output_durations: dict[str, float] = {}
+    output_counts: dict[str, int] = {}
+    for row in cur.fetchall():
+        stats_json = row["stats_json"]
+        if not stats_json:
+            continue
+        try:
+            stats = json.loads(stats_json)
+        except json.JSONDecodeError:
+            continue
+        duration = stats.get("output_duration")
+        if duration is None:
+            continue
+        output_type = row["output_type"]
+        output_durations[output_type] = output_durations.get(output_type, 0.0) + float(duration)
+        output_counts[output_type] = output_counts.get(output_type, 0) + 1
+    avg_output_duration_by_type = {
+        output_type: round(output_durations[output_type] / output_counts[output_type], 2)
+        for output_type in output_durations
+        if output_counts.get(output_type)
+    }
+
     cur.execute(
         """
         SELECT job_type, AVG(updated_at - created_at) as avg_duration
@@ -696,6 +719,7 @@ def get_metrics() -> dict[str, Any]:
         "jobs_by_type": jobs_by_type,
         "jobs_by_status": jobs_by_status,
         "outputs_by_type": outputs_by_type,
+        "avg_output_duration_by_type": avg_output_duration_by_type,
         "avg_duration_by_type": avg_duration_by_type,
     }
 
