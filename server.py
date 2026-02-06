@@ -690,11 +690,11 @@ async def list_outputs(
     for output in outputs:
         size_bytes = None
         output_path = Path(output.get("path", ""))
-        if output_path.exists():
+        if output_path.is_file():
             size_bytes = output_path.stat().st_size
         else:
             fallback = OUTPUT_DIR / f"{output.get('id')}.mp4"
-            if fallback.exists():
+            if fallback.is_file():
                 size_bytes = fallback.stat().st_size
         stats = None
         if output.get("stats_json"):
