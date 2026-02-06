@@ -34,6 +34,16 @@ export async function createProject(name: string, description?: string): Promise
   return res.json();
 }
 
+export async function updateProject(projectId: string, name?: string, description?: string): Promise<Project> {
+  const res = await fetch(`${API}/api/projects/${projectId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, description }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function assignVideoProject(videoId: string, projectId: string | null) {
   const res = await fetch(`${API}/api/videos/${videoId}/project`, {
     method: "POST",

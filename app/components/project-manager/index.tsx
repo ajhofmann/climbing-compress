@@ -5,8 +5,9 @@ import { useProjectManager } from "./use-project-manager";
 import { styles } from "./styles";
 
 export function ProjectManager() {
-  const { projects, selectedProjectId, loading, error, refresh, selectProject, create } = useProjectManager();
+  const { projects, selectedProjectId, loading, error, refresh, selectProject, create, update } = useProjectManager();
   const [isCreating, setIsCreating] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
@@ -21,6 +22,21 @@ export function ProjectManager() {
     }
   };
 
+  const onEdit = async () => {
+    if (!selected) return;
+    const updated = await update(selected.id, name, description);
+    if (updated) {
+      setIsEditing(false);
+    }
+  };
+
+  const startEdit = () => {
+    if (!selected) return;
+    setName(selected.name);
+    setDescription(selected.description ?? "");
+    setIsEditing(true);
+  };
+
   return (
     <div className={styles.panel}>
       <div className={styles.header}>
@@ -29,6 +45,11 @@ export function ProjectManager() {
           <button className={styles.button} onClick={() => setIsCreating((v) => !v)}>
             {isCreating ? "Cancel" : "New"}
           </button>
+          {selected && !isEditing && (
+            <button className={styles.button} onClick={startEdit}>
+              Edit
+            </button>
+          )}
           <button className={styles.button} onClick={refresh}>
             Refresh
           </button>
@@ -79,6 +100,36 @@ export function ProjectManager() {
               disabled={!name.trim() || loading}
             >
               Create
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isEditing && (
+        <div className="flex flex-col gap-2">
+          <input
+            className={styles.input}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Project name"
+          />
+          <textarea
+            className={styles.textarea}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional description"
+            rows={2}
+          />
+          <div className={styles.row}>
+            <button
+              className={styles.button}
+              onClick={onEdit}
+              disabled={!name.trim() || loading}
+            >
+              Save
+            </button>
+            <button className={styles.button} onClick={() => setIsEditing(false)}>
+              Cancel
             </button>
           </div>
         </div>

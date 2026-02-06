@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { assignVideoProject, createProject, listProjects } from "@/lib/api";
+import { assignVideoProject, createProject, listProjects, updateProject } from "@/lib/api";
 
 export function useProjectManager() {
   const {
@@ -83,6 +83,24 @@ export function useProjectManager() {
     }
   }, [addProject, selectProject]);
 
+  const update = useCallback(async (projectId: string, name: string, description?: string) => {
+    if (!name.trim()) return null;
+    setLoading(true);
+    setError(null);
+    try {
+      const project = await updateProject(projectId, name.trim(), description?.trim() || undefined);
+      const updated = projects.map((p) => (p.id === project.id ? project : p));
+      setProjects(updated);
+      return project;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to update project";
+      setError(msg);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [projects, setProjects]);
+
   useEffect(() => {
     if (!videoId || !selectedProjectId) return;
     assignVideoProject(videoId, selectedProjectId).catch(() => undefined);
@@ -96,5 +114,6 @@ export function useProjectManager() {
     refresh,
     selectProject,
     create,
+    update,
   };
 }
