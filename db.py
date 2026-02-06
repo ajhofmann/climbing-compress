@@ -474,3 +474,33 @@ def list_outputs(video_id: str | None = None) -> list[dict[str, Any]]:
     conn.close()
     return [_row_to_dict(cur, row) for row in rows]
 
+
+def get_metrics() -> dict[str, Any]:
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) as count FROM videos")
+    video_count = cur.fetchone()["count"]
+
+    cur.execute("SELECT COUNT(*) as count FROM outputs")
+    output_count = cur.fetchone()["count"]
+
+    cur.execute("SELECT COUNT(*) as count FROM projects")
+    project_count = cur.fetchone()["count"]
+
+    cur.execute("SELECT job_type, COUNT(*) as count FROM jobs GROUP BY job_type")
+    jobs_by_type = {row["job_type"]: row["count"] for row in cur.fetchall()}
+
+    cur.execute("SELECT status, COUNT(*) as count FROM jobs GROUP BY status")
+    jobs_by_status = {row["status"]: row["count"] for row in cur.fetchall()}
+
+    conn.close()
+    return {
+        "videos": video_count,
+        "outputs": output_count,
+        "projects": project_count,
+        "jobs_by_type": jobs_by_type,
+        "jobs_by_status": jobs_by_status,
+    }
+

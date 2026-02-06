@@ -52,6 +52,7 @@ from db import (
     insert_output,
     get_output as db_get_output,
     list_outputs as db_list_outputs,
+    get_metrics as db_get_metrics,
 )
 
 logger = logging.getLogger(__name__)
@@ -618,6 +619,11 @@ async def assign_video_project(video_id: str, req: ProjectAssignRequest):
             raise HTTPException(404, "Project not found")
     set_video_project(video_id, req.project_id)
     return {"video_id": video_id, "project_id": req.project_id}
+
+
+@app.get("/api/metrics")
+async def metrics():
+    return db_get_metrics()
 
 
 if __name__ == "__main__":
