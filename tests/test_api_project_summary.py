@@ -70,6 +70,7 @@ def test_project_summary_api_includes_output_duration(tmp_path, monkeypatch):
     summary = response.json()
     assert summary["videos"] == 1
     assert summary["outputs"] == 2
+    assert summary["jobs"] == 0
     assert summary["latest_output"]["output_duration"] == 6.1
 
     response = client.get("/api/projects/unassigned/summary")
@@ -77,6 +78,7 @@ def test_project_summary_api_includes_output_duration(tmp_path, monkeypatch):
     unassigned = response.json()
     assert unassigned["videos"] == 1
     assert unassigned["outputs"] == 1
+    assert unassigned["jobs"] == 0
     assert unassigned["latest_output"]["output_duration"] == 2.5
 
 
