@@ -71,3 +71,6 @@ def test_list_outputs_includes_project_name(tmp_path, monkeypatch):
     combined_outputs = db_module.list_outputs(video_id=unassigned_video_id, project_id="unassigned")
     assert len(combined_outputs) == 1
     assert combined_outputs[0]["id"] == "output-unassigned"
+
+    assert db_module.list_outputs(project_id="missing") == []
+    assert db_module.list_outputs(video_id="missing") == []
