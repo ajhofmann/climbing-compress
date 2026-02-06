@@ -162,3 +162,45 @@ def test_cancel_job_endpoint_noop_for_success(tmp_path, monkeypatch):
     status_response = client.get("/api/jobs/job-success")
     assert status_response.status_code == 200
     assert status_response.json()["status"] == "success"
+
+
+def test_retry_job_endpoint_noop_for_success(tmp_path, monkeypatch):
+    db_path = tmp_path / "retry-success.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.register_video(
+        video_id="video-retry-success",
+        filename="success.mp4",
+        path="/tmp/success.mp4",
+        file_hash="hash-success",
+    )
+    db_module.insert_job(
+        job_id="job-retry-success",
+        video_id="video-retry-success",
+        job_type="analysis",
+        status="success",
+        request={"video_id": "video-retry-success"},
+    )
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    client = TestClient(server_module.app)
+    response = client.post("/api/jobs/job-retry-success/retry")
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    assert response.json()["job_id"] == "job-retry-success"
+
+    jobs_response = client.get("/api/jobs")
+    assert jobs_response.status_code == 200
+    assert len(jobs_response.json()) == 1
