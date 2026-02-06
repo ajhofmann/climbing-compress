@@ -35,6 +35,14 @@ def test_project_summary_api_includes_output_duration(tmp_path, monkeypatch):
         path="/tmp/summary-out.mp4",
         stats={"output_duration": 4.2},
     )
+    db_module.insert_output(
+        output_id="output-summary-2",
+        video_id="video-summary",
+        job_id="job-summary-2",
+        output_type="preview",
+        path="/tmp/summary-out-2.mp4",
+        stats={"output_duration": 6.1},
+    )
 
     db_module.register_video(
         video_id="video-unassigned",
@@ -60,8 +68,8 @@ def test_project_summary_api_includes_output_duration(tmp_path, monkeypatch):
     assert response.status_code == 200
     summary = response.json()
     assert summary["videos"] == 1
-    assert summary["outputs"] == 1
-    assert summary["latest_output"]["output_duration"] == 4.2
+    assert summary["outputs"] == 2
+    assert summary["latest_output"]["output_duration"] == 6.1
 
     response = client.get("/api/projects/unassigned/summary")
     assert response.status_code == 200
