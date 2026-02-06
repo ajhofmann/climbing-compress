@@ -71,6 +71,7 @@ def test_videos_api_filters_by_project(tmp_path, monkeypatch):
     assert len(unassigned_videos) == 1
     assert unassigned_videos[0]["video_id"] == "video-unassigned"
     assert unassigned_videos[0]["project_name"] is None
+    assert unassigned_videos[0]["project_id"] is None
 
     response = client.get("/api/videos?project_id=missing")
     assert response.status_code == 200
