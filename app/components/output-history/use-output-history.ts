@@ -36,6 +36,8 @@ export function useOutputHistory() {
 
   useEffect(() => {
     refresh();
+    const id = window.setInterval(refresh, 6000);
+    return () => window.clearInterval(id);
   }, [refresh]);
 
   const loadOutput = useCallback((output: OutputRecord) => {
