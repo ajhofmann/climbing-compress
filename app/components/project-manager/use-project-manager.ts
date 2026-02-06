@@ -21,42 +21,6 @@ export function useProjectManager() {
   const [summary, setSummary] = useState<ProjectSummary | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await listProjects();
-      setProjects(data);
-      setLastUpdated(Date.now());
-      const stored = typeof window !== "undefined" ? window.localStorage.getItem("projectId") : null;
-      if (stored === "unassigned") {
-        setSelectedProjectId(null);
-        return;
-      }
-      const storedMatch = stored ? data.find((p) => p.id === stored) : null;
-      if (!selectedProjectId && data.length > 0) {
-        setSelectedProjectId(storedMatch?.id ?? data[0].id);
-        return;
-      }
-      if (selectedProjectId && !data.some((p) => p.id === selectedProjectId)) {
-        const fallback = storedMatch?.id ?? data[0]?.id ?? null;
-        setSelectedProjectId(fallback);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem("projectId", fallback ?? "unassigned");
-        }
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load projects";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedProjectId, setProjects, setSelectedProjectId]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
   const refreshSummary = useCallback(async (projectId: string | null) => {
     const targetId = projectId ?? "unassigned";
     try {
@@ -67,6 +31,46 @@ export function useProjectManager() {
       setSummary(null);
     }
   }, []);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await listProjects();
+      setProjects(data);
+      setLastUpdated(Date.now());
+      const stored = typeof window !== "undefined" ? window.localStorage.getItem("projectId") : null;
+      let targetId = selectedProjectId ?? null;
+      if (stored === "unassigned") {
+        setSelectedProjectId(null);
+        targetId = null;
+      } else {
+        const storedMatch = stored ? data.find((p) => p.id === stored) : null;
+        if (!selectedProjectId && data.length > 0) {
+          const nextId = storedMatch?.id ?? data[0].id;
+          setSelectedProjectId(nextId);
+          targetId = nextId;
+        } else if (selectedProjectId && !data.some((p) => p.id === selectedProjectId)) {
+          const fallback = storedMatch?.id ?? data[0]?.id ?? null;
+          setSelectedProjectId(fallback);
+          targetId = fallback;
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem("projectId", fallback ?? "unassigned");
+          }
+        }
+      }
+      await refreshSummary(targetId);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load projects";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshSummary, selectedProjectId, setProjects, setSelectedProjectId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   useEffect(() => {
     refreshSummary(selectedProjectId);
