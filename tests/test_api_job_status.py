@@ -46,6 +46,8 @@ def test_job_status_includes_duration_and_request(tmp_path, monkeypatch):
     response = client.get("/api/jobs/job-status")
     assert response.status_code == 200
     payload = response.json()
+    assert payload["created_at"] == 10.0
+    assert payload["updated_at"] == 25.0
     assert payload["duration"] == 15.0
     assert payload["request"]["stride"] == 2
     assert payload["result"]["ok"] is True
@@ -93,5 +95,7 @@ def test_job_status_invalid_payloads(tmp_path, monkeypatch):
     response = client.get("/api/jobs/job-status")
     assert response.status_code == 200
     payload = response.json()
+    assert payload["created_at"] is not None
+    assert payload["updated_at"] is not None
     assert payload["request"] is None
     assert payload["result"] is None
