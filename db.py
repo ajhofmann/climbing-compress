@@ -49,6 +49,20 @@ def init_db() -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_jobs_video_id ON jobs(video_id);
         CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+
+        CREATE TABLE IF NOT EXISTS outputs (
+            id TEXT PRIMARY KEY,
+            video_id TEXT NOT NULL,
+            job_id TEXT NOT NULL,
+            output_type TEXT NOT NULL,
+            path TEXT NOT NULL,
+            stats_json TEXT,
+            created_at REAL NOT NULL,
+            FOREIGN KEY(video_id) REFERENCES videos(id),
+            FOREIGN KEY(job_id) REFERENCES jobs(id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_outputs_video_id ON outputs(video_id);
+        CREATE INDEX IF NOT EXISTS idx_outputs_job_id ON outputs(job_id);
         """
     )
     conn.commit()
@@ -298,6 +312,64 @@ def list_jobs(
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     cur.execute(f"SELECT * FROM jobs {where} ORDER BY created_at DESC", params)
+    rows = cur.fetchall()
+    conn.close()
+    return [_row_to_dict(cur, row) for row in rows]
+
+
+def insert_output(
+    output_id: str,
+    video_id: str,
+    job_id: str,
+    output_type: str,
+    path: str,
+    stats: dict[str, Any] | None = None,
+) -> None:
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT OR REPLACE INTO outputs (id, video_id, job_id, output_type, path, stats_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            output_id,
+            video_id,
+            job_id,
+            output_type,
+            path,
+            json.dumps(stats) if stats is not None else None,
+            time.time(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_output(output_id: str) -> dict[str, Any] | None:
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM outputs WHERE id = ?", (output_id,))
+    row = cur.fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return _row_to_dict(cur, row)
+
+
+def list_outputs(video_id: str | None = None) -> list[dict[str, Any]]:
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    params: list[Any] = []
+    if video_id is not None:
+        cur.execute(
+            "SELECT * FROM outputs WHERE video_id = ? ORDER BY created_at DESC",
+            (video_id,),
+        )
+    else:
+        cur.execute("SELECT * FROM outputs ORDER BY created_at DESC")
     rows = cur.fetchall()
     conn.close()
     return [_row_to_dict(cur, row) for row in rows]

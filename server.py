@@ -44,6 +44,9 @@ from db import (
     update_job,
     get_job as db_get_job,
     list_jobs as db_list_jobs,
+    insert_output,
+    get_output as db_get_output,
+    list_outputs as db_list_outputs,
 )
 
 logger = logging.getLogger(__name__)
@@ -321,6 +324,28 @@ async def render_video_endpoint(req: RenderRequest):
                 message=payload.get("message"),
             )
             if payload.get("done"):
+                output_id = payload.get("output_id")
+                if output_id:
+                    output_path = OUTPUT_DIR / f"{output_id}.mp4"
+                    insert_output(
+                        output_id=output_id,
+                        video_id=req.video_id,
+                        job_id=job_id,
+                        output_type="main",
+                        path=str(output_path),
+                        stats=payload.get("stats"),
+                    )
+                comparison_id = payload.get("comparison_id")
+                if comparison_id:
+                    comparison_path = OUTPUT_DIR / f"{comparison_id}.mp4"
+                    insert_output(
+                        output_id=comparison_id,
+                        video_id=req.video_id,
+                        job_id=job_id,
+                        output_type="comparison",
+                        path=str(comparison_path),
+                        stats=None,
+                    )
                 update_job(
                     job_id,
                     status="success",
@@ -391,6 +416,44 @@ async def list_jobs(
             "message": job["message"],
             "created_at": job["created_at"],
             "updated_at": job["updated_at"],
+        })
+    return payload
+
+
+@app.get("/api/outputs/{output_id}")
+async def get_output(output_id: str):
+    output = db_get_output(output_id)
+    if not output:
+        raise HTTPException(404, "Output not found")
+    stats = None
+    if output.get("stats_json"):
+        try:
+            stats = json.loads(output["stats_json"])
+        except json.JSONDecodeError:
+            stats = None
+    return {
+        "id": output["id"],
+        "video_id": output["video_id"],
+        "job_id": output["job_id"],
+        "output_type": output["output_type"],
+        "path": output["path"],
+        "stats": stats,
+        "created_at": output["created_at"],
+    }
+
+
+@app.get("/api/outputs")
+async def list_outputs(video_id: str | None = Query(default=None)):
+    outputs = db_list_outputs(video_id=video_id)
+    payload = []
+    for output in outputs:
+        payload.append({
+            "id": output["id"],
+            "video_id": output["video_id"],
+            "job_id": output["job_id"],
+            "output_type": output["output_type"],
+            "path": output["path"],
+            "created_at": output["created_at"],
         })
     return payload
 

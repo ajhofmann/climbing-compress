@@ -3,6 +3,8 @@ data/input/
 data/cache/
 data/output/
 data/presets/
+data/*.db
+data/*.sqlite
 
 # Models (large binaries)
 models/
