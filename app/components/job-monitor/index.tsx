@@ -13,7 +13,9 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function formatJobType(jobType: string) {
-  return jobType.replace(/_/g, " ");
+  const normalized = jobType.replace(/_/g, " ");
+  if (normalized === "main") return "render";
+  return normalized;
 }
 
 function formatAge(timestamp?: number) {
