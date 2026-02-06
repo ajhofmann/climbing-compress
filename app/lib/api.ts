@@ -68,9 +68,12 @@ export async function retryJob(jobId: string): Promise<{ job_id: string; status:
   return res.json();
 }
 
-export async function listOutputs(videoId?: string | null) {
-  const query = videoId ? `?video_id=${encodeURIComponent(videoId)}` : "";
-  const res = await fetch(`${API}/api/outputs${query}`);
+export async function listOutputs(videoId?: string | null, projectId?: string | null) {
+  const params = new URLSearchParams();
+  if (videoId) params.set("video_id", videoId);
+  if (projectId) params.set("project_id", projectId);
+  const query = params.toString();
+  const res = await fetch(`${API}/api/outputs${query ? `?${query}` : ""}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

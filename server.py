@@ -660,8 +660,11 @@ async def get_output(output_id: str):
 
 
 @app.get("/api/outputs")
-async def list_outputs(video_id: str | None = Query(default=None)):
-    outputs = db_list_outputs(video_id=video_id)
+async def list_outputs(
+    video_id: str | None = Query(default=None),
+    project_id: str | None = Query(default=None),
+):
+    outputs = db_list_outputs(video_id=video_id, project_id=project_id)
     payload = []
     for output in outputs:
         payload.append({

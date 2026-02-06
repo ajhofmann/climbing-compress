@@ -14,24 +14,24 @@ interface OutputRecord {
 }
 
 export function useOutputHistory() {
-  const { videoId, setOutputId, setPreviewId, setComparisonId, setProgress } = useStore();
+  const { videoId, selectedProjectId, setOutputId, setPreviewId, setComparisonId, setProgress } = useStore();
   const [outputs, setOutputs] = useState<OutputRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!videoId) {
-      setOutputs([]);
-      return;
-    }
     try {
-      const data = await listOutputs(videoId);
+      if (!videoId && !selectedProjectId) {
+        setOutputs([]);
+        return;
+      }
+      const data = await listOutputs(videoId, selectedProjectId);
       setOutputs(data ?? []);
       setError(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load outputs";
       setError(msg);
     }
-  }, [videoId]);
+  }, [videoId, selectedProjectId]);
 
   useEffect(() => {
     refresh();

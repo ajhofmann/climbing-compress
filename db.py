@@ -470,12 +470,22 @@ def get_output(output_id: str) -> dict[str, Any] | None:
     return _row_to_dict(cur, row)
 
 
-def list_outputs(video_id: str | None = None) -> list[dict[str, Any]]:
+def list_outputs(video_id: str | None = None, project_id: str | None = None) -> list[dict[str, Any]]:
     conn = _connect()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    params: list[Any] = []
-    if video_id is not None:
+    if project_id is not None:
+        cur.execute(
+            """
+            SELECT outputs.*
+            FROM outputs
+            JOIN videos ON outputs.video_id = videos.id
+            WHERE videos.project_id = ?
+            ORDER BY outputs.created_at DESC
+            """,
+            (project_id,),
+        )
+    elif video_id is not None:
         cur.execute(
             "SELECT * FROM outputs WHERE video_id = ? ORDER BY created_at DESC",
             (video_id,),
