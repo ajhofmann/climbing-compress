@@ -8,6 +8,12 @@ function formatDate(timestamp?: number) {
   return new Date(timestamp * 1000).toLocaleTimeString();
 }
 
+function formatDuration(duration?: number | null) {
+  if (!duration) return "";
+  const seconds = Math.round(duration);
+  return `${seconds}s`;
+}
+
 export function OutputHistory() {
   const { outputs, error, refresh, loadOutput } = useOutputHistory();
 
@@ -28,6 +34,9 @@ export function OutputHistory() {
             <div key={output.id} className={styles.row}>
               <span className="uppercase text-text-muted">{output.output_type}</span>
               <span className={styles.meta}>{formatDate(output.created_at)}</span>
+              {output.output_duration && (
+                <span className={styles.meta}>{formatDuration(output.output_duration)}</span>
+              )}
               <span className={styles.meta}>{output.video_filename ?? output.video_id}</span>
               <span className={styles.meta}>{output.project_name ?? "unassigned"}</span>
               <span className={styles.meta}>{output.id}</span>

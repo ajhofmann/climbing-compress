@@ -684,6 +684,12 @@ async def list_outputs(
     outputs = db_list_outputs(video_id=video_id, project_id=project_id)
     payload = []
     for output in outputs:
+        stats = None
+        if output.get("stats_json"):
+            try:
+                stats = json.loads(output["stats_json"])
+            except json.JSONDecodeError:
+                stats = None
         payload.append({
             "id": output["id"],
             "video_id": output["video_id"],
@@ -694,6 +700,7 @@ async def list_outputs(
             "output_type": output["output_type"],
             "path": output["path"],
             "created_at": output["created_at"],
+            "output_duration": stats.get("output_duration") if stats else None,
         })
     return payload
 
