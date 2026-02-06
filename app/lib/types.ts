@@ -78,6 +78,7 @@ export interface Metrics {
   output_storage_bytes?: number;
   input_storage_bytes?: number;
   cache_storage_bytes?: number;
+  cache_entries?: number;
   total_storage_bytes?: number;
 }
 

@@ -797,6 +797,7 @@ async def metrics():
     output_storage_bytes = 0
     input_storage_bytes = 0
     cache_storage_bytes = 0
+    cache_entries = 0
     try:
         for file in OUTPUT_DIR.glob("*.mp4"):
             if file.is_file():
@@ -814,11 +815,15 @@ async def metrics():
             for file in CACHE_DIR.rglob("*"):
                 if file.is_file():
                     cache_storage_bytes += file.stat().st_size
+            for entry in CACHE_DIR.iterdir():
+                if entry.is_dir():
+                    cache_entries += 1
     except FileNotFoundError:
         cache_storage_bytes = 0
     metrics_payload["output_storage_bytes"] = output_storage_bytes
     metrics_payload["input_storage_bytes"] = input_storage_bytes
     metrics_payload["cache_storage_bytes"] = cache_storage_bytes
+    metrics_payload["cache_entries"] = cache_entries
     db_size_bytes = metrics_payload.get("db_size_bytes", 0) or 0
     metrics_payload["total_storage_bytes"] = (
         output_storage_bytes + input_storage_bytes + cache_storage_bytes + db_size_bytes

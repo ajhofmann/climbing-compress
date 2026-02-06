@@ -119,6 +119,10 @@ export function SystemMetrics() {
             <span className="font-mono text-text">{formatBytes(metrics.cache_storage_bytes)}</span>
           </div>
           <div className={styles.pill} style={{ background: "#080810" }}>
+            <span>cache entries</span>
+            <span className="font-mono text-text">{metrics.cache_entries ?? 0}</span>
+          </div>
+          <div className={styles.pill} style={{ background: "#080810" }}>
             <span>output storage</span>
             <span className="font-mono text-text">{formatBytes(metrics.output_storage_bytes)}</span>
           </div>
