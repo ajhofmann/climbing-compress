@@ -23,6 +23,12 @@ function formatBytes(size?: number) {
   return `${gb.toFixed(1)}gb`;
 }
 
+function formatSeconds(value?: number) {
+  if (value === null || value === undefined) return "";
+  const formatted = value < 10 ? value.toFixed(1) : value.toFixed(0);
+  return `${formatted.replace(/\.0$/, "")}s`;
+}
+
 export function SystemMetrics() {
   const { metrics, error, refresh, lastUpdated } = useSystemMetrics();
 
@@ -95,7 +101,7 @@ export function SystemMetrics() {
           {Object.entries(avgOutputDurations).map(([type, duration]) => (
             <div key={type} className={styles.pill} style={{ background: "#080810" }}>
               <span>out {formatOutputType(type)} avg</span>
-              <span className="font-mono text-text">{duration}s</span>
+              <span className="font-mono text-text">{formatSeconds(duration)}</span>
             </div>
           ))}
         </div>
@@ -106,7 +112,7 @@ export function SystemMetrics() {
           {Object.entries(avgDurations).map(([type, duration]) => (
             <div key={type} className={styles.pill} style={{ background: "#080810" }}>
               <span>{formatLabel(type)} avg</span>
-              <span className="font-mono text-text">{duration}s</span>
+              <span className="font-mono text-text">{formatSeconds(duration)}</span>
             </div>
           ))}
         </div>
