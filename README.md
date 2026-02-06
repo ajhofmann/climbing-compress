@@ -36,6 +36,9 @@ python server.py
 # In another terminal, start the frontend
 cd app
 npm run dev
+
+# Optional: start the background worker
+python worker.py
 ```
 
 Open [http://localhost:3000](http://localhost:3000), drop in a climbing video, hit **analyze**, tweak the curve, and **render**.
