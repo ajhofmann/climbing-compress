@@ -430,6 +430,7 @@ async def list_videos(project_id: str | None = Query(default=None)):
             "filename": record["filename"],
             "info": info,
             "project_id": record.get("project_id"),
+            "cached": has_cache(str(path)),
         })
     return result
 

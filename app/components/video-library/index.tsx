@@ -24,6 +24,7 @@ export function VideoLibrary() {
               <span className="text-text">{video.filename}</span>
               <span className={styles.meta}>{Math.round(video.info.duration)}s</span>
               <span className={styles.meta}>{video.info.width}x{video.info.height}</span>
+              {video.cached && <span className={styles.meta}>cached</span>}
               <button className={styles.button} onClick={() => loadVideo(video)}>
                 Load
               </button>
