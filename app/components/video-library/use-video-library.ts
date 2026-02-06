@@ -13,7 +13,7 @@ interface VideoRecord {
 }
 
 export function useVideoLibrary() {
-  const { selectedProjectId, videoId, setVideo, setProgress } = useStore();
+  const { selectedProjectId, videoId, setVideo, setProgress, setSelectedProjectId } = useStore();
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,8 +36,17 @@ export function useVideoLibrary() {
 
   const loadVideo = useCallback((video: VideoRecord) => {
     setVideo(video.video_id, video.info, []);
+    const nextProjectId = video.project_id ?? null;
+    setSelectedProjectId(nextProjectId);
+    if (typeof window !== "undefined") {
+      if (nextProjectId) {
+        window.localStorage.setItem("projectId", nextProjectId);
+      } else {
+        window.localStorage.removeItem("projectId");
+      }
+    }
     setProgress(0, `Loaded ${video.filename}`);
-  }, [setVideo, setProgress]);
+  }, [setVideo, setProgress, setSelectedProjectId]);
 
   return { videos, error, refresh, loadVideo };
 }
