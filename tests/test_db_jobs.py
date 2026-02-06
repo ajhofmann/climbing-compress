@@ -70,3 +70,6 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
     combined_jobs = db_module.list_jobs(video_id=unassigned_video_id, project_id="unassigned")
     assert len(combined_jobs) == 1
     assert combined_jobs[0]["id"] == "job-unassigned"
+
+    assert db_module.list_jobs(job_type="missing") == []
+    assert db_module.list_jobs(status="missing") == []
