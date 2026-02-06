@@ -32,3 +32,15 @@ export const formatDuration = (duration?: number | null) => {
   if (duration === null || duration === undefined) return "";
   return `${Math.round(duration)}s`;
 };
+
+export const formatDurationSeconds = (duration?: number | null) => {
+  if (duration === null || duration === undefined) return "";
+  const seconds = Math.max(0, Math.floor(duration));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+};
