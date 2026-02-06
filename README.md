@@ -58,6 +58,11 @@ To enqueue jobs without running them on the API thread, call:
 
 Use `POST /api/jobs/{job_id}/cancel` to cancel queued/running work.
 
+### UI queue mode
+
+Enable the **QUEUE** toggle in the Options strip to run analyze/render/preview
+via background jobs. The UI will poll job status instead of relying on SSE.
+
 ## Speed-ramp modes
 
 **Constant Progress** (default) — allocates output time proportional to wall progress. At 50% of the output you're ~50% up the boulder. Rest sections are detected automatically and fast-forwarded.
