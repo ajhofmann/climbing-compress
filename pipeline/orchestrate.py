@@ -328,7 +328,12 @@ def run_analysis(
     emit({"progress": 0.70, "message": "Computing progress scores..."})
     progress_scores = score_progress(poses, fps, camera_motion=camera_motion)
     action_scores = score_movement(poses, fps, flow_scores=flow_scores, camera_motion=camera_motion)
-    highlight_scores = score_highlight(action_scores, progress_scores)
+    highlight_scores = score_highlight(
+        action_scores,
+        progress_scores,
+        action_weight=getattr(req, "highlight_action_weight", 0.7),
+        progress_weight=getattr(req, "highlight_progress_weight", 0.3),
+    )
 
     emit({"progress": 0.85, "message": "Generating waveforms..."})
 

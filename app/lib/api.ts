@@ -138,6 +138,8 @@ export async function enqueueAnalyze(
       use_flow: settings.useFlow,
       tracker_model: settings.trackerModel,
       climber_strategy: settings.climberStrategy,
+      highlight_action_weight: settings.highlightActionWeight,
+      highlight_progress_weight: settings.highlightProgressWeight,
     }),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -256,6 +258,8 @@ export async function analyzeVideo(
   useFlow: boolean = true,
   trackerModel: string = "yolo26m",
   climberStrategy: string = "auto",
+  highlightActionWeight: number = 0.7,
+  highlightProgressWeight: number = 0.3,
 ): Promise<AnalysisData | null> {
   const res = await fetch(`${API}/api/analyze`, {
     method: "POST",
@@ -268,6 +272,8 @@ export async function analyzeVideo(
       use_flow: useFlow,
       tracker_model: trackerModel,
       climber_strategy: climberStrategy,
+      highlight_action_weight: highlightActionWeight,
+      highlight_progress_weight: highlightProgressWeight,
     }),
   });
 

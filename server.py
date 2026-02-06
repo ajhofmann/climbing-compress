@@ -132,6 +132,8 @@ class AnalyzeRequest(BaseModel):
     use_flow: bool = True
     tracker_model: str = "yolo26m"
     climber_strategy: str = "auto"
+    highlight_action_weight: float = 0.7
+    highlight_progress_weight: float = 0.3
 
 class PreviewRequest(RenderRequest):
     preview_start: float = 0.0

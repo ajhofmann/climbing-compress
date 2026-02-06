@@ -55,6 +55,8 @@ export default function Home() {
           settings.useFlow,
           settings.trackerModel,
           settings.climberStrategy,
+          settings.highlightActionWeight,
+          settings.highlightProgressWeight,
         );
       }
       if (result) {
