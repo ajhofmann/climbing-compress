@@ -30,9 +30,17 @@ def test_project_summary_includes_output_duration(tmp_path, monkeypatch):
         path="/tmp/out.mp4",
         stats={"output_duration": 3.2},
     )
+    db_module.insert_output(
+        output_id="out-test-2",
+        video_id=video_id,
+        job_id="job-test-2",
+        output_type="preview",
+        path="/tmp/out2.mp4",
+        stats={"output_duration": 4.4},
+    )
 
     summary = db_module.get_project_summary(project_id)
-    assert summary["latest_output"]["output_duration"] == 3.2
+    assert summary["latest_output"]["output_duration"] == 4.4
 
 
 def test_unassigned_summary_includes_output_duration(tmp_path, monkeypatch):
