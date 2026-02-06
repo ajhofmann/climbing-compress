@@ -178,6 +178,16 @@ def _model_dump(model: BaseModel) -> dict:
     return model.dict()
 
 
+class JobCancelled(Exception):
+    pass
+
+
+def _ensure_job_active(job_id: str) -> None:
+    job = db_get_job(job_id)
+    if job and job.get("status") == "cancelled":
+        raise JobCancelled()
+
+
 # ---- Endpoints ----
 
 @app.post("/api/upload")
@@ -272,6 +282,7 @@ async def analyze_video(req: AnalyzeRequest):
         update_job(job_id, status="running", progress=0.0, message="Starting analysis")
 
         def emit_job(payload: dict) -> None:
+            _ensure_job_active(job_id)
             payload = {**payload, "job_id": job_id}
             update_job(
                 job_id,
@@ -291,6 +302,8 @@ async def analyze_video(req: AnalyzeRequest):
 
         try:
             run_analysis(str(path), req, emit_job)
+        except JobCancelled:
+            update_job(job_id, status="cancelled", message="Cancelled")
         except Exception as exc:
             update_job(job_id, status="failed", message=str(exc))
             raise
@@ -354,6 +367,7 @@ async def render_video_endpoint(req: RenderRequest):
         update_job(job_id, status="running", progress=0.0, message="Starting render")
 
         def emit_job(payload: dict) -> None:
+            _ensure_job_active(job_id)
             payload = {**payload, "job_id": job_id}
             update_job(
                 job_id,
@@ -395,6 +409,8 @@ async def render_video_endpoint(req: RenderRequest):
 
         try:
             run_render(str(path), req, OUTPUT_DIR, emit_job)
+        except JobCancelled:
+            update_job(job_id, status="cancelled", message="Cancelled")
         except Exception as exc:
             update_job(job_id, status="failed", message=str(exc))
             raise
@@ -437,6 +453,7 @@ async def preview_video(req: PreviewRequest):
         update_job(job_id, status="running", progress=0.0, message="Starting preview render")
 
         def emit_job(payload: dict) -> None:
+            _ensure_job_active(job_id)
             payload = {**payload, "job_id": job_id}
             update_job(
                 job_id,
@@ -467,6 +484,8 @@ async def preview_video(req: PreviewRequest):
 
         try:
             run_render(str(path), preview_req, OUTPUT_DIR, emit_job)
+        except JobCancelled:
+            update_job(job_id, status="cancelled", message="Cancelled")
         except Exception as exc:
             update_job(job_id, status="failed", message=str(exc))
             raise
@@ -506,6 +525,17 @@ async def job_status(job_id: str):
         "updated_at": job["updated_at"],
         "result": result,
     }
+
+
+@app.post("/api/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    job = db_get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job["status"] in ("success", "failed", "cancelled"):
+        return {"id": job_id, "status": job["status"]}
+    update_job(job_id, status="cancelled", message="Cancelled")
+    return {"id": job_id, "status": "cancelled"}
 
 
 @app.get("/api/jobs")
