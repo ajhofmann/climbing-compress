@@ -191,3 +191,114 @@ def update_video_info(video_id: str, info: dict[str, Any]) -> None:
     conn.commit()
     conn.close()
 
+
+def insert_job(
+    job_id: str,
+    video_id: str,
+    job_type: str,
+    status: str = "queued",
+    progress: float = 0.0,
+    message: str | None = None,
+    result: dict[str, Any] | None = None,
+) -> None:
+    now = time.time()
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO jobs (id, video_id, job_type, status, progress, message, result_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            job_id,
+            video_id,
+            job_type,
+            status,
+            progress,
+            message,
+            json.dumps(result) if result is not None else None,
+            now,
+            now,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_job(
+    job_id: str,
+    status: str | None = None,
+    progress: float | None = None,
+    message: str | None = None,
+    result: dict[str, Any] | None = None,
+) -> None:
+    fields = []
+    params: list[Any] = []
+
+    if status is not None:
+        fields.append("status = ?")
+        params.append(status)
+    if progress is not None:
+        fields.append("progress = ?")
+        params.append(progress)
+    if message is not None:
+        fields.append("message = ?")
+        params.append(message)
+    if result is not None:
+        fields.append("result_json = ?")
+        params.append(json.dumps(result))
+
+    if not fields:
+        return
+
+    fields.append("updated_at = ?")
+    params.append(time.time())
+    params.append(job_id)
+
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(f"UPDATE jobs SET {', '.join(fields)} WHERE id = ?", params)
+    conn.commit()
+    conn.close()
+
+
+def get_job(job_id: str) -> dict[str, Any] | None:
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM jobs WHERE id = ?", (job_id,))
+    row = cur.fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return _row_to_dict(cur, row)
+
+
+def list_jobs(
+    video_id: str | None = None,
+    job_type: str | None = None,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+
+    conditions = []
+    params: list[Any] = []
+
+    if video_id is not None:
+        conditions.append("video_id = ?")
+        params.append(video_id)
+    if job_type is not None:
+        conditions.append("job_type = ?")
+        params.append(job_type)
+    if status is not None:
+        conditions.append("status = ?")
+        params.append(status)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    cur.execute(f"SELECT * FROM jobs {where} ORDER BY created_at DESC", params)
+    rows = cur.fetchall()
+    conn.close()
+    return [_row_to_dict(cur, row) for row in rows]
+

@@ -16,7 +16,7 @@ import uuid
 from pathlib import Path
 
 import numpy as np
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -40,6 +40,10 @@ from db import (
     get_video_by_hash,
     register_video,
     update_video_info,
+    insert_job,
+    update_job,
+    get_job as db_get_job,
+    list_jobs as db_list_jobs,
 )
 
 logger = logging.getLogger(__name__)
@@ -220,9 +224,35 @@ async def list_videos():
 @app.post("/api/analyze")
 async def analyze_video(req: AnalyzeRequest):
     path = _get_video_path(req.video_id)
+    job_id = uuid.uuid4().hex[:12]
+    insert_job(job_id, req.video_id, "analyze", status="queued", message="Queued")
 
     def worker(emit):
-        run_analysis(str(path), req, emit)
+        update_job(job_id, status="running", progress=0.0, message="Starting analysis")
+
+        def emit_job(payload: dict) -> None:
+            payload = {**payload, "job_id": job_id}
+            update_job(
+                job_id,
+                status="running",
+                progress=float(payload.get("progress", 0.0)),
+                message=payload.get("message"),
+            )
+            if payload.get("done"):
+                update_job(
+                    job_id,
+                    status="success",
+                    progress=1.0,
+                    message=payload.get("message", "Done"),
+                    result=payload,
+                )
+            emit(payload)
+
+        try:
+            run_analysis(str(path), req, emit_job)
+        except Exception as exc:
+            update_job(job_id, status="failed", message=str(exc))
+            raise
 
     return sse_response(worker)
 
@@ -276,9 +306,35 @@ async def solve_curve(req: SolveRequest):
 @app.post("/api/render")
 async def render_video_endpoint(req: RenderRequest):
     path = _get_video_path(req.video_id)
+    job_id = uuid.uuid4().hex[:12]
+    insert_job(job_id, req.video_id, "render", status="queued", message="Queued")
 
     def worker(emit):
-        run_render(str(path), req, OUTPUT_DIR, emit)
+        update_job(job_id, status="running", progress=0.0, message="Starting render")
+
+        def emit_job(payload: dict) -> None:
+            payload = {**payload, "job_id": job_id}
+            update_job(
+                job_id,
+                status="running",
+                progress=float(payload.get("progress", 0.0)),
+                message=payload.get("message"),
+            )
+            if payload.get("done"):
+                update_job(
+                    job_id,
+                    status="success",
+                    progress=1.0,
+                    message=payload.get("message", "Done"),
+                    result=payload,
+                )
+            emit(payload)
+
+        try:
+            run_render(str(path), req, OUTPUT_DIR, emit_job)
+        except Exception as exc:
+            update_job(job_id, status="failed", message=str(exc))
+            raise
 
     return sse_response(worker)
 
@@ -291,6 +347,52 @@ async def serve_video(video_id: str):
             if f.stem == video_id:
                 return FileResponse(str(f), media_type="video/mp4")
     raise HTTPException(404, "Video not found")
+
+
+@app.get("/api/jobs/{job_id}")
+async def job_status(job_id: str):
+    job = db_get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    result = None
+    if job.get("result_json"):
+        try:
+            result = json.loads(job["result_json"])
+        except json.JSONDecodeError:
+            result = None
+    return {
+        "id": job["id"],
+        "video_id": job["video_id"],
+        "job_type": job["job_type"],
+        "status": job["status"],
+        "progress": job["progress"],
+        "message": job["message"],
+        "created_at": job["created_at"],
+        "updated_at": job["updated_at"],
+        "result": result,
+    }
+
+
+@app.get("/api/jobs")
+async def list_jobs(
+    video_id: str | None = Query(default=None),
+    job_type: str | None = Query(default=None),
+    status: str | None = Query(default=None),
+):
+    jobs = db_list_jobs(video_id=video_id, job_type=job_type, status=status)
+    payload = []
+    for job in jobs:
+        payload.append({
+            "id": job["id"],
+            "video_id": job["video_id"],
+            "job_type": job["job_type"],
+            "status": job["status"],
+            "progress": job["progress"],
+            "message": job["message"],
+            "created_at": job["created_at"],
+            "updated_at": job["updated_at"],
+        })
+    return payload
 
 
 if __name__ == "__main__":
