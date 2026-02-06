@@ -87,3 +87,7 @@ def test_jobs_api_filters(tmp_path, monkeypatch):
     combined_jobs = response.json()
     assert len(combined_jobs) == 1
     assert combined_jobs[0]["id"] == "job-project"
+
+    response = client.get("/api/jobs?project_id=missing")
+    assert response.status_code == 200
+    assert response.json() == []
