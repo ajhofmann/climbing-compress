@@ -9,3 +9,14 @@ export const formatAge = (timestamp?: number) => {
   const days = Math.floor(hours / 24);
   return `${days}d`;
 };
+
+export const formatBytes = (size?: number | null, empty = "") => {
+  if (size === null || size === undefined) return empty;
+  if (size === 0) return "0kb";
+  const kb = size / 1024;
+  if (kb < 1024) return `${Math.round(kb)}kb`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)}mb`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(1)}gb`;
+};

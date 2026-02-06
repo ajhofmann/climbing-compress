@@ -2,6 +2,7 @@
 
 import { useSystemMetrics } from "./use-system-metrics";
 import { styles } from "./styles";
+import { formatBytes } from "@/lib/format";
 
 function formatLabel(label: string) {
   return label.replace(/_/g, " ");
@@ -11,16 +12,6 @@ function formatOutputType(label: string) {
   if (label === "main") return "render";
   if (label === "comparison") return "compare";
   return formatLabel(label);
-}
-
-function formatBytes(size?: number) {
-  if (!size) return "0kb";
-  const kb = size / 1024;
-  if (kb < 1024) return `${Math.round(kb)}kb`;
-  const mb = kb / 1024;
-  if (mb < 1024) return `${mb.toFixed(1)}mb`;
-  const gb = mb / 1024;
-  return `${gb.toFixed(1)}gb`;
 }
 
 function formatSeconds(value?: number) {
@@ -127,15 +118,15 @@ export function SystemMetrics() {
         <div className={styles.list}>
           <div className={styles.pill} style={{ background: "#080810" }}>
             <span>db size</span>
-            <span className="font-mono text-text">{formatBytes(metrics.db_size_bytes)}</span>
+            <span className="font-mono text-text">{formatBytes(metrics.db_size_bytes, "0kb")}</span>
           </div>
           <div className={styles.pill} style={{ background: "#080810" }}>
             <span>input storage</span>
-            <span className="font-mono text-text">{formatBytes(metrics.input_storage_bytes)}</span>
+            <span className="font-mono text-text">{formatBytes(metrics.input_storage_bytes, "0kb")}</span>
           </div>
           <div className={styles.pill} style={{ background: "#080810" }}>
             <span>cache storage</span>
-            <span className="font-mono text-text">{formatBytes(metrics.cache_storage_bytes)}</span>
+            <span className="font-mono text-text">{formatBytes(metrics.cache_storage_bytes, "0kb")}</span>
           </div>
           <div className={styles.pill} style={{ background: "#080810" }}>
             <span>cache entries</span>
@@ -143,11 +134,11 @@ export function SystemMetrics() {
           </div>
           <div className={styles.pill} style={{ background: "#080810" }}>
             <span>output storage</span>
-            <span className="font-mono text-text">{formatBytes(metrics.output_storage_bytes)}</span>
+            <span className="font-mono text-text">{formatBytes(metrics.output_storage_bytes, "0kb")}</span>
           </div>
           <div className={styles.pill} style={{ background: "#080810" }}>
             <span>total storage</span>
-            <span className="font-mono text-text">{formatBytes(metrics.total_storage_bytes)}</span>
+            <span className="font-mono text-text">{formatBytes(metrics.total_storage_bytes, "0kb")}</span>
           </div>
         </div>
       )}

@@ -3,7 +3,7 @@
 import { useOutputHistory } from "./use-output-history";
 import { styles } from "./styles";
 import { useStore } from "@/lib/store";
-import { formatAge } from "@/lib/format";
+import { formatAge, formatBytes } from "@/lib/format";
 
 function formatDuration(duration?: number | null) {
   if (duration === null || duration === undefined) return "";
@@ -16,17 +16,6 @@ function formatOutputType(outputType: string) {
   if (outputType === "comparison") return "compare";
   if (outputType === "preview") return "preview";
   return outputType;
-}
-
-function formatBytes(size?: number | null) {
-  if (size === null || size === undefined) return "";
-  if (size === 0) return "0kb";
-  const kb = size / 1024;
-  if (kb < 1024) return `${Math.round(kb)}kb`;
-  const mb = kb / 1024;
-  if (mb < 1024) return `${mb.toFixed(1)}mb`;
-  const gb = mb / 1024;
-  return `${gb.toFixed(1)}gb`;
 }
 
 export function OutputHistory() {

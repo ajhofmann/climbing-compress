@@ -3,18 +3,7 @@
 import { useVideoLibrary } from "./use-video-library";
 import { styles } from "./styles";
 import { useStore } from "@/lib/store";
-import { formatAge } from "@/lib/format";
-
-const formatBytes = (size?: number) => {
-  if (size === undefined) return "";
-  if (size === 0) return "0kb";
-  const kb = size / 1024;
-  if (kb < 1024) return `${Math.round(kb)}kb`;
-  const mb = kb / 1024;
-  if (mb < 1024) return `${mb.toFixed(1)}mb`;
-  const gb = mb / 1024;
-  return `${gb.toFixed(1)}gb`;
-};
+import { formatAge, formatBytes } from "@/lib/format";
 
 export function VideoLibrary() {
   const { videos, error, refresh, loadVideo, lastUpdated } = useVideoLibrary();
