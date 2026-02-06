@@ -52,6 +52,12 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
         job_type="render",
         status="failed",
     )
+    db_module.insert_job(
+        job_id="job-running",
+        video_id="video-api",
+        job_type="analysis",
+        status="running",
+    )
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (10.0, 15.0, "job-analyze"))
@@ -72,7 +78,8 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
     assert payload["avg_output_duration_by_type"]["main"] == 2.0
     assert payload["jobs_by_status"]["success"] == 1
     assert payload["jobs_by_status"]["failed"] == 1
-    assert payload["jobs_by_type"]["analysis"] == 1
+    assert payload["jobs_by_status"]["running"] == 1
+    assert payload["jobs_by_type"]["analysis"] == 2
     assert payload["jobs_by_type"]["render"] == 1
     assert payload["avg_duration_by_type"]["analysis"] == 5.0
     assert payload["avg_duration_by_type"]["render"] == 3.0
