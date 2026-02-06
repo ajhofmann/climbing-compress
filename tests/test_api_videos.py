@@ -69,6 +69,7 @@ def test_videos_api_includes_project_and_size(tmp_path, monkeypatch):
     video = next(item for item in payload if item["video_id"] == "video-api")
     video_zero = next(item for item in payload if item["video_id"] == "video-zero")
     assert video["project_name"] == "Project Videos API"
+    assert video["project_id"] == project_id
     assert video["size_bytes"] == len(b"video-bytes")
     assert video["info"]["duration"] == 1.0
     assert video_zero["size_bytes"] == 0
