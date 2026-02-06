@@ -81,6 +81,7 @@ def test_retry_job_endpoint_requeues(tmp_path, monkeypatch):
     payload = response.json()
     assert payload["status"] == "queued"
     new_job_id = payload["job_id"]
+    assert new_job_id != "job-retry"
 
     status_response = client.get(f"/api/jobs/{new_job_id}")
     assert status_response.status_code == 200
