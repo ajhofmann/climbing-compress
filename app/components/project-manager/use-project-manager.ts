@@ -25,7 +25,9 @@ export function useProjectManager() {
       const data = await listProjects();
       setProjects(data);
       if (!selectedProjectId && data.length > 0) {
-        setSelectedProjectId(data[0].id);
+        const stored = typeof window !== "undefined" ? window.localStorage.getItem("projectId") : null;
+        const match = stored ? data.find((p) => p.id === stored) : null;
+        setSelectedProjectId(match?.id ?? data[0].id);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load projects";
@@ -41,6 +43,13 @@ export function useProjectManager() {
 
   const selectProject = useCallback(async (projectId: string | null) => {
     setSelectedProjectId(projectId);
+    if (typeof window !== "undefined") {
+      if (projectId) {
+        window.localStorage.setItem("projectId", projectId);
+      } else {
+        window.localStorage.removeItem("projectId");
+      }
+    }
     if (videoId) {
       try {
         await assignVideoProject(videoId, projectId);
