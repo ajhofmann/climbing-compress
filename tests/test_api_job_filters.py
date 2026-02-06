@@ -95,3 +95,7 @@ def test_jobs_api_filters(tmp_path, monkeypatch):
     response = client.get("/api/jobs?job_type=missing")
     assert response.status_code == 200
     assert response.json() == []
+
+    response = client.get("/api/jobs?status=missing")
+    assert response.status_code == 200
+    assert response.json() == []
