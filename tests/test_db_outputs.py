@@ -1,0 +1,60 @@
+import importlib
+
+
+def test_list_outputs_includes_project_name(tmp_path, monkeypatch):
+    db_path = tmp_path / "outputs.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    project_id = "proj-outputs"
+    video_id = "video-assigned"
+    db_module.insert_project(project_id, "Project Outputs")
+    db_module.register_video(
+        video_id=video_id,
+        filename="assigned.mp4",
+        path="/tmp/assigned.mp4",
+        file_hash="hash-assigned",
+        project_id=project_id,
+    )
+    db_module.insert_output(
+        output_id="output-assigned",
+        video_id=video_id,
+        job_id="job-assigned",
+        output_type="main",
+        path="/tmp/out-assigned.mp4",
+    )
+
+    unassigned_video_id = "video-unassigned"
+    db_module.register_video(
+        video_id=unassigned_video_id,
+        filename="unassigned.mp4",
+        path="/tmp/unassigned.mp4",
+        file_hash="hash-unassigned",
+        project_id=None,
+    )
+    db_module.insert_output(
+        output_id="output-unassigned",
+        video_id=unassigned_video_id,
+        job_id="job-unassigned",
+        output_type="preview",
+        path="/tmp/out-unassigned.mp4",
+    )
+
+    outputs = db_module.list_outputs()
+    assert {output["id"] for output in outputs} == {"output-assigned", "output-unassigned"}
+    assigned = next(output for output in outputs if output["id"] == "output-assigned")
+    unassigned = next(output for output in outputs if output["id"] == "output-unassigned")
+    assert assigned["project_id"] == project_id
+    assert assigned["project_name"] == "Project Outputs"
+    assert unassigned["project_id"] is None
+    assert unassigned["project_name"] is None
+
+    assigned_outputs = db_module.list_outputs(project_id=project_id)
+    assert len(assigned_outputs) == 1
+    assert assigned_outputs[0]["id"] == "output-assigned"
+
+    unassigned_outputs = db_module.list_outputs(project_id="unassigned")
+    assert len(unassigned_outputs) == 1
+    assert unassigned_outputs[0]["id"] == "output-unassigned"
