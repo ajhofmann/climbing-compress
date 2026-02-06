@@ -551,7 +551,7 @@ def list_jobs(
         params.append(status)
 
     where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    cur.execute(f"{base_query} {where} ORDER BY jobs.created_at DESC", params)
+    cur.execute(f"{base_query} {where} ORDER BY jobs.updated_at DESC", params)
     rows = cur.fetchall()
     conn.close()
     return [_row_to_dict(cur, row) for row in rows]
