@@ -73,7 +73,7 @@ export function OutputHistory() {
               <span className={styles.meta} title={output.project_name ?? "unassigned"}>
                 {output.project_name ?? "unassigned"}
               </span>
-              <span className={styles.meta} title={output.id}>{output.id}</span>
+              <span className={styles.meta} title={output.id}>{output.id.slice(0, 8)}</span>
               <button className={styles.button} onClick={() => loadOutput(output)}>
                 Load
               </button>
