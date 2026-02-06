@@ -424,6 +424,7 @@ async def list_videos(project_id: str | None = Query(default=None)):
         path = Path(record["path"])
         if not path.exists():
             continue
+        size_bytes = path.stat().st_size
         if record.get("info_json"):
             info = json.loads(record["info_json"])
         else:
@@ -436,6 +437,7 @@ async def list_videos(project_id: str | None = Query(default=None)):
             "project_id": record.get("project_id"),
             "project_name": record.get("project_name"),
             "created_at": record.get("created_at"),
+            "size_bytes": size_bytes,
             "cached": has_cache(str(path)),
         })
     return result

@@ -13,6 +13,16 @@ const formatAge = (timestamp?: number) => {
   return `${hours}h`;
 };
 
+const formatBytes = (size?: number) => {
+  if (!size) return "";
+  const kb = size / 1024;
+  if (kb < 1024) return `${Math.round(kb)}kb`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)}mb`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(1)}gb`;
+};
+
 export function VideoLibrary() {
   const { videos, error, refresh, loadVideo } = useVideoLibrary();
 
@@ -36,6 +46,9 @@ export function VideoLibrary() {
                 <span className={styles.meta}>{formatAge(video.created_at)}</span>
               )}
               <span className={styles.meta}>{Math.round(video.info.duration)}s</span>
+              {video.size_bytes && (
+                <span className={styles.meta}>{formatBytes(video.size_bytes)}</span>
+              )}
               <span className={styles.meta}>{video.info.width}x{video.info.height}</span>
               <span className={styles.meta}>{video.project_name ?? "unassigned"}</span>
               {video.cached && <span className={styles.meta}>cached</span>}

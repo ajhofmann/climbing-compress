@@ -12,6 +12,7 @@ interface VideoRecord {
   project_id?: string | null;
   project_name?: string | null;
   created_at?: number;
+  size_bytes?: number;
   cached?: boolean;
 }
 
