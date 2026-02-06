@@ -517,7 +517,13 @@ def list_jobs(
     params: list[Any] = []
     conditions = []
 
-    base_query = "SELECT jobs.*, videos.filename as video_filename, videos.project_id as project_id FROM jobs JOIN videos ON jobs.video_id = videos.id"
+    base_query = (
+        "SELECT jobs.*, videos.filename as video_filename, videos.project_id as project_id, "
+        "projects.name as project_name "
+        "FROM jobs "
+        "JOIN videos ON jobs.video_id = videos.id "
+        "LEFT JOIN projects ON videos.project_id = projects.id"
+    )
     if project_id is not None:
         if project_id == "unassigned":
             conditions.append("videos.project_id IS NULL")

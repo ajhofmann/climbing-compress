@@ -78,6 +78,7 @@ export interface JobRecord {
   video_id: string;
   video_filename?: string | null;
   project_id?: string | null;
+  project_name?: string | null;
   job_type: string;
   status: string;
   progress: number;

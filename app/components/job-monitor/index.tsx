@@ -70,6 +70,7 @@ export function JobMonitor() {
               {job.message && (
                 <span className="text-text-muted truncate max-w-[160px]">{job.message}</span>
               )}
+              <span className="text-text-muted">{job.project_name ?? "unassigned"}</span>
               <span className="ml-auto text-text-muted">{job.video_filename ?? job.video_id}</span>
               {(job.status === "queued" || job.status === "running") && (
                 <button
