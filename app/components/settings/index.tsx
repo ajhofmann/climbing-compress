@@ -99,6 +99,21 @@ export function SettingsPanel() {
                   title="Tracker model: FAST = yolo26n (quick), BAL = yolo26s (balanced), ACC = yolo26m (most accurate)"
                 />
               )}
+              {s.useTracker && (
+                <RotarySelect
+                  label="SUBJ"
+                  value={s.climberStrategy}
+                  options={[
+                    { value: "auto", label: "AUTO" },
+                    { value: "highest", label: "HIGH" },
+                    { value: "largest", label: "LARGE" },
+                    { value: "leftmost", label: "LEFT" },
+                    { value: "rightmost", label: "RIGHT" },
+                  ]}
+                  onChange={(v) => u("climberStrategy", v)}
+                  title="Subject selection strategy when multiple climbers are present"
+                />
+              )}
               <ToggleSwitch label="FLOW" checked={s.useFlow} onChange={(v) => u("useFlow", v)} color="#e040fb" title="Optical flow + shake compensation from wall features" />
             </div>
           </div>

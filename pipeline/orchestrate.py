@@ -222,6 +222,7 @@ def run_analysis(
                     stride=req.stride,
                     progress_cb=track_progress,
                     model_name=tracker_model,
+                    strategy=getattr(req, "climber_strategy", "auto"),
                 )
                 if tracks:
                     save_tracks(video_path, tracks, fps=0, stride=req.stride)

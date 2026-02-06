@@ -97,6 +97,7 @@ export interface Settings {
   useTracker: boolean;
   useFlow: boolean;
   trackerModel: string;
+  climberStrategy: string;
   // Constant progress mode
   progressFloor: number;
   verticalBias: number;
@@ -137,6 +138,7 @@ export const DEFAULT_SETTINGS: Settings = {
   useTracker: true,
   useFlow: true,
   trackerModel: "yolo26m",
+  climberStrategy: "auto",
   progressFloor: 0.02,
   verticalBias: 0.7,
   downWeight: 0.15,

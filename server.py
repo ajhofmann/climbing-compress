@@ -127,6 +127,7 @@ class AnalyzeRequest(BaseModel):
     use_tracker: bool = True
     use_flow: bool = True
     tracker_model: str = "yolo26m"
+    climber_strategy: str = "auto"
 
 class PreviewRequest(RenderRequest):
     preview_start: float = 0.0

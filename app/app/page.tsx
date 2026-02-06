@@ -42,14 +42,28 @@ export default function Home() {
       stride: settings.analyzeStride,
       useTracker: settings.useTracker,
       useFlow: settings.useFlow,
+      climberStrategy: settings.climberStrategy,
     };
     const cached = store.analysisParams;
-    const paramsMatch = cached && cached.stride === currentParams.stride && cached.useTracker === currentParams.useTracker && cached.useFlow === currentParams.useFlow;
+    const paramsMatch = cached
+      && cached.stride === currentParams.stride
+      && cached.useTracker === currentParams.useTracker
+      && cached.useFlow === currentParams.useFlow
+      && cached.climberStrategy === currentParams.climberStrategy;
     const force = !!(analysis && paramsMatch);
     store.setAnalyzing(true);
     store.setProgress(0, force ? "Re-analyzing (fresh)..." : "Starting analysis...");
     try {
-      const result = await analyzeVideo(videoId, settings.analyzeStride, force, (p, msg) => { store.setProgress(p, msg); }, settings.useTracker, settings.useFlow, settings.trackerModel);
+      const result = await analyzeVideo(
+        videoId,
+        settings.analyzeStride,
+        force,
+        (p, msg) => { store.setProgress(p, msg); },
+        settings.useTracker,
+        settings.useFlow,
+        settings.trackerModel,
+        settings.climberStrategy,
+      );
       if (result) {
         store.setAnalysis(result, currentParams);
         if (settings.trimEnd === 0) store.updateSettings({ trimEnd: result.duration });

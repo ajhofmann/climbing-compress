@@ -7,6 +7,7 @@ export interface AnalysisParams {
   stride: number;
   useTracker: boolean;
   useFlow: boolean;
+  climberStrategy: string;
 }
 
 interface Store {

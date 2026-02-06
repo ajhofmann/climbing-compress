@@ -60,6 +60,7 @@ class ClimberTracker:
         conf_threshold: float = 0.3,
         frame_rate: int = 30,
         model_name: str | None = None,
+        strategy: str = "auto",
     ):
         if not HAS_TRACKER:
             raise ImportError(
@@ -78,6 +79,7 @@ class ClimberTracker:
         )
         self.conf_threshold = conf_threshold
         self.frame_rate = frame_rate
+        self.strategy = strategy
         self.climber_track_id: int | None = None
         self._track_history: dict[int, list[tuple[int, float]]] = {}
         self.last_bbox_norm: tuple[float, float, float, float] | None = None
@@ -221,6 +223,9 @@ class ClimberTracker:
         if len(tracked) == 0:
             return None
 
+        if self.strategy != "auto":
+            return self._select_by_strategy(tracked, h, w)
+
         last_bbox = self.last_bbox_norm
         frame_gap = 1
         if self.last_frame_idx is not None and frame_idx > self.last_frame_idx:
@@ -295,6 +300,38 @@ class ClimberTracker:
         self.climber_track_id = int(tracked.tracker_id[best_idx])
         return best_idx
 
+    def _select_by_strategy(self, tracked, h: int, w: int) -> int | None:
+        """Select subject based on a fixed strategy (highest/leftmost/etc)."""
+        best_idx: int | None = None
+        best_score: float | None = None
+
+        for i, _track_id in enumerate(tracked.tracker_id):
+            bbox = tracked.xyxy[i]
+            center_x = (bbox[0] + bbox[2]) / 2 / w
+            center_y = (bbox[1] + bbox[3]) / 2 / h
+            area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) / (w * h)
+
+            if self.strategy == "highest":
+                score = -center_y
+            elif self.strategy == "largest":
+                score = area
+            elif self.strategy == "leftmost":
+                score = -center_x
+            elif self.strategy == "rightmost":
+                score = center_x
+            else:
+                score = area
+
+            if best_score is None or score > best_score:
+                best_score = score
+                best_idx = i
+
+        if best_idx is None:
+            return None
+
+        self.climber_track_id = int(tracked.tracker_id[best_idx])
+        return best_idx
+
 
 def track_video(
     video_path: str,
@@ -302,6 +339,7 @@ def track_video(
     max_short_side: int = 640,
     progress_cb: Callable[[float], None] | None = None,
     model_name: str | None = None,
+    strategy: str = "auto",
 ) -> tuple[list[dict | None], float]:
     """Run person tracking on entire video.
 
@@ -332,6 +370,7 @@ def track_video(
             tracker = ClimberTracker(
                 frame_rate=int(fps) or 30,
                 model_name=model_name,
+                strategy=strategy,
             )
             results = [None] * total_frames
 

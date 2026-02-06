@@ -97,6 +97,7 @@ export async function analyzeVideo(
   useTracker: boolean = true,
   useFlow: boolean = true,
   trackerModel: string = "yolo26m",
+  climberStrategy: string = "auto",
 ): Promise<AnalysisData | null> {
   const res = await fetch(`${API}/api/analyze`, {
     method: "POST",
@@ -108,6 +109,7 @@ export async function analyzeVideo(
       use_tracker: useTracker,
       use_flow: useFlow,
       tracker_model: trackerModel,
+      climber_strategy: climberStrategy,
     }),
   });
 
