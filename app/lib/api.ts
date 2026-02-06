@@ -62,6 +62,12 @@ export async function cancelJob(jobId: string): Promise<{ id: string; status: st
   return res.json();
 }
 
+export async function retryJob(jobId: string): Promise<{ job_id: string; status: string }> {
+  const res = await fetch(`${API}/api/jobs/${jobId}/retry`, { method: "POST" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function listOutputs(videoId?: string | null) {
   const query = videoId ? `?video_id=${encodeURIComponent(videoId)}` : "";
   const res = await fetch(`${API}/api/outputs${query}`);

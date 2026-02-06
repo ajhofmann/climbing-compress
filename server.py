@@ -587,6 +587,34 @@ async def cancel_job(job_id: str):
     return {"id": job_id, "status": "cancelled"}
 
 
+@app.post("/api/jobs/{job_id}/retry")
+async def retry_job(job_id: str):
+    job = db_get_job(job_id)
+    if not job:
+        raise HTTPException(404, "Job not found")
+    if job["status"] not in ("failed", "cancelled"):
+        return {"job_id": job_id, "status": job["status"]}
+    request_payload = None
+    if job.get("request_json"):
+        try:
+            request_payload = json.loads(job["request_json"])
+        except json.JSONDecodeError:
+            request_payload = None
+    if not request_payload:
+        raise HTTPException(400, "Job request payload missing")
+
+    new_job_id = uuid.uuid4().hex[:12]
+    insert_job(
+        new_job_id,
+        job["video_id"],
+        job["job_type"],
+        status="queued",
+        message="Queued",
+        request=request_payload,
+    )
+    return {"job_id": new_job_id, "status": "queued"}
+
+
 @app.get("/api/jobs")
 async def list_jobs(
     video_id: str | None = Query(default=None),

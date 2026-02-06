@@ -16,7 +16,7 @@ function formatJobType(jobType: string) {
 }
 
 export function JobMonitor() {
-  const { jobs, error, cancel, isCancelling } = useJobMonitor();
+  const { jobs, error, cancel, isCancelling, retry, isRetrying } = useJobMonitor();
 
   return (
     <div className={styles.panel}>
@@ -47,6 +47,15 @@ export function JobMonitor() {
                   className="text-[9px] font-pixel uppercase text-neon-magenta hover:text-white"
                 >
                   {isCancelling === job.id ? "CANCEL..." : "CANCEL"}
+                </button>
+              )}
+              {(job.status === "failed" || job.status === "cancelled") && (
+                <button
+                  onClick={() => retry(job.id)}
+                  disabled={isRetrying === job.id}
+                  className="text-[9px] font-pixel uppercase text-neon-cyan hover:text-white"
+                >
+                  {isRetrying === job.id ? "RETRY..." : "RETRY"}
                 </button>
               )}
             </div>

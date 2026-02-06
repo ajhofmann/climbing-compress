@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { cancelJob, listJobs } from "@/lib/api";
+import { cancelJob, listJobs, retryJob } from "@/lib/api";
 import { JobRecord } from "@/lib/types";
 
 export function useJobMonitor() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -33,11 +34,24 @@ export function useJobMonitor() {
     }
   }, [refresh]);
 
+  const retry = useCallback(async (jobId: string) => {
+    setIsRetrying(jobId);
+    try {
+      await retryJob(jobId);
+      await refresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to retry job";
+      setError(msg);
+    } finally {
+      setIsRetrying(null);
+    }
+  }, [refresh]);
+
   useEffect(() => {
     refresh();
     const id = window.setInterval(refresh, 6000);
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  return { jobs, error, cancel, isCancelling };
+  return { jobs, error, cancel, isCancelling, retry, isRetrying };
 }
