@@ -13,7 +13,13 @@ export function TimelineEditor() {
   const { videoId, analysis, curve, curveTimes, pins, setPins, settings, updateSettings, stats } = useStore();
 
   const waveformUrl = analysis
-    ? (settings.mode === "progress" ? analysis.waveform_progress : analysis.waveform_action)
+    ? (
+      settings.mode === "progress"
+        ? analysis.waveform_progress
+        : settings.mode === "highlight"
+          ? (analysis.waveform_highlight ?? analysis.waveform_action)
+          : analysis.waveform_action
+    )
     : "";
 
   // Frame preview state

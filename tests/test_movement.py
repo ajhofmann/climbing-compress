@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pipeline.movement import score_movement, score_progress, analyze_rest_signals
+from pipeline.movement import score_movement, score_progress, analyze_rest_signals, score_highlight
 
 
 class TestScoreMovement:
@@ -424,3 +424,20 @@ class TestAnalyzeRestSignals:
         result = analyze_rest_signals(poses, 30)
         assert len(result["com_variance"]) == 1
         assert len(result["limb_ratio"]) == 1
+
+
+class TestScoreHighlight:
+    """Tests for highlight score blending."""
+
+    def test_blend_weights(self):
+        action = np.array([0.0, 1.0])
+        progress = np.array([1.0, 0.0])
+        result = score_highlight(action, progress, action_weight=0.7, progress_weight=0.3)
+        assert result.shape[0] == 2
+        assert np.all(result >= 0.0)
+        assert np.all(result <= 1.0)
+        assert result[1] > result[0]
+
+    def test_empty_input(self):
+        result = score_highlight(np.array([]), np.array([]))
+        assert len(result) == 0

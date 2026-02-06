@@ -44,6 +44,7 @@ export function SettingsPanel() {
                 {([
                   { key: "progress" as const, label: "PROGRESS", tip: "50% of video = 50% up the wall.\nStalling = fast-forward." },
                   { key: "action" as const, label: "ACTION", tip: "Big moves get slow-mo,\nchalk-ups get skipped." },
+                  { key: "highlight" as const, label: "HIGHLIGHT", tip: "Blend of action + progress\nfor crux highlight reels." },
                 ]).map(({ key, label, tip }) => (
                   <Tooltip key={key} text={tip}>
                     <button
@@ -66,7 +67,7 @@ export function SettingsPanel() {
             <LedCounter label="DURATION" value={s.targetDuration} min={3} max={120} step={1} onChange={(v) => u("targetDuration", v)} title="Target output duration in seconds.\nThe speed curve stretches to hit this." />
 
             {/* Speed faders */}
-            {s.mode === "action" && (
+            {s.mode !== "progress" && (
               <Fader label="SENS" value={s.sensitivity} min={0.01} max={0.99} step={0.01} onChange={(v) => u("sensitivity", v)} title="Sensitivity: lower = more generous slow-mo on moves" />
             )}
             <Fader label="MAX" value={s.maxSpeed} min={1} max={30} step={0.5} onChange={(v) => u("maxSpeed", v)} color="#76ff03" title="Max Speed: how fast to skip through rest and chalk-ups" />
@@ -162,8 +163,14 @@ export function SettingsPanel() {
         </Module>
 
         {/* ═══ MIXER (body map or faders) ═══ */}
-        <Module area="mixer" label={s.mode === "action" ? "Weights" : "Speed"}>
-          {s.mode === "action" ? (
+        <Module area="mixer" label={s.mode === "progress" ? "Speed" : "Weights"}>
+          {s.mode === "progress" ? (
+            <div className="flex gap-2 justify-center">
+              <Fader label="V-BIAS" value={s.verticalBias} min={0} max={1} step={0.05} onChange={(v) => u("verticalBias", v)} color="#00e5ff" title="Vertical Bias: 0.5 = equal weight, 1.0 = vertical movement only" />
+              <Fader label="DOWN" value={s.downWeight} min={0} max={1} step={0.05} onChange={(v) => u("downWeight", v)} color="#e040fb" title="Down Weight: 0 = ignore downclimbing, 1 = count it equally" />
+              <Fader label="REST" value={s.restThreshold} min={0} max={2} step={0.05} onChange={(v) => u("restThreshold", v)} color="#ff6e40" title="Rest Skip: seconds of stillness before fast-forwarding" />
+            </div>
+          ) : (
             <BodyMap
               handWeight={s.handWeight}
               footWeight={s.footWeight}
@@ -172,12 +179,6 @@ export function SettingsPanel() {
               onFootChange={(v) => u("footWeight", v)}
               onCoreChange={(v) => u("coreWeight", v)}
             />
-          ) : (
-            <div className="flex gap-2 justify-center">
-              <Fader label="V-BIAS" value={s.verticalBias} min={0} max={1} step={0.05} onChange={(v) => u("verticalBias", v)} color="#00e5ff" title="Vertical Bias: 0.5 = equal weight, 1.0 = vertical movement only" />
-              <Fader label="DOWN" value={s.downWeight} min={0} max={1} step={0.05} onChange={(v) => u("downWeight", v)} color="#e040fb" title="Down Weight: 0 = ignore downclimbing, 1 = count it equally" />
-              <Fader label="REST" value={s.restThreshold} min={0} max={2} step={0.05} onChange={(v) => u("restThreshold", v)} color="#ff6e40" title="Rest Skip: seconds of stillness before fast-forwarding" />
-            </div>
           )}
         </Module>
 
@@ -186,7 +187,7 @@ export function SettingsPanel() {
           <div className="flex gap-2 flex-wrap justify-center">
             <Knob label="Smooth" info="Seconds of curve blur -- higher = smoother transitions" value={s.smoothing} min={0.05} max={2} step={0.05} onChange={(v) => u("smoothing", v)} />
             <Knob label="Min Spd" info="Slowest allowed speed (0.05 = 20x slow-mo)" value={s.minSpeed} min={0.05} max={1} step={0.01} onChange={(v) => u("minSpeed", v)} />
-            {s.mode === "action" && (
+            {s.mode !== "progress" && (
               <Knob label="Steep" info="Steepness of speed transitions -- higher = sharper" value={s.steepness} min={1} max={50} step={1} onChange={(v) => u("steepness", v)} />
             )}
             {s.mode === "progress" && (

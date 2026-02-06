@@ -387,3 +387,27 @@ def analyze_rest_signals(
         "com_variance": com_variance,
         "limb_ratio": limb_ratio,
     }
+
+
+def score_highlight(
+    action_scores: np.ndarray,
+    progress_scores: np.ndarray,
+    action_weight: float = 0.7,
+    progress_weight: float = 0.3,
+) -> np.ndarray:
+    """Blend action + progress into a highlight score.
+
+    Emphasizes dynamic moves while still rewarding steady upward progress.
+    """
+    n = min(len(action_scores), len(progress_scores))
+    if n == 0:
+        return np.array([])
+
+    aw = float(max(action_weight, 0.0))
+    pw = float(max(progress_weight, 0.0))
+    total = aw + pw
+    if total <= 0:
+        return np.zeros(n)
+
+    combined = (action_scores[:n] * aw + progress_scores[:n] * pw) / total
+    return np.clip(combined, 0.0, 1.0)

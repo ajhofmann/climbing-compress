@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 
 from pipeline.pose import extract_poses, interpolate_missing_poses
-from pipeline.movement import score_movement, score_progress, analyze_rest_signals
+from pipeline.movement import score_movement, score_progress, analyze_rest_signals, score_highlight
 from pipeline.speed_curve import (
     solve_speed_curve, solve_constant_progress, get_output_duration,
     detect_rest,
@@ -126,7 +126,7 @@ def compute_scores_and_curve(
             limb_ratio=rest_signals["limb_ratio"],
         )
     else:
-        scores = score_movement(
+        action_scores = score_movement(
             trimmed, fps,
             smooth_sigma_s=req.smoothing,
             hand_weight=req.hand_weight,
@@ -135,6 +135,17 @@ def compute_scores_and_curve(
             flow_scores=trimmed_flow,
             camera_motion=trimmed_cam,
         )
+        if req.mode == "highlight":
+            progress_scores = score_progress(
+                trimmed, fps,
+                smooth_sigma_s=req.smoothing,
+                vertical_bias=req.vertical_bias,
+                down_weight=getattr(req, "down_weight", 0.15),
+                camera_motion=trimmed_cam,
+            )
+            scores = score_highlight(action_scores, progress_scores)
+        else:
+            scores = action_scores
         curve = solve_speed_curve(
             scores, fps,
             target_duration=req.target_duration,
@@ -311,6 +322,7 @@ def run_analysis(
     emit({"progress": 0.70, "message": "Computing progress scores..."})
     progress_scores = score_progress(poses, fps, camera_motion=camera_motion)
     action_scores = score_movement(poses, fps, flow_scores=flow_scores, camera_motion=camera_motion)
+    highlight_scores = score_highlight(action_scores, progress_scores)
 
     emit({"progress": 0.85, "message": "Generating waveforms..."})
 
@@ -318,9 +330,11 @@ def run_analysis(
     step = max(1, n // 500)
     prog_ds = progress_scores[::step].tolist()
     act_ds = action_scores[::step].tolist()
+    hi_ds = highlight_scores[::step].tolist()
 
     waveform_progress = render_waveform_data_url(progress_scores, fps)
     waveform_action = render_waveform_data_url(action_scores, fps)
+    waveform_highlight = render_waveform_data_url(highlight_scores, fps)
 
     tracking_info: dict = {}
     if HAS_TRACKER and has_tracks(video_path):
@@ -339,9 +353,11 @@ def run_analysis(
         "duration": n / fps,
         "scores_progress": prog_ds,
         "scores_action": act_ds,
+        "scores_highlight": hi_ds,
         "scores_step": step,
         "waveform_progress": waveform_progress,
         "waveform_action": waveform_action,
+        "waveform_highlight": waveform_highlight,
         **tracking_info,
     })
 

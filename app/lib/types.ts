@@ -34,9 +34,11 @@ export interface AnalysisData {
   duration: number;
   scores_progress: number[];
   scores_action: number[];
+  scores_highlight?: number[];
   scores_step: number;
   waveform_progress: string;
   waveform_action: string;
+  waveform_highlight?: string;
   tracker_available?: boolean;
   flow_available?: boolean;
   camera_motion_available?: boolean;
@@ -49,7 +51,7 @@ export interface Project {
   created_at?: number;
 }
 
-export type SpeedMode = "progress" | "action";
+export type SpeedMode = "progress" | "action" | "highlight";
 
 export interface Settings {
   mode: SpeedMode;
@@ -141,6 +143,19 @@ export const PRESETS: Preset[] = [
     emoji: "🪨",
     desc: "balanced speed ramp",
     overrides: {},
+  },
+  {
+    name: "Highlights",
+    emoji: "✨",
+    desc: "action + progress blend",
+    overrides: {
+      mode: "highlight",
+      targetDuration: 12,
+      sensitivity: 0.4,
+      minSpeed: 0.2,
+      maxSpeed: 12,
+      smoothing: 0.35,
+    },
   },
   {
     name: "Cinematic",

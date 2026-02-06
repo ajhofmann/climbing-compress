@@ -197,12 +197,14 @@ export function DebugCharts() {
     if (!analysis) return [];
     const progress = analysis.scores_progress;
     const action = analysis.scores_action;
+    const highlight = analysis.scores_highlight ?? [];
     const step = analysis.scores_step;
     const fps = analysis.fps;
     return progress.map((p: number, i: number) => ({
       time: parseFloat(((i * step) / fps).toFixed(2)),
       progress: p,
       action: action[i] ?? 0,
+      highlight: highlight[i] ?? 0,
     }));
   }, [analysis]);
 
@@ -428,7 +430,9 @@ export function DebugCharts() {
             description={
               settings.mode === "progress"
                 ? "Upward wall displacement per frame. Measures how much the climber's center of mass moves toward the top. High values = active climbing. Low values = resting or readjusting. This signal determines how output time is allocated."
-                : "Per-frame limb velocity with weighted contributions from hands, feet, and core. High values = dynamic moves that get slow-mo. Low values = stillness that gets fast-forwarded. Tweak hand/foot/core weights in settings to reshape this."
+                : settings.mode === "highlight"
+                  ? "Hybrid highlight score blending action intensity with upward progress. Dynamic moves and steady gains both contribute, ideal for highlight reels."
+                  : "Per-frame limb velocity with weighted contributions from hands, feet, and core. High values = dynamic moves that get slow-mo. Low values = stillness that gets fast-forwarded. Tweak hand/foot/core weights in settings to reshape this."
             }
           >
             <div
@@ -471,7 +475,7 @@ export function DebugCharts() {
                     tickLine={{ stroke: "var(--border)" }}
                     width={42}
                     label={{
-                      value: settings.mode === "progress" ? "displacement" : "velocity",
+                      value: settings.mode === "progress" ? "displacement" : settings.mode === "highlight" ? "highlight" : "velocity",
                       angle: -90,
                       position: "insideLeft",
                       offset: 12,
@@ -491,7 +495,7 @@ export function DebugCharts() {
 
                   <Area
                     dataKey="score"
-                    name={settings.mode === "progress" ? "progress" : "action"}
+                    name={settings.mode === "progress" ? "progress" : settings.mode === "highlight" ? "highlight" : "action"}
                     fill="var(--warm)"
                     fillOpacity={0.25}
                     stroke="var(--warm)"
@@ -594,6 +598,16 @@ export function DebugCharts() {
                           type="monotone"
                           isAnimationActive={false}
                         />
+                        <Area
+                          dataKey="highlight"
+                          name="highlight"
+                          fill="var(--neon-cyan)"
+                          fillOpacity={0.12}
+                          stroke="var(--neon-cyan)"
+                          strokeWidth={1.5}
+                          type="monotone"
+                          isAnimationActive={false}
+                        />
 
                         <Tooltip
                           content={<ScoreCompareTooltip />}
@@ -616,6 +630,10 @@ export function DebugCharts() {
                     <span className="flex items-center gap-1">
                       <span className="w-2 h-0.5 rounded-full inline-block" style={{ background: "var(--warm)" }} />
                       action — limb velocity
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="w-2 h-0.5 rounded-full inline-block" style={{ background: "var(--neon-cyan)" }} />
+                      highlight — blended signal
                     </span>
                   </div>
                 </ChartSection>
