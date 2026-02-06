@@ -40,6 +40,9 @@ def test_project_summary_includes_output_duration(tmp_path, monkeypatch):
     )
 
     summary = db_module.get_project_summary(project_id)
+    assert summary["videos"] == 1
+    assert summary["outputs"] == 2
+    assert summary["jobs"] == 0
     assert summary["latest_output"]["output_duration"] == 4.4
 
 
@@ -70,6 +73,9 @@ def test_unassigned_summary_includes_output_duration(tmp_path, monkeypatch):
     )
 
     summary = db_module.get_project_summary("unassigned")
+    assert summary["videos"] == 1
+    assert summary["outputs"] == 1
+    assert summary["jobs"] == 0
     assert summary["latest_output"]["output_duration"] == 4.5
 
 
