@@ -212,6 +212,12 @@ export function SettingsPanel() {
             {s.mode !== "progress" && (
               <Knob label="Steep" info="Steepness of speed transitions -- higher = sharper" value={s.steepness} min={1} max={50} step={1} onChange={(v) => u("steepness", v)} />
             )}
+            {s.mode === "highlight" && (
+              <>
+                <Knob label="H.Act" info="Highlight blend: action weight" value={s.highlightActionWeight} min={0} max={1} step={0.05} onChange={(v) => u("highlightActionWeight", v)} />
+                <Knob label="H.Prog" info="Highlight blend: progress weight" value={s.highlightProgressWeight} min={0} max={1} step={0.05} onChange={(v) => u("highlightProgressWeight", v)} />
+              </>
+            )}
             {s.mode === "progress" && (
               <Knob label="P.Floor" info="Minimum progress rate even during rest" value={s.progressFloor} min={0} max={0.2} step={0.005} onChange={(v) => u("progressFloor", v)} />
             )}

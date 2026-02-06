@@ -143,7 +143,12 @@ def compute_scores_and_curve(
                 down_weight=getattr(req, "down_weight", 0.15),
                 camera_motion=trimmed_cam,
             )
-            scores = score_highlight(action_scores, progress_scores)
+            scores = score_highlight(
+                action_scores,
+                progress_scores,
+                action_weight=getattr(req, "highlight_action_weight", 0.7),
+                progress_weight=getattr(req, "highlight_progress_weight", 0.3),
+            )
         else:
             scores = action_scores
         curve = solve_speed_curve(

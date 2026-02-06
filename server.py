@@ -104,6 +104,8 @@ class SolveRequest(BaseModel):
     trim_start: float = 0.0
     trim_end: float = 0.0
     pins: list[Pin] = []
+    highlight_action_weight: float = 0.7
+    highlight_progress_weight: float = 0.3
 
 class RenderRequest(SolveRequest):
     scale: float = 0.5
