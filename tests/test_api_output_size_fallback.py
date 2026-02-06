@@ -36,6 +36,13 @@ def test_outputs_api_fallback_size(tmp_path, monkeypatch):
         output_type="main",
         path="/tmp/missing.mp4",
     )
+    db_module.insert_output(
+        output_id="output-missing",
+        video_id="video-fallback",
+        job_id="job-missing",
+        output_type="preview",
+        path="/tmp/definitely-missing.mp4",
+    )
 
     import server as server_module
     importlib.reload(server_module)
@@ -44,5 +51,8 @@ def test_outputs_api_fallback_size(tmp_path, monkeypatch):
     response = client.get("/api/outputs")
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload) == 1
-    assert payload[0]["size_bytes"] == len(fallback_bytes)
+    assert len(payload) == 2
+    fallback_output = next(item for item in payload if item["id"] == output_id)
+    missing_output = next(item for item in payload if item["id"] == "output-missing")
+    assert fallback_output["size_bytes"] == len(fallback_bytes)
+    assert missing_output["size_bytes"] is None
