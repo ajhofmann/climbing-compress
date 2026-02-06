@@ -122,6 +122,10 @@ export function SystemMetrics() {
             <span>output storage</span>
             <span className="font-mono text-text">{formatBytes(metrics.output_storage_bytes)}</span>
           </div>
+          <div className={styles.pill} style={{ background: "#080810" }}>
+            <span>total storage</span>
+            <span className="font-mono text-text">{formatBytes(metrics.total_storage_bytes)}</span>
+          </div>
         </div>
       )}
     </div>
