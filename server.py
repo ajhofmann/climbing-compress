@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import shutil
+import threading
 import uuid
 from pathlib import Path
 
@@ -188,6 +189,137 @@ def _ensure_job_active(job_id: str) -> None:
         raise JobCancelled()
 
 
+def _analysis_job_worker(job_id: str, path: Path, req: AnalyzeRequest, emit) -> None:
+    update_job(job_id, status="running", progress=0.0, message="Starting analysis")
+
+    def emit_job(payload: dict) -> None:
+        _ensure_job_active(job_id)
+        payload = {**payload, "job_id": job_id}
+        update_job(
+            job_id,
+            status="running",
+            progress=float(payload.get("progress", 0.0)),
+            message=payload.get("message"),
+        )
+        if payload.get("done"):
+            update_job(
+                job_id,
+                status="success",
+                progress=1.0,
+                message=payload.get("message", "Done"),
+                result=payload,
+            )
+        emit(payload)
+
+    try:
+        run_analysis(str(path), req, emit_job)
+    except JobCancelled:
+        update_job(job_id, status="cancelled", message="Cancelled")
+    except Exception as exc:
+        update_job(job_id, status="failed", message=str(exc))
+        raise
+
+
+def _render_job_worker(job_id: str, path: Path, req: RenderRequest, emit) -> None:
+    update_job(job_id, status="running", progress=0.0, message="Starting render")
+
+    def emit_job(payload: dict) -> None:
+        _ensure_job_active(job_id)
+        payload = {**payload, "job_id": job_id}
+        update_job(
+            job_id,
+            status="running",
+            progress=float(payload.get("progress", 0.0)),
+            message=payload.get("message"),
+        )
+        if payload.get("done"):
+            output_id = payload.get("output_id")
+            if output_id:
+                output_path = OUTPUT_DIR / f"{output_id}.mp4"
+                insert_output(
+                    output_id=output_id,
+                    video_id=req.video_id,
+                    job_id=job_id,
+                    output_type="main",
+                    path=str(output_path),
+                    stats=payload.get("stats"),
+                )
+            comparison_id = payload.get("comparison_id")
+            if comparison_id:
+                comparison_path = OUTPUT_DIR / f"{comparison_id}.mp4"
+                insert_output(
+                    output_id=comparison_id,
+                    video_id=req.video_id,
+                    job_id=job_id,
+                    output_type="comparison",
+                    path=str(comparison_path),
+                    stats=None,
+                )
+            update_job(
+                job_id,
+                status="success",
+                progress=1.0,
+                message=payload.get("message", "Done"),
+                result=payload,
+            )
+        emit(payload)
+
+    try:
+        run_render(str(path), req, OUTPUT_DIR, emit_job)
+    except JobCancelled:
+        update_job(job_id, status="cancelled", message="Cancelled")
+    except Exception as exc:
+        update_job(job_id, status="failed", message=str(exc))
+        raise
+
+
+def _preview_job_worker(job_id: str, path: Path, req: RenderRequest, emit) -> None:
+    update_job(job_id, status="running", progress=0.0, message="Starting preview render")
+
+    def emit_job(payload: dict) -> None:
+        _ensure_job_active(job_id)
+        payload = {**payload, "job_id": job_id}
+        update_job(
+            job_id,
+            status="running",
+            progress=float(payload.get("progress", 0.0)),
+            message=payload.get("message"),
+        )
+        if payload.get("done"):
+            output_id = payload.get("output_id")
+            if output_id:
+                output_path = OUTPUT_DIR / f"{output_id}.mp4"
+                insert_output(
+                    output_id=output_id,
+                    video_id=req.video_id,
+                    job_id=job_id,
+                    output_type="preview",
+                    path=str(output_path),
+                    stats=payload.get("stats"),
+                )
+            update_job(
+                job_id,
+                status="success",
+                progress=1.0,
+                message=payload.get("message", "Done"),
+                result=payload,
+            )
+        emit(payload)
+
+    try:
+        run_render(str(path), req, OUTPUT_DIR, emit_job)
+    except JobCancelled:
+        update_job(job_id, status="cancelled", message="Cancelled")
+    except Exception as exc:
+        update_job(job_id, status="failed", message=str(exc))
+        raise
+
+
+def _start_background(worker, *args) -> None:
+    thread = threading.Thread(target=worker, args=(*args, lambda _payload: None), daemon=True)
+    thread.start()
+
+
 # ---- Endpoints ----
 
 @app.post("/api/upload")
@@ -276,39 +408,9 @@ async def list_videos(project_id: str | None = Query(default=None)):
 async def analyze_video(req: AnalyzeRequest):
     path = _get_video_path(req.video_id)
     job_id = uuid.uuid4().hex[:12]
-    insert_job(job_id, req.video_id, "analyze", status="queued", message="Queued")
+    insert_job(job_id, req.video_id, "analyze", status="queued", message="Queued", request=_model_dump(req))
 
-    def worker(emit):
-        update_job(job_id, status="running", progress=0.0, message="Starting analysis")
-
-        def emit_job(payload: dict) -> None:
-            _ensure_job_active(job_id)
-            payload = {**payload, "job_id": job_id}
-            update_job(
-                job_id,
-                status="running",
-                progress=float(payload.get("progress", 0.0)),
-                message=payload.get("message"),
-            )
-            if payload.get("done"):
-                update_job(
-                    job_id,
-                    status="success",
-                    progress=1.0,
-                    message=payload.get("message", "Done"),
-                    result=payload,
-                )
-            emit(payload)
-
-        try:
-            run_analysis(str(path), req, emit_job)
-        except JobCancelled:
-            update_job(job_id, status="cancelled", message="Cancelled")
-        except Exception as exc:
-            update_job(job_id, status="failed", message=str(exc))
-            raise
-
-    return sse_response(worker)
+    return sse_response(lambda emit: _analysis_job_worker(job_id, path, req, emit))
 
 
 @app.post("/api/solve")
@@ -361,68 +463,16 @@ async def solve_curve(req: SolveRequest):
 async def render_video_endpoint(req: RenderRequest):
     path = _get_video_path(req.video_id)
     job_id = uuid.uuid4().hex[:12]
-    insert_job(job_id, req.video_id, "render", status="queued", message="Queued")
+    insert_job(job_id, req.video_id, "render", status="queued", message="Queued", request=_model_dump(req))
 
-    def worker(emit):
-        update_job(job_id, status="running", progress=0.0, message="Starting render")
-
-        def emit_job(payload: dict) -> None:
-            _ensure_job_active(job_id)
-            payload = {**payload, "job_id": job_id}
-            update_job(
-                job_id,
-                status="running",
-                progress=float(payload.get("progress", 0.0)),
-                message=payload.get("message"),
-            )
-            if payload.get("done"):
-                output_id = payload.get("output_id")
-                if output_id:
-                    output_path = OUTPUT_DIR / f"{output_id}.mp4"
-                    insert_output(
-                        output_id=output_id,
-                        video_id=req.video_id,
-                        job_id=job_id,
-                        output_type="main",
-                        path=str(output_path),
-                        stats=payload.get("stats"),
-                    )
-                comparison_id = payload.get("comparison_id")
-                if comparison_id:
-                    comparison_path = OUTPUT_DIR / f"{comparison_id}.mp4"
-                    insert_output(
-                        output_id=comparison_id,
-                        video_id=req.video_id,
-                        job_id=job_id,
-                        output_type="comparison",
-                        path=str(comparison_path),
-                        stats=None,
-                    )
-                update_job(
-                    job_id,
-                    status="success",
-                    progress=1.0,
-                    message=payload.get("message", "Done"),
-                    result=payload,
-                )
-            emit(payload)
-
-        try:
-            run_render(str(path), req, OUTPUT_DIR, emit_job)
-        except JobCancelled:
-            update_job(job_id, status="cancelled", message="Cancelled")
-        except Exception as exc:
-            update_job(job_id, status="failed", message=str(exc))
-            raise
-
-    return sse_response(worker)
+    return sse_response(lambda emit: _render_job_worker(job_id, path, req, emit))
 
 
 @app.post("/api/preview")
 async def preview_video(req: PreviewRequest):
     path = _get_video_path(req.video_id)
     job_id = uuid.uuid4().hex[:12]
-    insert_job(job_id, req.video_id, "preview", status="queued", message="Queued")
+    insert_job(job_id, req.video_id, "preview", status="queued", message="Queued", request=_model_dump(req))
 
     info = get_video_info(str(path))
     duration = float(info.get("duration", 0))
@@ -449,48 +499,59 @@ async def preview_video(req: PreviewRequest):
     })
     preview_req = RenderRequest(**payload)
 
-    def worker(emit):
-        update_job(job_id, status="running", progress=0.0, message="Starting preview render")
+    return sse_response(lambda emit: _preview_job_worker(job_id, path, preview_req, emit))
 
-        def emit_job(payload: dict) -> None:
-            _ensure_job_active(job_id)
-            payload = {**payload, "job_id": job_id}
-            update_job(
-                job_id,
-                status="running",
-                progress=float(payload.get("progress", 0.0)),
-                message=payload.get("message"),
-            )
-            if payload.get("done"):
-                output_id = payload.get("output_id")
-                if output_id:
-                    output_path = OUTPUT_DIR / f"{output_id}.mp4"
-                    insert_output(
-                        output_id=output_id,
-                        video_id=req.video_id,
-                        job_id=job_id,
-                        output_type="preview",
-                        path=str(output_path),
-                        stats=payload.get("stats"),
-                    )
-                update_job(
-                    job_id,
-                    status="success",
-                    progress=1.0,
-                    message=payload.get("message", "Done"),
-                    result=payload,
-                )
-            emit(payload)
 
-        try:
-            run_render(str(path), preview_req, OUTPUT_DIR, emit_job)
-        except JobCancelled:
-            update_job(job_id, status="cancelled", message="Cancelled")
-        except Exception as exc:
-            update_job(job_id, status="failed", message=str(exc))
-            raise
+@app.post("/api/jobs/analyze")
+async def enqueue_analyze(req: AnalyzeRequest):
+    path = _get_video_path(req.video_id)
+    job_id = uuid.uuid4().hex[:12]
+    insert_job(job_id, req.video_id, "analyze", status="queued", message="Queued", request=_model_dump(req))
+    _start_background(_analysis_job_worker, job_id, path, req)
+    return {"job_id": job_id}
 
-    return sse_response(worker)
+
+@app.post("/api/jobs/render")
+async def enqueue_render(req: RenderRequest):
+    path = _get_video_path(req.video_id)
+    job_id = uuid.uuid4().hex[:12]
+    insert_job(job_id, req.video_id, "render", status="queued", message="Queued", request=_model_dump(req))
+    _start_background(_render_job_worker, job_id, path, req)
+    return {"job_id": job_id}
+
+
+@app.post("/api/jobs/preview")
+async def enqueue_preview(req: PreviewRequest):
+    path = _get_video_path(req.video_id)
+    job_id = uuid.uuid4().hex[:12]
+    insert_job(job_id, req.video_id, "preview", status="queued", message="Queued", request=_model_dump(req))
+
+    info = get_video_info(str(path))
+    duration = float(info.get("duration", 0))
+    start = max(0.0, req.preview_start)
+    preview_len = max(0.5, req.preview_duration)
+    end = start + preview_len
+    if duration > 0:
+        end = min(end, duration)
+
+    payload = _model_dump(req)
+    for key in [
+        "preview_start", "preview_duration", "preview_scale",
+        "preview_fps", "preview_crf", "preview_debug_overlay",
+    ]:
+        payload.pop(key, None)
+    payload.update({
+        "trim_start": start,
+        "trim_end": end,
+        "scale": req.preview_scale,
+        "output_fps": req.preview_fps,
+        "crf": req.preview_crf,
+        "debug_overlay": req.preview_debug_overlay,
+        "render_comparison": False,
+    })
+    preview_req = RenderRequest(**payload)
+    _start_background(_preview_job_worker, job_id, path, preview_req)
+    return {"job_id": job_id}
 
 
 @app.get("/api/video/{video_id}")
@@ -514,6 +575,12 @@ async def job_status(job_id: str):
             result = json.loads(job["result_json"])
         except json.JSONDecodeError:
             result = None
+    request = None
+    if job.get("request_json"):
+        try:
+            request = json.loads(job["request_json"])
+        except json.JSONDecodeError:
+            request = None
     return {
         "id": job["id"],
         "video_id": job["video_id"],
@@ -524,6 +591,7 @@ async def job_status(job_id: str):
         "created_at": job["created_at"],
         "updated_at": job["updated_at"],
         "result": result,
+        "request": request,
     }
 
 

@@ -49,6 +49,7 @@ def init_db() -> None:
             status TEXT NOT NULL,
             progress REAL NOT NULL DEFAULT 0,
             message TEXT,
+            request_json TEXT,
             result_json TEXT,
             created_at REAL NOT NULL,
             updated_at REAL NOT NULL,
@@ -73,6 +74,7 @@ def init_db() -> None:
         """
     )
     _ensure_video_project_column(conn)
+    _ensure_jobs_request_column(conn)
     conn.commit()
     conn.close()
 
@@ -83,6 +85,14 @@ def _ensure_video_project_column(conn: sqlite3.Connection) -> None:
     columns = [row[1] for row in cur.fetchall()]
     if "project_id" not in columns:
         cur.execute("ALTER TABLE videos ADD COLUMN project_id TEXT")
+
+
+def _ensure_jobs_request_column(conn: sqlite3.Connection) -> None:
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(jobs)")
+    columns = [row[1] for row in cur.fetchall()]
+    if "request_json" not in columns:
+        cur.execute("ALTER TABLE jobs ADD COLUMN request_json TEXT")
 
 
 def _row_to_dict(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict[str, Any]:
@@ -313,6 +323,7 @@ def insert_job(
     status: str = "queued",
     progress: float = 0.0,
     message: str | None = None,
+    request: dict[str, Any] | None = None,
     result: dict[str, Any] | None = None,
 ) -> None:
     now = time.time()
@@ -320,8 +331,8 @@ def insert_job(
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO jobs (id, video_id, job_type, status, progress, message, result_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO jobs (id, video_id, job_type, status, progress, message, request_json, result_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             job_id,
@@ -330,6 +341,7 @@ def insert_job(
             status,
             progress,
             message,
+            json.dumps(request) if request is not None else None,
             json.dumps(result) if result is not None else None,
             now,
             now,
