@@ -36,3 +36,9 @@ def test_api_error_responses(tmp_path, monkeypatch):
 
     response = client.get("/api/outputs/missing")
     assert response.status_code == 404
+
+    response = client.delete("/api/projects/missing")
+    assert response.status_code == 404
+
+    response = client.patch("/api/projects/missing", json={"name": "Missing"})
+    assert response.status_code == 404
