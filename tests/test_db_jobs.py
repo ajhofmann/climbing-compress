@@ -90,3 +90,8 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
     preview_jobs = db_module.list_jobs(job_type="preview")
     assert len(preview_jobs) == 1
     assert preview_jobs[0]["id"] == "job-unassigned"
+
+    job = db_module.get_job("job-assigned")
+    assert job is not None
+    assert job["id"] == "job-assigned"
+    assert db_module.get_job("missing") is None
