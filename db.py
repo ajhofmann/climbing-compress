@@ -350,7 +350,7 @@ def get_project_summary(project_id: str) -> dict[str, Any]:
 
         cur.execute(
             """
-            SELECT outputs.id, outputs.output_type, outputs.created_at
+            SELECT outputs.id, outputs.output_type, outputs.created_at, outputs.stats_json
             FROM outputs
             JOIN videos ON outputs.video_id = videos.id
             WHERE videos.project_id IS NULL
@@ -387,7 +387,7 @@ def get_project_summary(project_id: str) -> dict[str, Any]:
 
         cur.execute(
             """
-            SELECT outputs.id, outputs.output_type, outputs.created_at
+            SELECT outputs.id, outputs.output_type, outputs.created_at, outputs.stats_json
             FROM outputs
             JOIN videos ON outputs.video_id = videos.id
             WHERE videos.project_id = ?
@@ -399,6 +399,14 @@ def get_project_summary(project_id: str) -> dict[str, Any]:
         latest = cur.fetchone()
     conn.close()
 
+    latest_duration = None
+    if latest is not None and latest["stats_json"]:
+        try:
+            stats = json.loads(latest["stats_json"])
+            latest_duration = stats.get("output_duration")
+        except json.JSONDecodeError:
+            latest_duration = None
+
     return {
         "videos": video_count,
         "outputs": output_count,
@@ -407,6 +415,7 @@ def get_project_summary(project_id: str) -> dict[str, Any]:
             "id": latest["id"],
             "output_type": latest["output_type"],
             "created_at": latest["created_at"],
+            "output_duration": latest_duration,
         } if latest else None,
     }
 

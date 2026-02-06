@@ -61,6 +61,7 @@ export interface ProjectSummary {
     id: string;
     output_type: string;
     created_at: number;
+    output_duration?: number | null;
   } | null;
 }
 

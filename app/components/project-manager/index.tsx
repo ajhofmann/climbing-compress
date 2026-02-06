@@ -27,6 +27,11 @@ export function ProjectManager() {
     return outputType;
   };
 
+  const formatDuration = (duration?: number | null) => {
+    if (!duration) return "";
+    return `${Math.round(duration)}s`;
+  };
+
   const selected = projects.find((project) => project.id === selectedProjectId) ?? null;
 
   const onCreate = async () => {
@@ -114,6 +119,9 @@ export function ProjectManager() {
           {summary.latest_output && (
             <span>
               latest: <span className="font-mono text-text">{formatOutputType(summary.latest_output.output_type)}</span>
+              {summary.latest_output.output_duration && (
+                <span className="ml-1 font-mono text-text">{formatDuration(summary.latest_output.output_duration)}</span>
+              )}
               {summary.latest_output.created_at && (
                 <span className="ml-1 text-text-muted">{formatAge(summary.latest_output.created_at)}</span>
               )}
