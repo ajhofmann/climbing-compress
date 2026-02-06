@@ -11,6 +11,7 @@ interface VideoRecord {
   info: VideoInfo;
   project_id?: string | null;
   project_name?: string | null;
+  created_at?: number;
   cached?: boolean;
 }
 
