@@ -23,6 +23,7 @@ function formatDuration(duration?: number | null) {
 function formatOutputType(outputType: string) {
   if (outputType === "main") return "render";
   if (outputType === "comparison") return "compare";
+  if (outputType === "preview") return "preview";
   return outputType;
 }
 
