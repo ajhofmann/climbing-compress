@@ -72,12 +72,12 @@ interface Store {
   setProgress: (p: number, msg: string) => void;
 }
 
-const getInitialQueueMode = () => {
-  if (typeof window === "undefined") return DEFAULT_SETTINGS.queueMode;
-  const stored = window.localStorage.getItem("queueMode");
+const getInitialFlag = (key: string, fallback: boolean) => {
+  if (typeof window === "undefined") return fallback;
+  const stored = window.localStorage.getItem(key);
   if (stored === "true") return true;
   if (stored === "false") return false;
-  return DEFAULT_SETTINGS.queueMode;
+  return fallback;
 };
 
 export const useStore = create<Store>((set) => ({
@@ -107,11 +107,18 @@ export const useStore = create<Store>((set) => ({
   removePin: (i) => set((s) => ({ pins: s.pins.filter((_, j) => j !== i) })),
   updatePin: (i, pin) => set((s) => ({ pins: s.pins.map((p, j) => j === i ? pin : p) })),
 
-  settings: { ...DEFAULT_SETTINGS, queueMode: getInitialQueueMode() },
+  settings: {
+    ...DEFAULT_SETTINGS,
+    queueMode: getInitialFlag("queueMode", DEFAULT_SETTINGS.queueMode),
+    autoPreview: getInitialFlag("autoPreview", DEFAULT_SETTINGS.autoPreview),
+  },
   updateSettings: (partial) => set((s) => {
     const next = { ...s.settings, ...partial };
     if (partial.queueMode !== undefined && typeof window !== "undefined") {
       window.localStorage.setItem("queueMode", String(partial.queueMode));
+    }
+    if (partial.autoPreview !== undefined && typeof window !== "undefined") {
+      window.localStorage.setItem("autoPreview", String(partial.autoPreview));
     }
     return { settings: next };
   }),
