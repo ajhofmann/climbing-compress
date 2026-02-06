@@ -3,9 +3,14 @@
 import { useOutputHistory } from "./use-output-history";
 import { styles } from "./styles";
 
-function formatDate(timestamp?: number) {
+function formatAge(timestamp?: number) {
   if (!timestamp) return "";
-  return new Date(timestamp * 1000).toLocaleTimeString();
+  const seconds = Math.max(0, Math.floor(Date.now() / 1000 - timestamp));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h`;
 }
 
 function formatDuration(duration?: number | null) {
@@ -33,7 +38,7 @@ export function OutputHistory() {
           {outputs.slice(0, 5).map((output) => (
             <div key={output.id} className={styles.row}>
               <span className="uppercase text-text-muted">{output.output_type}</span>
-              <span className={styles.meta}>{formatDate(output.created_at)}</span>
+              <span className={styles.meta}>{formatAge(output.created_at)}</span>
               {output.output_duration && (
                 <span className={styles.meta}>{formatDuration(output.output_duration)}</span>
               )}

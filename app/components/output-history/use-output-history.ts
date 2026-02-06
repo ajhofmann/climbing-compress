@@ -24,10 +24,6 @@ export function useOutputHistory() {
 
   const refresh = useCallback(async () => {
     try {
-      if (!videoId && !selectedProjectId) {
-        setOutputs([]);
-        return;
-      }
       const projectFilter = videoId ? null : (selectedProjectId ?? "unassigned");
       const data = await listOutputs(videoId, projectFilter);
       setOutputs(data ?? []);
