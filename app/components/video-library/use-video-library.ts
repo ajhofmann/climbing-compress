@@ -13,7 +13,7 @@ interface VideoRecord {
 }
 
 export function useVideoLibrary() {
-  const { selectedProjectId, setVideo, setProgress } = useStore();
+  const { selectedProjectId, videoId, setVideo, setProgress } = useStore();
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +30,7 @@ export function useVideoLibrary() {
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, videoId]);
 
   const loadVideo = useCallback((video: VideoRecord) => {
     setVideo(video.video_id, video.info, []);
