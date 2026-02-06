@@ -339,6 +339,13 @@ def run_analysis(
     tracking_info: dict = {}
     if HAS_TRACKER and has_tracks(video_path):
         tracking_info["tracker_available"] = True
+        cached_tracks = load_tracks(video_path)
+        if cached_tracks:
+            tracks, _ = cached_tracks
+            counts = [t.get("n_persons", 0) for t in tracks if t and isinstance(t, dict)]
+            if counts:
+                tracking_info["people_max"] = int(max(counts))
+                tracking_info["people_avg"] = round(float(np.mean(counts)), 1)
     if flow_scores is not None:
         tracking_info["flow_available"] = True
     if camera_motion is not None:

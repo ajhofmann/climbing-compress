@@ -42,6 +42,8 @@ export interface AnalysisData {
   tracker_available?: boolean;
   flow_available?: boolean;
   camera_motion_available?: boolean;
+  people_max?: number;
+  people_avg?: number;
 }
 
 export interface Project {

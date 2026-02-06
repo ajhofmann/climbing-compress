@@ -157,6 +157,13 @@ export function SettingsPanel() {
                     </span>
                   </Tooltip>
                 )}
+                {analysis.people_max && analysis.people_max > 1 && (
+                  <Tooltip text={`Multiple people detected (max ${analysis.people_max})`}>
+                    <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-cyan uppercase">
+                      <span className="pilot-light pilot-light-cyan pilot-light-breathe" />PPL
+                    </span>
+                  </Tooltip>
+                )}
               </div>
             )}
           </div>
