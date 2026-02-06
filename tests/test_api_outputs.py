@@ -1,4 +1,5 @@
 import importlib
+import sqlite3
 
 from fastapi.testclient import TestClient
 
@@ -48,6 +49,22 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
         path=str(output_path_2),
         stats=None,
     )
+    output_path_3 = output_dir / "out3.mp4"
+    output_path_3.write_bytes(b"payload-3")
+    db_module.insert_output(
+        output_id="output-invalid",
+        video_id=video_id,
+        job_id="job-api-3",
+        output_type="main",
+        path=str(output_path_3),
+        stats={"output_duration": 3.3},
+    )
+
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE outputs SET stats_json = ? WHERE id = ?", ("not-json", "output-invalid"))
+    conn.commit()
+    conn.close()
 
     import server as server_module
     importlib.reload(server_module)
@@ -56,11 +73,14 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
     response = client.get("/api/outputs")
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload) == 2
+    assert len(payload) == 3
     output = next(item for item in payload if item["id"] == "output-api")
     output_missing = next(item for item in payload if item["id"] == "output-api-2")
+    output_invalid = next(item for item in payload if item["id"] == "output-invalid")
     assert output["project_name"] == "Project API"
     assert output["output_duration"] == 1.5
     assert output["size_bytes"] == len(b"payload")
     assert output_missing["output_duration"] is None
     assert output_missing["size_bytes"] == 0
+    assert output_invalid["output_duration"] is None
+    assert output_invalid["size_bytes"] == len(b"payload-3")
