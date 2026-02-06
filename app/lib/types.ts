@@ -82,6 +82,7 @@ export interface JobRecord {
   message?: string | null;
   created_at?: number;
   updated_at?: number;
+  result?: any;
 }
 
 export type SpeedMode = "progress" | "action" | "highlight";
@@ -126,6 +127,8 @@ export interface Settings {
   includeAudio: boolean;
   // Comparison
   renderComparison: boolean;
+  // Queue mode
+  queueMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -162,6 +165,7 @@ export const DEFAULT_SETTINGS: Settings = {
   featureStabilizeWeight: 0.5,
   includeAudio: true,
   renderComparison: false,
+  queueMode: false,
 };
 
 export interface Preset {

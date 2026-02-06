@@ -73,6 +73,12 @@ export async function listJobs(projectId?: string | null): Promise<JobRecord[]> 
   return res.json();
 }
 
+export async function getJob(jobId: string): Promise<JobRecord> {
+  const res = await fetch(`${API}/api/jobs/${jobId}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function cancelJob(jobId: string): Promise<{ id: string; status: string }> {
   const res = await fetch(`${API}/api/jobs/${jobId}/cancel`, { method: "POST" });
   if (!res.ok) throw new Error(await res.text());
@@ -91,6 +97,142 @@ export async function listOutputs(videoId?: string | null, projectId?: string | 
   if (projectId) params.set("project_id", projectId);
   const query = params.toString();
   const res = await fetch(`${API}/api/outputs${query ? `?${query}` : ""}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function awaitJobResult(
+  jobId: string,
+  onProgress: (progress: number, message: string) => void,
+  pollMs: number = 1000,
+) {
+  while (true) {
+    const job = await getJob(jobId);
+    onProgress(job.progress ?? 0, job.message ?? "");
+    if (job.status === "success") return job.result;
+    if (job.status === "failed") throw new Error(job.message ?? "Job failed");
+    if (job.status === "cancelled") throw new Error("Job cancelled");
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+}
+
+export async function enqueueAnalyze(
+  videoId: string,
+  settings: Settings,
+  force: boolean,
+) {
+  const res = await fetch(`${API}/api/jobs/analyze`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      video_id: videoId,
+      stride: settings.analyzeStride,
+      force,
+      use_tracker: settings.useTracker,
+      use_flow: settings.useFlow,
+      tracker_model: settings.trackerModel,
+      climber_strategy: settings.climberStrategy,
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function enqueueRender(
+  videoId: string,
+  settings: Settings,
+  pins: Pin[],
+) {
+  const res = await fetch(`${API}/api/jobs/render`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      video_id: videoId,
+      mode: settings.mode,
+      target_duration: settings.targetDuration,
+      sensitivity: settings.sensitivity,
+      max_speed: settings.maxSpeed,
+      min_speed: settings.minSpeed,
+      steepness: settings.steepness,
+      smoothing: settings.smoothing,
+      hand_weight: settings.handWeight,
+      foot_weight: settings.footWeight,
+      core_weight: settings.coreWeight,
+      progress_floor: settings.progressFloor,
+      vertical_bias: settings.verticalBias,
+      down_weight: settings.downWeight,
+      rest_threshold_s: settings.restThreshold,
+      trim_start: settings.trimStart,
+      trim_end: settings.trimEnd,
+      pins,
+      scale: settings.scale,
+      output_fps: settings.outputFps,
+      crf: settings.crf,
+      debug_overlay: settings.debugOverlay,
+      stabilize: settings.stabilize,
+      stabilize_strength: settings.stabilizeStrength,
+      stabilize_smoothness: settings.stabilizeSmoothness,
+      stabilize_crop: settings.stabilizeCrop,
+      include_audio: settings.includeAudio,
+      use_feature_stabilize: settings.useFeatureStabilize,
+      feature_stabilize_weight: settings.featureStabilizeWeight,
+      render_comparison: settings.renderComparison,
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function enqueuePreview(
+  videoId: string,
+  settings: Settings,
+  pins: Pin[],
+  previewStart: number,
+  previewDuration: number,
+  options?: { scale?: number; fps?: number; crf?: number; debugOverlay?: boolean },
+) {
+  const res = await fetch(`${API}/api/jobs/preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      video_id: videoId,
+      mode: settings.mode,
+      target_duration: settings.targetDuration,
+      sensitivity: settings.sensitivity,
+      max_speed: settings.maxSpeed,
+      min_speed: settings.minSpeed,
+      steepness: settings.steepness,
+      smoothing: settings.smoothing,
+      hand_weight: settings.handWeight,
+      foot_weight: settings.footWeight,
+      core_weight: settings.coreWeight,
+      progress_floor: settings.progressFloor,
+      vertical_bias: settings.verticalBias,
+      down_weight: settings.downWeight,
+      rest_threshold_s: settings.restThreshold,
+      trim_start: settings.trimStart,
+      trim_end: settings.trimEnd,
+      pins,
+      scale: settings.scale,
+      output_fps: settings.outputFps,
+      crf: settings.crf,
+      debug_overlay: settings.debugOverlay,
+      stabilize: settings.stabilize,
+      stabilize_strength: settings.stabilizeStrength,
+      stabilize_smoothness: settings.stabilizeSmoothness,
+      stabilize_crop: settings.stabilizeCrop,
+      include_audio: false,
+      use_feature_stabilize: settings.useFeatureStabilize,
+      feature_stabilize_weight: settings.featureStabilizeWeight,
+      render_comparison: false,
+      preview_start: previewStart,
+      preview_duration: previewDuration,
+      preview_scale: options?.scale ?? 0.35,
+      preview_fps: options?.fps ?? 24,
+      preview_crf: options?.crf ?? 28,
+      preview_debug_overlay: options?.debugOverlay ?? false,
+    }),
+  });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

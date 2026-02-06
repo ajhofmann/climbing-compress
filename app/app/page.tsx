@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useStore, AnalysisParams } from "@/lib/store";
-import { analyzeVideo, solveCurve, renderVideo, previewVideo } from "@/lib/api";
+import { analyzeVideo, solveCurve, renderVideo, previewVideo, enqueueAnalyze, enqueueRender, enqueuePreview, awaitJobResult } from "@/lib/api";
 import { VideoUpload } from "@/components/video-upload";
 import { VideoPlayer } from "@/components/video-player";
 import { TimelineEditor } from "@/components/timeline-editor";
@@ -54,16 +54,22 @@ export default function Home() {
     store.setAnalyzing(true);
     store.setProgress(0, force ? "Re-analyzing (fresh)..." : "Starting analysis...");
     try {
-      const result = await analyzeVideo(
-        videoId,
-        settings.analyzeStride,
-        force,
-        (p, msg) => { store.setProgress(p, msg); },
-        settings.useTracker,
-        settings.useFlow,
-        settings.trackerModel,
-        settings.climberStrategy,
-      );
+      let result = null;
+      if (settings.queueMode) {
+        const queued = await enqueueAnalyze(videoId, settings, force);
+        result = await awaitJobResult(queued.job_id, (p, msg) => { store.setProgress(p, msg); });
+      } else {
+        result = await analyzeVideo(
+          videoId,
+          settings.analyzeStride,
+          force,
+          (p, msg) => { store.setProgress(p, msg); },
+          settings.useTracker,
+          settings.useFlow,
+          settings.trackerModel,
+          settings.climberStrategy,
+        );
+      }
       if (result) {
         store.setAnalysis(result, currentParams);
         if (settings.trimEnd === 0) store.updateSettings({ trimEnd: result.duration });
@@ -86,7 +92,13 @@ export default function Home() {
     store.setRendering(true);
     store.setProgress(0, "Starting render...");
     try {
-      const result = await renderVideo(videoId, settings, pins, (p, msg) => { store.setProgress(p, msg); });
+      let result = null;
+      if (settings.queueMode) {
+        const queued = await enqueueRender(videoId, settings, pins);
+        result = await awaitJobResult(queued.job_id, (p, msg) => { store.setProgress(p, msg); });
+      } else {
+        result = await renderVideo(videoId, settings, pins, (p, msg) => { store.setProgress(p, msg); });
+      }
       if (result?.output_id) {
         store.setOutputId(result.output_id);
         store.setComparisonId(result.comparison_id ?? null);
@@ -109,14 +121,20 @@ export default function Home() {
     store.setPreviewing(true);
     store.setProgress(0, "Starting preview...");
     try {
-      const result = await previewVideo(
-        videoId,
-        settings,
-        pins,
-        start,
-        previewDuration,
-        (p, msg) => { store.setProgress(p, msg); },
-      );
+      let result = null;
+      if (settings.queueMode) {
+        const queued = await enqueuePreview(videoId, settings, pins, start, previewDuration);
+        result = await awaitJobResult(queued.job_id, (p, msg) => { store.setProgress(p, msg); });
+      } else {
+        result = await previewVideo(
+          videoId,
+          settings,
+          pins,
+          start,
+          previewDuration,
+          (p, msg) => { store.setProgress(p, msg); },
+        );
+      }
       if (result?.output_id) {
         store.setPreviewId(result.output_id);
         store.setProgress(0, "Preview ready");
