@@ -38,6 +38,16 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
         path=str(output_path),
         stats={"output_duration": 1.5},
     )
+    output_path_2 = output_dir / "out2.mp4"
+    output_path_2.write_bytes(b"payload-2")
+    db_module.insert_output(
+        output_id="output-api-2",
+        video_id=video_id,
+        job_id="job-api-2",
+        output_type="preview",
+        path=str(output_path_2),
+        stats=None,
+    )
 
     import server as server_module
     importlib.reload(server_module)
@@ -46,9 +56,11 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
     response = client.get("/api/outputs")
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload) == 1
-    output = payload[0]
-    assert output["id"] == "output-api"
+    assert len(payload) == 2
+    output = next(item for item in payload if item["id"] == "output-api")
+    output_missing = next(item for item in payload if item["id"] == "output-api-2")
     assert output["project_name"] == "Project API"
     assert output["output_duration"] == 1.5
     assert output["size_bytes"] == len(b"payload")
+    assert output_missing["output_duration"] is None
+    assert output_missing["size_bytes"] == len(b"payload-2")
