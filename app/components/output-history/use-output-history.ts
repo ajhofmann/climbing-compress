@@ -24,7 +24,8 @@ export function useOutputHistory() {
         setOutputs([]);
         return;
       }
-      const data = await listOutputs(videoId, selectedProjectId);
+      const projectFilter = videoId ? null : (selectedProjectId ?? "unassigned");
+      const data = await listOutputs(videoId, projectFilter);
       setOutputs(data ?? []);
       setError(null);
     } catch (err: unknown) {

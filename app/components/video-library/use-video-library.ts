@@ -19,7 +19,7 @@ export function useVideoLibrary() {
 
   const refresh = useCallback(async () => {
     try {
-      const data = await listVideos(selectedProjectId);
+      const data = await listVideos(selectedProjectId ?? "unassigned");
       setVideos(data ?? []);
       setError(null);
     } catch (err: unknown) {

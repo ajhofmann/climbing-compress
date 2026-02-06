@@ -172,6 +172,8 @@ def list_videos(project_id: str | None = None) -> list[dict[str, Any]]:
     cur = conn.cursor()
     if project_id is None:
         cur.execute("SELECT * FROM videos ORDER BY created_at DESC")
+    elif project_id == "unassigned":
+        cur.execute("SELECT * FROM videos WHERE project_id IS NULL ORDER BY created_at DESC")
     else:
         cur.execute(
             "SELECT * FROM videos WHERE project_id = ? ORDER BY created_at DESC",
@@ -472,8 +474,11 @@ def list_jobs(
     base_query = "SELECT jobs.* FROM jobs"
     if project_id is not None:
         base_query += " JOIN videos ON jobs.video_id = videos.id"
-        conditions.append("videos.project_id = ?")
-        params.append(project_id)
+        if project_id == "unassigned":
+            conditions.append("videos.project_id IS NULL")
+        else:
+            conditions.append("videos.project_id = ?")
+            params.append(project_id)
 
     if video_id is not None:
         conditions.append("jobs.video_id = ?")
@@ -537,7 +542,17 @@ def list_outputs(video_id: str | None = None, project_id: str | None = None) -> 
     conn = _connect()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    if project_id is not None:
+    if project_id == "unassigned":
+        cur.execute(
+            """
+            SELECT outputs.*
+            FROM outputs
+            JOIN videos ON outputs.video_id = videos.id
+            WHERE videos.project_id IS NULL
+            ORDER BY outputs.created_at DESC
+            """
+        )
+    elif project_id is not None:
         cur.execute(
             """
             SELECT outputs.*

@@ -14,7 +14,7 @@ export function useJobMonitor() {
 
   const refresh = useCallback(async () => {
     try {
-      const data = await listJobs(selectedProjectId);
+      const data = await listJobs(selectedProjectId ?? "unassigned");
       setJobs(data.slice(0, 6));
       setError(null);
     } catch (err: unknown) {
