@@ -30,6 +30,8 @@ export function useVideoLibrary() {
 
   useEffect(() => {
     refresh();
+    const id = window.setInterval(refresh, 6000);
+    return () => window.clearInterval(id);
   }, [refresh, videoId]);
 
   const loadVideo = useCallback((video: VideoRecord) => {
