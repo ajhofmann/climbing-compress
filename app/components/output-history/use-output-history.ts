@@ -18,7 +18,15 @@ interface OutputRecord {
 }
 
 export function useOutputHistory() {
-  const { videoId, selectedProjectId, setOutputId, setPreviewId, setComparisonId, setProgress } = useStore();
+  const {
+    videoId,
+    selectedProjectId,
+    setOutputId,
+    setPreviewId,
+    setComparisonId,
+    setProgress,
+    setSelectedProjectId,
+  } = useStore();
   const [outputs, setOutputs] = useState<OutputRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,6 +49,15 @@ export function useOutputHistory() {
   }, [refresh]);
 
   const loadOutput = useCallback((output: OutputRecord) => {
+    const nextProjectId = output.project_id ?? null;
+    setSelectedProjectId(nextProjectId);
+    if (typeof window !== "undefined") {
+      if (nextProjectId) {
+        window.localStorage.setItem("projectId", nextProjectId);
+      } else {
+        window.localStorage.setItem("projectId", "unassigned");
+      }
+    }
     if (output.output_type === "preview") {
       setPreviewId(output.id);
       setProgress(0, "Loaded preview output");
@@ -51,7 +68,7 @@ export function useOutputHistory() {
       setOutputId(output.id);
       setProgress(0, "Loaded output");
     }
-  }, [setOutputId, setPreviewId, setComparisonId, setProgress]);
+  }, [setOutputId, setPreviewId, setComparisonId, setProgress, setSelectedProjectId]);
 
   return { outputs, error, refresh, loadOutput };
 }
