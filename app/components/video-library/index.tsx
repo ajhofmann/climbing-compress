@@ -46,7 +46,7 @@ export function VideoLibrary() {
               key={video.video_id}
               className={`${styles.row} ${video.video_id === videoId ? styles.rowActive : ""}`}
             >
-              <span className="text-text">{video.filename}</span>
+              <span className="text-text" title={video.filename}>{video.filename}</span>
               {video.created_at && (
                 <span className={styles.meta}>{formatAge(video.created_at)}</span>
               )}
@@ -55,7 +55,9 @@ export function VideoLibrary() {
                 <span className={styles.meta}>{formatBytes(video.size_bytes)}</span>
               )}
               <span className={styles.meta}>{video.info.width}x{video.info.height}</span>
-              <span className={styles.meta}>{video.project_name ?? "unassigned"}</span>
+              <span className={styles.meta} title={video.project_name ?? "unassigned"}>
+                {video.project_name ?? "unassigned"}
+              </span>
               {video.cached && <span className={styles.meta}>cached</span>}
               <button className={styles.button} onClick={() => loadVideo(video)}>
                 Load

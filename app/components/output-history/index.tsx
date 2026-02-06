@@ -66,9 +66,13 @@ export function OutputHistory() {
               {output.size_bytes && (
                 <span className={styles.meta}>{formatBytes(output.size_bytes)}</span>
               )}
-              <span className={styles.meta}>{output.video_filename ?? output.video_id}</span>
-              <span className={styles.meta}>{output.project_name ?? "unassigned"}</span>
-              <span className={styles.meta}>{output.id}</span>
+              <span className={styles.meta} title={output.video_filename ?? output.video_id}>
+                {output.video_filename ?? output.video_id}
+              </span>
+              <span className={styles.meta} title={output.project_name ?? "unassigned"}>
+                {output.project_name ?? "unassigned"}
+              </span>
+              <span className={styles.meta} title={output.id}>{output.id}</span>
               <button className={styles.button} onClick={() => loadOutput(output)}>
                 Load
               </button>
