@@ -12,6 +12,8 @@ def test_delete_project_unassigns_videos(tmp_path, monkeypatch):
 
     project_id = "proj-db"
     db_module.insert_project(project_id, "Project DB")
+    db_module.insert_project("proj-old", "Project Old")
+    db_module.insert_project("proj-new", "Project New")
     db_module.register_video(
         video_id="video-db",
         filename="db.mp4",
@@ -19,6 +21,17 @@ def test_delete_project_unassigns_videos(tmp_path, monkeypatch):
         file_hash="hash-db",
         project_id=project_id,
     )
+
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE projects SET created_at = ? WHERE id = ?", (5.0, "proj-db"))
+    cur.execute("UPDATE projects SET created_at = ? WHERE id = ?", (10.0, "proj-old"))
+    cur.execute("UPDATE projects SET created_at = ? WHERE id = ?", (20.0, "proj-new"))
+    conn.commit()
+    conn.close()
+
+    projects = db_module.list_projects()
+    assert projects[0]["id"] == "proj-new"
 
     db_module.delete_project(project_id)
 
