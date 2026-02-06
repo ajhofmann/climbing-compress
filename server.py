@@ -40,6 +40,11 @@ from db import (
     get_video_by_hash,
     register_video,
     update_video_info,
+    set_video_project,
+    insert_project,
+    update_project,
+    get_project,
+    list_projects as db_list_projects,
     insert_job,
     update_job,
     get_job as db_get_job,
@@ -129,6 +134,17 @@ class PreviewRequest(RenderRequest):
     preview_crf: int = 28
     preview_debug_overlay: bool = False
 
+class ProjectRequest(BaseModel):
+    name: str
+    description: str | None = None
+
+class ProjectUpdateRequest(BaseModel):
+    name: str | None = None
+    description: str | None = None
+
+class ProjectAssignRequest(BaseModel):
+    project_id: str | None = None
+
 
 # ---- Helpers ----
 
@@ -164,7 +180,7 @@ def _model_dump(model: BaseModel) -> dict:
 # ---- Endpoints ----
 
 @app.post("/api/upload")
-async def upload_video(file: UploadFile = File(...)):
+async def upload_video(file: UploadFile = File(...), project_id: str | None = Query(default=None)):
     ext = Path(file.filename).suffix or ".mov"
 
     # Save to temp first so we can hash before committing
@@ -205,7 +221,7 @@ async def upload_video(file: UploadFile = File(...)):
 
         info = get_video_info(str(dest))
         thumbs = generate_thumbnails(str(dest), n=8)
-        register_video(video_id, dest.name, str(dest), ch, info=info)
+        register_video(video_id, dest.name, str(dest), ch, info=info, project_id=project_id)
 
         return {
             "video_id": video_id,
@@ -222,10 +238,10 @@ async def upload_video(file: UploadFile = File(...)):
 
 
 @app.get("/api/videos")
-async def list_videos():
+async def list_videos(project_id: str | None = Query(default=None)):
     """List available input videos."""
     result = []
-    for record in db_list_videos():
+    for record in db_list_videos(project_id=project_id):
         path = Path(record["path"])
         if not path.exists():
             continue
@@ -234,7 +250,12 @@ async def list_videos():
         else:
             info = get_video_info(str(path))
             update_video_info(record["id"], info)
-        result.append({"video_id": record["id"], "filename": record["filename"], "info": info})
+        result.append({
+            "video_id": record["id"],
+            "filename": record["filename"],
+            "info": info,
+            "project_id": record.get("project_id"),
+        })
     return result
 
 
@@ -542,6 +563,59 @@ async def list_outputs(video_id: str | None = Query(default=None)):
             "created_at": output["created_at"],
         })
     return payload
+
+
+@app.get("/api/projects")
+async def list_projects():
+    projects = db_list_projects()
+    return [
+        {
+            "id": project["id"],
+            "name": project["name"],
+            "description": project["description"],
+            "created_at": project["created_at"],
+        }
+        for project in projects
+    ]
+
+
+@app.post("/api/projects")
+async def create_project(req: ProjectRequest):
+    project_id = uuid.uuid4().hex[:10]
+    insert_project(project_id, req.name, req.description)
+    return {
+        "id": project_id,
+        "name": req.name,
+        "description": req.description,
+    }
+
+
+@app.patch("/api/projects/{project_id}")
+async def update_project_endpoint(project_id: str, req: ProjectUpdateRequest):
+    project = get_project(project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    update_project(project_id, name=req.name, description=req.description)
+    refreshed = get_project(project_id)
+    return {
+        "id": refreshed["id"],
+        "name": refreshed["name"],
+        "description": refreshed["description"],
+        "created_at": refreshed["created_at"],
+    }
+
+
+@app.post("/api/videos/{video_id}/project")
+async def assign_video_project(video_id: str, req: ProjectAssignRequest):
+    record = get_video(video_id)
+    if not record:
+        raise HTTPException(404, "Video not found")
+    if req.project_id:
+        project = get_project(req.project_id)
+        if not project:
+            raise HTTPException(404, "Project not found")
+    set_video_project(video_id, req.project_id)
+    return {"video_id": video_id, "project_id": req.project_id}
 
 
 if __name__ == "__main__":

@@ -25,6 +25,13 @@ def init_db() -> None:
     conn = _connect()
     conn.executescript(
         """
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            created_at REAL NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS videos (
             id TEXT PRIMARY KEY,
             filename TEXT NOT NULL,
@@ -65,8 +72,17 @@ def init_db() -> None:
         CREATE INDEX IF NOT EXISTS idx_outputs_job_id ON outputs(job_id);
         """
     )
+    _ensure_video_project_column(conn)
     conn.commit()
     conn.close()
+
+
+def _ensure_video_project_column(conn: sqlite3.Connection) -> None:
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(videos)")
+    columns = [row[1] for row in cur.fetchall()]
+    if "project_id" not in columns:
+        cur.execute("ALTER TABLE videos ADD COLUMN project_id TEXT")
 
 
 def _row_to_dict(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict[str, Any]:
@@ -103,8 +119,8 @@ def sync_input_dir(input_dir: Path) -> None:
             info = get_video_info(str(file))
             cur.execute(
                 """
-                INSERT INTO videos (id, filename, path, file_hash, info_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO videos (id, filename, path, file_hash, info_json, created_at, project_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     video_id,
@@ -113,6 +129,7 @@ def sync_input_dir(input_dir: Path) -> None:
                     file_hash,
                     json.dumps(info),
                     time.time(),
+                    None,
                 ),
             )
         else:
@@ -139,11 +156,17 @@ def get_video(video_id: str) -> dict[str, Any] | None:
     return _row_to_dict(cur, row)
 
 
-def list_videos() -> list[dict[str, Any]]:
+def list_videos(project_id: str | None = None) -> list[dict[str, Any]]:
     conn = _connect()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    cur.execute("SELECT * FROM videos ORDER BY created_at DESC")
+    if project_id is None:
+        cur.execute("SELECT * FROM videos ORDER BY created_at DESC")
+    else:
+        cur.execute(
+            "SELECT * FROM videos WHERE project_id = ? ORDER BY created_at DESC",
+            (project_id,),
+        )
     rows = cur.fetchall()
     conn.close()
     return [_row_to_dict(cur, row) for row in rows]
@@ -167,13 +190,14 @@ def register_video(
     path: str,
     file_hash: str,
     info: dict[str, Any] | None = None,
+    project_id: str | None = None,
 ) -> dict[str, Any]:
     conn = _connect()
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO videos (id, filename, path, file_hash, info_json, created_at)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO videos (id, filename, path, file_hash, info_json, created_at, project_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             video_id,
@@ -182,6 +206,7 @@ def register_video(
             file_hash,
             json.dumps(info) if info is not None else None,
             time.time(),
+            project_id,
         ),
     )
     conn.commit()
@@ -192,6 +217,7 @@ def register_video(
         "path": path,
         "file_hash": file_hash,
         "info_json": json.dumps(info) if info is not None else None,
+        "project_id": project_id,
     }
 
 
@@ -204,6 +230,80 @@ def update_video_info(video_id: str, info: dict[str, Any]) -> None:
     )
     conn.commit()
     conn.close()
+
+
+def set_video_project(video_id: str, project_id: str | None) -> None:
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE videos SET project_id = ? WHERE id = ?",
+        (project_id, video_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def insert_project(
+    project_id: str,
+    name: str,
+    description: str | None = None,
+) -> None:
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO projects (id, name, description, created_at)
+        VALUES (?, ?, ?, ?)
+        """,
+        (project_id, name, description, time.time()),
+    )
+    conn.commit()
+    conn.close()
+
+
+def update_project(
+    project_id: str,
+    name: str | None = None,
+    description: str | None = None,
+) -> None:
+    fields = []
+    params: list[Any] = []
+    if name is not None:
+        fields.append("name = ?")
+        params.append(name)
+    if description is not None:
+        fields.append("description = ?")
+        params.append(description)
+    if not fields:
+        return
+    params.append(project_id)
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(f"UPDATE projects SET {', '.join(fields)} WHERE id = ?", params)
+    conn.commit()
+    conn.close()
+
+
+def get_project(project_id: str) -> dict[str, Any] | None:
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM projects WHERE id = ?", (project_id,))
+    row = cur.fetchone()
+    conn.close()
+    if row is None:
+        return None
+    return _row_to_dict(cur, row)
+
+
+def list_projects() -> list[dict[str, Any]]:
+    conn = _connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM projects ORDER BY created_at DESC")
+    rows = cur.fetchall()
+    conn.close()
+    return [_row_to_dict(cur, row) for row in rows]
 
 
 def insert_job(
