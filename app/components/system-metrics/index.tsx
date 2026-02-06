@@ -24,7 +24,7 @@ function formatBytes(size?: number) {
 }
 
 export function SystemMetrics() {
-  const { metrics, error } = useSystemMetrics();
+  const { metrics, error, refresh } = useSystemMetrics();
 
   const jobStatuses = metrics?.jobs_by_status ?? {};
   const jobTypes = metrics?.jobs_by_type ?? {};
@@ -36,7 +36,10 @@ export function SystemMetrics() {
     <div className={styles.panel}>
       <div className="flex items-center justify-between">
         <span className={styles.title} style={{ color: "var(--neon-lime)" }}>system metrics</span>
-        {error && <span className="text-[10px] text-danger">{error}</span>}
+        <div className="flex items-center gap-2">
+          {error && <span className="text-[10px] text-danger">{error}</span>}
+          <button className={styles.button} onClick={refresh}>Refresh</button>
+        </div>
       </div>
 
       <div className={styles.grid}>
