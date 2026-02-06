@@ -66,11 +66,7 @@ export function useProjectManager() {
   const selectProject = useCallback(async (projectId: string | null) => {
     setSelectedProjectId(projectId);
     if (typeof window !== "undefined") {
-      if (projectId) {
-        window.localStorage.setItem("projectId", projectId);
-      } else {
-        window.localStorage.setItem("projectId", "unassigned");
-      }
+      window.localStorage.setItem("projectId", projectId ?? "unassigned");
     }
     if (videoId) {
       try {

@@ -43,11 +43,7 @@ export function useVideoLibrary() {
     const nextProjectId = video.project_id ?? null;
     setSelectedProjectId(nextProjectId);
     if (typeof window !== "undefined") {
-      if (nextProjectId) {
-        window.localStorage.setItem("projectId", nextProjectId);
-      } else {
-        window.localStorage.setItem("projectId", "unassigned");
-      }
+      window.localStorage.setItem("projectId", nextProjectId ?? "unassigned");
     }
     setProgress(0, `Loaded ${video.filename}`);
   }, [setVideo, setProgress, setSelectedProjectId]);

@@ -53,11 +53,7 @@ export function useOutputHistory() {
     const nextProjectId = output.project_id ?? null;
     setSelectedProjectId(nextProjectId);
     if (typeof window !== "undefined") {
-      if (nextProjectId) {
-        window.localStorage.setItem("projectId", nextProjectId);
-      } else {
-        window.localStorage.setItem("projectId", "unassigned");
-      }
+      window.localStorage.setItem("projectId", nextProjectId ?? "unassigned");
     }
     if (output.output_type === "preview") {
       setPreviewId(output.id);

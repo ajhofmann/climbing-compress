@@ -72,7 +72,7 @@ interface Store {
   setProgress: (p: number, msg: string) => void;
 }
 
-const getInitialFlag = (key: string, fallback: boolean) => {
+export const getInitialFlag = (key: string, fallback: boolean) => {
   if (typeof window === "undefined") return fallback;
   const stored = window.localStorage.getItem(key);
   if (stored === "true") return true;
