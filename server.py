@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import logging
 import os
 import shutil
@@ -31,6 +32,15 @@ from pipeline.speed_curve import detect_rest
 from utils.sse import sse_response
 from utils.video_io import get_video_info
 from utils.viz import generate_thumbnails
+from db import (
+    init_db,
+    sync_input_dir,
+    get_video,
+    list_videos as db_list_videos,
+    get_video_by_hash,
+    register_video,
+    update_video_info,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +48,9 @@ INPUT_DIR = Path(os.environ.get("INPUT_DIR", "data/input"))
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "data/output"))
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+init_db()
+sync_input_dir(INPUT_DIR)
 
 _cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
 
@@ -48,22 +61,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# In-memory store for video paths by ID
-_videos: dict[str, Path] = {}
-
-# Content-hash index for upload dedup (hash -> video_id)
-_file_hashes: dict[str, str] = {}
-
-# Scan existing input videos on startup
-for _f in INPUT_DIR.iterdir():
-    if _f.suffix.lower() in (".mov", ".mp4", ".avi", ".mkv") and not _f.name.startswith("_tmp_"):
-        _videos[_f.stem] = _f
-        try:
-            _file_hashes[content_hash(str(_f))] = _f.stem
-        except (OSError, ValueError) as exc:
-            logger.warning("Failed to hash %s: %s", _f, exc)
-
 
 # ---- Models ----
 
@@ -121,9 +118,13 @@ class AnalyzeRequest(BaseModel):
 # ---- Helpers ----
 
 def _get_video_path(video_id: str) -> Path:
-    if video_id not in _videos:
+    record = get_video(video_id)
+    if not record:
         raise HTTPException(404, f"Video '{video_id}' not found")
-    return _videos[video_id]
+    path = Path(record["path"])
+    if not path.exists():
+        raise HTTPException(404, f"Video '{video_id}' not found")
+    return path
 
 
 def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
@@ -154,18 +155,25 @@ async def upload_video(file: UploadFile = File(...)):
         ch = content_hash(str(tmp))
 
         # Reuse existing file if same content already in input dir
-        if ch in _file_hashes:
-            existing_id = _file_hashes[ch]
-            if existing_id in _videos and _videos[existing_id].exists():
+        existing = get_video_by_hash(ch)
+        if existing:
+            existing_id = existing["id"]
+            existing_path = Path(existing["path"])
+            if existing_path.exists():
                 tmp.unlink()
-                dest = _videos[existing_id]
-                info = get_video_info(str(dest))
-                thumbs = generate_thumbnails(str(dest), n=8)
+                info = (
+                    json.loads(existing["info_json"])
+                    if existing.get("info_json")
+                    else get_video_info(str(existing_path))
+                )
+                if not existing.get("info_json"):
+                    update_video_info(existing_id, info)
+                thumbs = generate_thumbnails(str(existing_path), n=8)
                 return {
                     "video_id": existing_id,
                     "info": info,
                     "thumbnails": _encode_thumbnails(thumbs),
-                    "cached": has_cache(str(dest)),
+                    "cached": has_cache(str(existing_path)),
                     "reused": True,
                 }
 
@@ -174,10 +182,9 @@ async def upload_video(file: UploadFile = File(...)):
         dest = INPUT_DIR / f"{video_id}{ext}"
         tmp.rename(dest)
 
-        _videos[video_id] = dest
-        _file_hashes[ch] = video_id
         info = get_video_info(str(dest))
         thumbs = generate_thumbnails(str(dest), n=8)
+        register_video(video_id, dest.name, str(dest), ch, info=info)
 
         return {
             "video_id": video_id,
@@ -197,9 +204,16 @@ async def upload_video(file: UploadFile = File(...)):
 async def list_videos():
     """List available input videos."""
     result = []
-    for vid, path in _videos.items():
-        info = get_video_info(str(path))
-        result.append({"video_id": vid, "filename": path.name, "info": info})
+    for record in db_list_videos():
+        path = Path(record["path"])
+        if not path.exists():
+            continue
+        if record.get("info_json"):
+            info = json.loads(record["info_json"])
+        else:
+            info = get_video_info(str(path))
+            update_video_info(record["id"], info)
+        result.append({"video_id": record["id"], "filename": record["filename"], "info": info})
     return result
 
 
