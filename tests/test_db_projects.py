@@ -33,6 +33,10 @@ def test_delete_project_unassigns_videos(tmp_path, monkeypatch):
     projects = db_module.list_projects()
     assert projects[0]["id"] == "proj-new"
 
+    project = db_module.get_project(project_id)
+    assert project is not None
+    assert project["name"] == "Project DB"
+
     db_module.delete_project(project_id)
 
     conn = sqlite3.connect(db_path)
