@@ -36,6 +36,9 @@ export function JobMonitor() {
               </span>
               <span className="uppercase text-text-muted">{formatJobType(job.job_type)}</span>
               <span className="font-mono text-text">{Math.round((job.progress ?? 0) * 100)}%</span>
+              {job.message && (
+                <span className="text-text-muted truncate max-w-[160px]">{job.message}</span>
+              )}
               <span className="ml-auto text-text-muted">{job.video_id}</span>
               {(job.status === "queued" || job.status === "running") && (
                 <button
