@@ -1,5 +1,6 @@
 export const formatAge = (timestamp?: number) => {
-  if (!timestamp) return "";
+  if (timestamp === null || timestamp === undefined) return "";
+  if (!Number.isFinite(timestamp)) return "";
   const seconds = Math.max(0, Math.floor(Date.now() / 1000 - timestamp));
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
@@ -12,6 +13,7 @@ export const formatAge = (timestamp?: number) => {
 
 export const formatBytes = (size?: number | null, empty = "") => {
   if (size === null || size === undefined) return empty;
+  if (!Number.isFinite(size)) return empty;
   if (size === 0) return "0kb";
   const kb = size / 1024;
   if (kb < 1024) return `${Math.round(kb)}kb`;
@@ -30,11 +32,13 @@ export const formatOutputType = (outputType: string) => {
 
 export const formatDuration = (duration?: number | null) => {
   if (duration === null || duration === undefined) return "";
+  if (!Number.isFinite(duration)) return "";
   return `${Math.round(duration)}s`;
 };
 
 export const formatDurationSeconds = (duration?: number | null) => {
   if (duration === null || duration === undefined) return "";
+  if (!Number.isFinite(duration)) return "";
   const seconds = Math.max(0, Math.floor(duration));
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
