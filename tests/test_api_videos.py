@@ -39,6 +39,16 @@ def test_videos_api_includes_project_and_size(tmp_path, monkeypatch):
         info=info,
         project_id=project_id,
     )
+    zero_path = tmp_path / "zero.mp4"
+    zero_path.write_bytes(b"")
+    db_module.register_video(
+        video_id="video-zero",
+        filename="zero.mp4",
+        path=str(zero_path),
+        file_hash="hash-zero",
+        info=info,
+        project_id=project_id,
+    )
     db_module.register_video(
         video_id="video-missing",
         filename="missing.mp4",
@@ -55,9 +65,10 @@ def test_videos_api_includes_project_and_size(tmp_path, monkeypatch):
     response = client.get("/api/videos")
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload) == 1
-    video = payload[0]
-    assert video["video_id"] == "video-api"
+    assert len(payload) == 2
+    video = next(item for item in payload if item["video_id"] == "video-api")
+    video_zero = next(item for item in payload if item["video_id"] == "video-zero")
     assert video["project_name"] == "Project Videos API"
     assert video["size_bytes"] == len(b"video-bytes")
     assert video["info"]["duration"] == 1.0
+    assert video_zero["size_bytes"] == 0
