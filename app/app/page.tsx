@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useStore, AnalysisParams } from "@/lib/store";
-import { analyzeVideo, solveCurve, renderVideo } from "@/lib/api";
+import { analyzeVideo, solveCurve, renderVideo, previewVideo } from "@/lib/api";
 import { VideoUpload } from "@/components/video-upload";
 import { VideoPlayer } from "@/components/video-player";
 import { TimelineEditor } from "@/components/timeline-editor";
@@ -15,7 +15,7 @@ import { HeaderArt } from "@/components/header-art";
 export default function Home() {
   const store = useStore();
   const solveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { videoId, analysis, settings, pins } = store;
+  const { videoId, analysis, settings, pins, playbackTime } = store;
 
   useEffect(() => {
     if (!videoId || !analysis) return;
@@ -81,6 +81,35 @@ export default function Home() {
     }
   }, [videoId, settings, pins]);
 
+  const handlePreview = useCallback(async () => {
+    if (!videoId || !analysis) return;
+    const previewDuration = 4;
+    const end = settings.trimEnd > 0 ? settings.trimEnd : analysis.duration;
+    const baseStart = playbackTime > 0 ? playbackTime : settings.trimStart;
+    const start = Math.max(settings.trimStart, Math.min(baseStart, Math.max(end - previewDuration, 0)));
+    store.setPreviewing(true);
+    store.setProgress(0, "Starting preview...");
+    try {
+      const result = await previewVideo(
+        videoId,
+        settings,
+        pins,
+        start,
+        previewDuration,
+        (p, msg) => { store.setProgress(p, msg); },
+      );
+      if (result?.output_id) {
+        store.setPreviewId(result.output_id);
+        store.setProgress(0, "Preview ready");
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      store.setProgress(0, `Error: ${msg}`);
+    } finally {
+      store.setPreviewing(false);
+    }
+  }, [videoId, analysis, settings, pins, playbackTime]);
+
   const hasAnalysis = !!analysis;
 
   return (
@@ -118,6 +147,17 @@ export default function Home() {
               </div>
               {/* Video info inline */}
               <VideoUpload />
+              <Tooltip text={"Quick low-res preview around\nthe current playhead.\nGreat for checking timing."}>
+                <button
+                  onClick={handlePreview}
+                  disabled={!videoId || !hasAnalysis || store.isPreviewing}
+                  className={`px-4 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
+                    store.isPreviewing ? "retro-btn opacity-70" : hasAnalysis ? "retro-btn" : "retro-btn"
+                  } disabled:opacity-30 disabled:cursor-not-allowed`}
+                >
+                  {store.isPreviewing ? "PREVIEWING..." : "PREVIEW"}
+                </button>
+              </Tooltip>
               <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel."}>
                 <button
                   onClick={handleRender}

@@ -108,6 +108,17 @@ interface RenderResult {
   };
 }
 
+interface PreviewResult {
+  output_id: string;
+  stats: {
+    output_duration: number;
+    speed_min: number;
+    speed_max: number;
+    slow_pct: number;
+    action_rest_ratio: number;
+  };
+}
+
 export async function renderVideo(
   videoId: string,
   settings: Settings,
@@ -157,6 +168,84 @@ export async function renderVideo(
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let result: RenderResult | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const text = decoder.decode(value);
+    for (const line of text.split("\n")) {
+      if (line.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(line.slice(6));
+          onProgress(data.progress, data.message);
+          if (data.done) result = data;
+        } catch {
+          // skip malformed SSE lines
+        }
+      }
+    }
+  }
+  return result;
+}
+
+export async function previewVideo(
+  videoId: string,
+  settings: Settings,
+  pins: Pin[],
+  previewStart: number,
+  previewDuration: number,
+  onProgress: (progress: number, message: string) => void,
+  options?: { scale?: number; fps?: number; crf?: number; debugOverlay?: boolean },
+): Promise<PreviewResult | null> {
+  const res = await fetch(`${API}/api/preview`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      video_id: videoId,
+      mode: settings.mode,
+      target_duration: settings.targetDuration,
+      sensitivity: settings.sensitivity,
+      max_speed: settings.maxSpeed,
+      min_speed: settings.minSpeed,
+      steepness: settings.steepness,
+      smoothing: settings.smoothing,
+      hand_weight: settings.handWeight,
+      foot_weight: settings.footWeight,
+      core_weight: settings.coreWeight,
+      progress_floor: settings.progressFloor,
+      vertical_bias: settings.verticalBias,
+      down_weight: settings.downWeight,
+      rest_threshold_s: settings.restThreshold,
+      trim_start: settings.trimStart,
+      trim_end: settings.trimEnd,
+      pins,
+      scale: settings.scale,
+      output_fps: settings.outputFps,
+      crf: settings.crf,
+      debug_overlay: settings.debugOverlay,
+      stabilize: settings.stabilize,
+      stabilize_strength: settings.stabilizeStrength,
+      stabilize_smoothness: settings.stabilizeSmoothness,
+      stabilize_crop: settings.stabilizeCrop,
+      include_audio: false,
+      use_feature_stabilize: settings.useFeatureStabilize,
+      feature_stabilize_weight: settings.featureStabilizeWeight,
+      render_comparison: false,
+      preview_start: previewStart,
+      preview_duration: previewDuration,
+      preview_scale: options?.scale ?? 0.35,
+      preview_fps: options?.fps ?? 24,
+      preview_crf: options?.crf ?? 28,
+      preview_debug_overlay: options?.debugOverlay ?? false,
+    }),
+  });
+
+  if (!res.ok) throw new Error(await res.text());
+  if (!res.body) throw new Error("No response body");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let result: PreviewResult | null = null;
 
   while (true) {
     const { done, value } = await reader.read();

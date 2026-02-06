@@ -14,8 +14,8 @@ const CLIMBING_MESSAGES = [
 ];
 
 export function ProgressBar() {
-  const { isAnalyzing, isRendering, progress, progressMessage } = useStore();
-  const active = isAnalyzing || isRendering;
+  const { isAnalyzing, isRendering, isPreviewing, progress, progressMessage } = useStore();
+  const active = isAnalyzing || isRendering || isPreviewing;
 
   if (!active && !progressMessage) return null;
 

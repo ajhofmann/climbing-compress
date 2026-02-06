@@ -121,6 +121,14 @@ class AnalyzeRequest(BaseModel):
     use_flow: bool = True
     tracker_model: str = "yolo26m"
 
+class PreviewRequest(RenderRequest):
+    preview_start: float = 0.0
+    preview_duration: float = 4.0
+    preview_scale: float = 0.35
+    preview_fps: float = 24
+    preview_crf: int = 28
+    preview_debug_overlay: bool = False
+
 
 # ---- Helpers ----
 
@@ -145,6 +153,12 @@ def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
         b64 = base64.b64encode(buf.getvalue()).decode()
         urls.append(f"data:image/jpeg;base64,{b64}")
     return urls
+
+
+def _model_dump(model: BaseModel) -> dict:
+    if hasattr(model, "model_dump"):
+        return model.model_dump()
+    return model.dict()
 
 
 # ---- Endpoints ----
@@ -357,6 +371,78 @@ async def render_video_endpoint(req: RenderRequest):
 
         try:
             run_render(str(path), req, OUTPUT_DIR, emit_job)
+        except Exception as exc:
+            update_job(job_id, status="failed", message=str(exc))
+            raise
+
+    return sse_response(worker)
+
+
+@app.post("/api/preview")
+async def preview_video(req: PreviewRequest):
+    path = _get_video_path(req.video_id)
+    job_id = uuid.uuid4().hex[:12]
+    insert_job(job_id, req.video_id, "preview", status="queued", message="Queued")
+
+    info = get_video_info(str(path))
+    duration = float(info.get("duration", 0))
+    start = max(0.0, req.preview_start)
+    preview_len = max(0.5, req.preview_duration)
+    end = start + preview_len
+    if duration > 0:
+        end = min(end, duration)
+
+    payload = _model_dump(req)
+    for key in [
+        "preview_start", "preview_duration", "preview_scale",
+        "preview_fps", "preview_crf", "preview_debug_overlay",
+    ]:
+        payload.pop(key, None)
+    payload.update({
+        "trim_start": start,
+        "trim_end": end,
+        "scale": req.preview_scale,
+        "output_fps": req.preview_fps,
+        "crf": req.preview_crf,
+        "debug_overlay": req.preview_debug_overlay,
+        "render_comparison": False,
+    })
+    preview_req = RenderRequest(**payload)
+
+    def worker(emit):
+        update_job(job_id, status="running", progress=0.0, message="Starting preview render")
+
+        def emit_job(payload: dict) -> None:
+            payload = {**payload, "job_id": job_id}
+            update_job(
+                job_id,
+                status="running",
+                progress=float(payload.get("progress", 0.0)),
+                message=payload.get("message"),
+            )
+            if payload.get("done"):
+                output_id = payload.get("output_id")
+                if output_id:
+                    output_path = OUTPUT_DIR / f"{output_id}.mp4"
+                    insert_output(
+                        output_id=output_id,
+                        video_id=req.video_id,
+                        job_id=job_id,
+                        output_type="preview",
+                        path=str(output_path),
+                        stats=payload.get("stats"),
+                    )
+                update_job(
+                    job_id,
+                    status="success",
+                    progress=1.0,
+                    message=payload.get("message", "Done"),
+                    result=payload,
+                )
+            emit(payload)
+
+        try:
+            run_render(str(path), preview_req, OUTPUT_DIR, emit_job)
         except Exception as exc:
             update_job(job_id, status="failed", message=str(exc))
             raise

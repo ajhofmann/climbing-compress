@@ -45,6 +45,8 @@ interface Store {
   comparisonId: string | null;
   setOutputId: (id: string | null) => void;
   setComparisonId: (id: string | null) => void;
+  previewId: string | null;
+  setPreviewId: (id: string | null) => void;
 
   // Playback
   playbackTime: number;
@@ -53,10 +55,12 @@ interface Store {
   // Progress
   isAnalyzing: boolean;
   isRendering: boolean;
+  isPreviewing: boolean;
   progress: number;
   progressMessage: string;
   setAnalyzing: (v: boolean) => void;
   setRendering: (v: boolean) => void;
+  setPreviewing: (v: boolean) => void;
   setProgress: (p: number, msg: string) => void;
 }
 
@@ -64,7 +68,7 @@ export const useStore = create<Store>((set) => ({
   videoId: null,
   videoInfo: null,
   thumbnails: [],
-  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], solveScores: [], restRegions: [], stats: null, outputId: null, comparisonId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
+  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], solveScores: [], restRegions: [], stats: null, outputId: null, comparisonId: null, previewId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
 
   analysis: null,
   analysisParams: null,
@@ -94,15 +98,19 @@ export const useStore = create<Store>((set) => ({
   comparisonId: null,
   setOutputId: (id) => set({ outputId: id }),
   setComparisonId: (id) => set({ comparisonId: id }),
+  previewId: null,
+  setPreviewId: (id) => set({ previewId: id }),
 
   playbackTime: 0,
   setPlaybackTime: (t) => set({ playbackTime: t }),
 
   isAnalyzing: false,
   isRendering: false,
+  isPreviewing: false,
   progress: 0,
   progressMessage: "",
   setAnalyzing: (v) => set({ isAnalyzing: v }),
   setRendering: (v) => set({ isRendering: v }),
+  setPreviewing: (v) => set({ isPreviewing: v }),
   setProgress: (p, msg) => set({ progress: p, progressMessage: msg }),
 }));
