@@ -17,6 +17,12 @@ def test_api_error_responses(tmp_path, monkeypatch):
     import db as db_module
     importlib.reload(db_module)
     db_module.init_db()
+    db_module.register_video(
+        video_id="video-missing-project",
+        filename="missing.mp4",
+        path="/tmp/missing.mp4",
+        file_hash="hash-missing",
+    )
 
     import server as server_module
     importlib.reload(server_module)
@@ -26,6 +32,12 @@ def test_api_error_responses(tmp_path, monkeypatch):
     assert response.status_code == 404
 
     response = client.post("/api/videos/missing/project", json={"project_id": None})
+    assert response.status_code == 404
+
+    response = client.post(
+        "/api/videos/video-missing-project/project",
+        json={"project_id": "missing-project"},
+    )
     assert response.status_code == 404
 
     response = client.post("/api/jobs/missing/cancel")
