@@ -59,7 +59,7 @@ export function VideoLibrary() {
                 <span className={styles.meta}>{formatAge(video.created_at)}</span>
               )}
               <span className={styles.meta}>{Math.round(video.info.duration)}s</span>
-              {video.size_bytes && (
+              {video.size_bytes !== undefined && (
                 <span className={styles.meta}>{formatBytes(video.size_bytes)}</span>
               )}
               <span className={styles.meta}>{video.info.width}x{video.info.height}</span>

@@ -28,7 +28,7 @@ export function ProjectManager() {
   };
 
   const formatDuration = (duration?: number | null) => {
-    if (!duration) return "";
+    if (duration === null || duration === undefined) return "";
     return `${Math.round(duration)}s`;
   };
 
@@ -124,7 +124,7 @@ export function ProjectManager() {
           {summary.latest_output && (
             <span>
               latest: <span className="font-mono text-text">{formatOutputType(summary.latest_output.output_type)}</span>
-              {summary.latest_output.output_duration && (
+              {summary.latest_output.output_duration !== null && summary.latest_output.output_duration !== undefined && (
                 <span className="ml-1 font-mono text-text">{formatDuration(summary.latest_output.output_duration)}</span>
               )}
               {summary.latest_output.created_at && (

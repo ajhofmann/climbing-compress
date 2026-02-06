@@ -69,10 +69,10 @@ export function OutputHistory() {
             >
               <span className="uppercase text-text-muted">{formatOutputType(output.output_type)}</span>
               <span className={styles.meta}>{formatAge(output.created_at)}</span>
-              {output.output_duration && (
+              {output.output_duration !== null && output.output_duration !== undefined && (
                 <span className={styles.meta}>{formatDuration(output.output_duration)}</span>
               )}
-              {output.size_bytes && (
+              {output.size_bytes !== null && output.size_bytes !== undefined && (
                 <span className={styles.meta}>{formatBytes(output.size_bytes)}</span>
               )}
               <span className={styles.meta} title={output.video_filename ?? output.video_id}>
