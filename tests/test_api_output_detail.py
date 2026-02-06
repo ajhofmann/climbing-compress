@@ -42,6 +42,7 @@ def test_output_detail_api_returns_stats(tmp_path, monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload["id"] == "output-detail"
+    assert payload["output_type"] == "preview"
     assert payload["stats"]["output_duration"] == 3.3
 
 
@@ -88,4 +89,5 @@ def test_output_detail_invalid_stats(tmp_path, monkeypatch):
     response = client.get("/api/outputs/output-detail")
     assert response.status_code == 200
     payload = response.json()
+    assert payload["output_type"] == "preview"
     assert payload["stats"] is None
