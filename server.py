@@ -733,9 +733,10 @@ async def update_project_endpoint(project_id: str, req: ProjectUpdateRequest):
 
 @app.get("/api/projects/{project_id}/summary")
 async def project_summary(project_id: str):
-    project = get_project(project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
+    if project_id != "unassigned":
+        project = get_project(project_id)
+        if not project:
+            raise HTTPException(404, "Project not found")
     return get_project_summary(project_id)
 
 

@@ -323,43 +323,79 @@ def get_project_summary(project_id: str) -> dict[str, Any]:
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    cur.execute("SELECT COUNT(*) as count FROM videos WHERE project_id = ?", (project_id,))
-    video_count = cur.fetchone()["count"]
+    if project_id == "unassigned":
+        cur.execute("SELECT COUNT(*) as count FROM videos WHERE project_id IS NULL")
+        video_count = cur.fetchone()["count"]
 
-    cur.execute(
-        """
-        SELECT COUNT(*) as count
-        FROM outputs
-        JOIN videos ON outputs.video_id = videos.id
-        WHERE videos.project_id = ?
-        """,
-        (project_id,),
-    )
-    output_count = cur.fetchone()["count"]
+        cur.execute(
+            """
+            SELECT COUNT(*) as count
+            FROM outputs
+            JOIN videos ON outputs.video_id = videos.id
+            WHERE videos.project_id IS NULL
+            """
+        )
+        output_count = cur.fetchone()["count"]
 
-    cur.execute(
-        """
-        SELECT COUNT(*) as count
-        FROM jobs
-        JOIN videos ON jobs.video_id = videos.id
-        WHERE videos.project_id = ?
-        """,
-        (project_id,),
-    )
-    job_count = cur.fetchone()["count"]
+        cur.execute(
+            """
+            SELECT COUNT(*) as count
+            FROM jobs
+            JOIN videos ON jobs.video_id = videos.id
+            WHERE videos.project_id IS NULL
+            """
+        )
+        job_count = cur.fetchone()["count"]
 
-    cur.execute(
-        """
-        SELECT outputs.id, outputs.output_type, outputs.created_at
-        FROM outputs
-        JOIN videos ON outputs.video_id = videos.id
-        WHERE videos.project_id = ?
-        ORDER BY outputs.created_at DESC
-        LIMIT 1
-        """,
-        (project_id,),
-    )
-    latest = cur.fetchone()
+        cur.execute(
+            """
+            SELECT outputs.id, outputs.output_type, outputs.created_at
+            FROM outputs
+            JOIN videos ON outputs.video_id = videos.id
+            WHERE videos.project_id IS NULL
+            ORDER BY outputs.created_at DESC
+            LIMIT 1
+            """
+        )
+        latest = cur.fetchone()
+    else:
+        cur.execute("SELECT COUNT(*) as count FROM videos WHERE project_id = ?", (project_id,))
+        video_count = cur.fetchone()["count"]
+
+        cur.execute(
+            """
+            SELECT COUNT(*) as count
+            FROM outputs
+            JOIN videos ON outputs.video_id = videos.id
+            WHERE videos.project_id = ?
+            """,
+            (project_id,),
+        )
+        output_count = cur.fetchone()["count"]
+
+        cur.execute(
+            """
+            SELECT COUNT(*) as count
+            FROM jobs
+            JOIN videos ON jobs.video_id = videos.id
+            WHERE videos.project_id = ?
+            """,
+            (project_id,),
+        )
+        job_count = cur.fetchone()["count"]
+
+        cur.execute(
+            """
+            SELECT outputs.id, outputs.output_type, outputs.created_at
+            FROM outputs
+            JOIN videos ON outputs.video_id = videos.id
+            WHERE videos.project_id = ?
+            ORDER BY outputs.created_at DESC
+            LIMIT 1
+            """,
+            (project_id,),
+        )
+        latest = cur.fetchone()
     conn.close()
 
     return {

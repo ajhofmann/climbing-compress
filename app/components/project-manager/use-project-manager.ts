@@ -44,12 +44,9 @@ export function useProjectManager() {
   }, [refresh]);
 
   const refreshSummary = useCallback(async (projectId: string | null) => {
-    if (!projectId) {
-      setSummary(null);
-      return;
-    }
+    const targetId = projectId ?? "unassigned";
     try {
-      const data = await getProjectSummary(projectId);
+      const data = await getProjectSummary(targetId);
       setSummary(data);
     } catch {
       setSummary(null);
