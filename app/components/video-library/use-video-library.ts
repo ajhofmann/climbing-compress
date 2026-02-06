@@ -20,12 +20,14 @@ export function useVideoLibrary() {
   const { selectedProjectId, videoId, setVideo, setProgress, setSelectedProjectId } = useStore();
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const data = await listVideos(selectedProjectId ?? "unassigned");
       setVideos(data ?? []);
       setError(null);
+      setLastUpdated(Date.now());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load videos";
       setError(msg);
@@ -34,8 +36,6 @@ export function useVideoLibrary() {
 
   useEffect(() => {
     refresh();
-    const id = window.setInterval(refresh, 6000);
-    return () => window.clearInterval(id);
   }, [refresh, videoId]);
 
   const loadVideo = useCallback((video: VideoRecord) => {
@@ -48,5 +48,5 @@ export function useVideoLibrary() {
     setProgress(0, `Loaded ${video.filename}`);
   }, [setVideo, setProgress, setSelectedProjectId]);
 
-  return { videos, error, refresh, loadVideo };
+  return { videos, error, refresh, loadVideo, lastUpdated };
 }

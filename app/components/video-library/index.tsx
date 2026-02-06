@@ -26,14 +26,21 @@ const formatBytes = (size?: number) => {
 };
 
 export function VideoLibrary() {
-  const { videos, error, refresh, loadVideo } = useVideoLibrary();
+  const { videos, error, refresh, loadVideo, lastUpdated } = useVideoLibrary();
   const { videoId } = useStore();
 
   return (
     <div className={styles.panel}>
       <div className="flex items-center justify-between">
         <span className={styles.title} style={{ color: "var(--neon-cyan)" }}>video library</span>
-        <button className={styles.button} onClick={refresh}>Refresh</button>
+        <div className="flex items-center gap-2">
+          {lastUpdated && (
+            <span className="text-[10px] text-text-muted">
+              {new Date(lastUpdated).toLocaleTimeString()}
+            </span>
+          )}
+          <button className={styles.button} onClick={refresh}>Refresh</button>
+        </div>
       </div>
 
       {error && <span className={styles.empty} style={{ color: "var(--danger)" }}>{error}</span>}
