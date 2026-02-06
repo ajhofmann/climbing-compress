@@ -15,7 +15,7 @@ function formatAge(timestamp?: number) {
 }
 
 function formatDuration(duration?: number | null) {
-  if (!duration) return "";
+  if (duration === null || duration === undefined) return "";
   const seconds = Math.round(duration);
   return `${seconds}s`;
 }
@@ -27,7 +27,8 @@ function formatOutputType(outputType: string) {
 }
 
 function formatBytes(size?: number | null) {
-  if (!size) return "";
+  if (size === null || size === undefined) return "";
+  if (size === 0) return "0kb";
   const kb = size / 1024;
   if (kb < 1024) return `${Math.round(kb)}kb`;
   const mb = kb / 1024;

@@ -15,7 +15,8 @@ const formatAge = (timestamp?: number) => {
 };
 
 const formatBytes = (size?: number) => {
-  if (!size) return "";
+  if (size === undefined) return "";
+  if (size === 0) return "0kb";
   const kb = size / 1024;
   if (kb < 1024) return `${Math.round(kb)}kb`;
   const mb = kb / 1024;
