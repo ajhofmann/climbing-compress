@@ -55,5 +55,5 @@ export function useJobMonitor() {
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  return { jobs, error, cancel, isCancelling, retry, isRetrying };
+  return { jobs, error, refresh, cancel, isCancelling, retry, isRetrying };
 }
