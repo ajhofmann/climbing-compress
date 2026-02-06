@@ -588,7 +588,13 @@ def list_outputs(video_id: str | None = None, project_id: str | None = None) -> 
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    base_query = "SELECT outputs.*, videos.filename as video_filename, videos.project_id as project_id FROM outputs JOIN videos ON outputs.video_id = videos.id"
+    base_query = (
+        "SELECT outputs.*, videos.filename as video_filename, videos.project_id as project_id, "
+        "projects.name as project_name "
+        "FROM outputs "
+        "JOIN videos ON outputs.video_id = videos.id "
+        "LEFT JOIN projects ON videos.project_id = projects.id"
+    )
     conditions = []
     params: list[Any] = []
 

@@ -687,6 +687,7 @@ async def list_outputs(
             "video_id": output["video_id"],
             "video_filename": output.get("video_filename"),
             "project_id": output.get("project_id"),
+            "project_name": output.get("project_name"),
             "job_id": output["job_id"],
             "output_type": output["output_type"],
             "path": output["path"],
