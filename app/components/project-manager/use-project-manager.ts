@@ -89,6 +89,7 @@ export function useProjectManager() {
     if (videoId) {
       try {
         await assignVideoProject(videoId, projectId);
+        await refreshSummary(projectId);
         if (projectId) {
           setProgress(0, "Video assigned to project");
         } else {
@@ -99,7 +100,7 @@ export function useProjectManager() {
         setProgress(0, msg);
       }
     }
-  }, [setSelectedProjectId, videoId, setProgress]);
+  }, [refreshSummary, setSelectedProjectId, videoId, setProgress]);
 
   const create = useCallback(async (name: string, description?: string) => {
     if (!name.trim()) return null;
