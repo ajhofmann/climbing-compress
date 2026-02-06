@@ -43,6 +43,14 @@ def test_metrics_output_types_and_avg_duration(tmp_path, monkeypatch):
         path="/tmp/out3.mp4",
         stats={"output_duration": 2.0},
     )
+    db_module.insert_output(
+        output_id="out-invalid",
+        video_id=video_id,
+        job_id="job-4",
+        output_type="main",
+        path="/tmp/out4.mp4",
+        stats={"output_duration": 5.0},
+    )
 
     db_module.insert_job(job_id="job-a", video_id=video_id, job_type="analysis", status="success")
     db_module.insert_job(job_id="job-b", video_id=video_id, job_type="analysis", status="failed")
@@ -50,6 +58,7 @@ def test_metrics_output_types_and_avg_duration(tmp_path, monkeypatch):
 
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
+    cur.execute("UPDATE outputs SET stats_json = ? WHERE id = ?", ("not-json", "out-invalid"))
     cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (10.0, 15.0, "job-a"))
     cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (20.0, 28.0, "job-b"))
     cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (30.0, 33.0, "job-c"))
@@ -57,7 +66,7 @@ def test_metrics_output_types_and_avg_duration(tmp_path, monkeypatch):
     conn.close()
 
     metrics = db_module.get_metrics()
-    assert metrics["outputs_by_type"]["main"] == 2
+    assert metrics["outputs_by_type"]["main"] == 3
     assert metrics["outputs_by_type"]["preview"] == 1
     assert metrics["avg_output_duration_by_type"]["main"] == 2.0
     assert metrics["avg_output_duration_by_type"]["preview"] == 2.0
