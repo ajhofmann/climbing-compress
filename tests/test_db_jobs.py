@@ -73,3 +73,4 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
 
     assert db_module.list_jobs(job_type="missing") == []
     assert db_module.list_jobs(status="missing") == []
+    assert db_module.list_jobs(video_id="missing") == []
