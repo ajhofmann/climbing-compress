@@ -636,6 +636,8 @@ async def list_jobs(
         payload.append({
             "id": job["id"],
             "video_id": job["video_id"],
+            "video_filename": job.get("video_filename"),
+            "project_id": job.get("project_id"),
             "job_type": job["job_type"],
             "status": job["status"],
             "progress": job["progress"],

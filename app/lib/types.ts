@@ -76,6 +76,8 @@ export interface Metrics {
 export interface JobRecord {
   id: string;
   video_id: string;
+  video_filename?: string | null;
+  project_id?: string | null;
   job_type: string;
   status: string;
   progress: number;
