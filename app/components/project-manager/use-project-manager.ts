@@ -59,6 +59,8 @@ export function useProjectManager() {
 
   useEffect(() => {
     refreshSummary(selectedProjectId);
+    const id = window.setInterval(() => refreshSummary(selectedProjectId), 6000);
+    return () => window.clearInterval(id);
   }, [refreshSummary, selectedProjectId]);
 
   const selectProject = useCallback(async (projectId: string | null) => {
