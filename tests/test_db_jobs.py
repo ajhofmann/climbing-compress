@@ -1,4 +1,5 @@
 import importlib
+import json
 import sqlite3
 
 
@@ -33,6 +34,7 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
         job_id="job-assigned",
         video_id=assigned_video_id,
         job_type="analysis",
+        request={"video_id": assigned_video_id},
     )
     db_module.insert_job(
         job_id="job-unassigned",
@@ -94,4 +96,5 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
     job = db_module.get_job("job-assigned")
     assert job is not None
     assert job["id"] == "job-assigned"
+    assert json.loads(job["request_json"])["video_id"] == assigned_video_id
     assert db_module.get_job("missing") is None
