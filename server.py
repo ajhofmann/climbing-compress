@@ -791,7 +791,16 @@ async def assign_video_project(video_id: str, req: ProjectAssignRequest):
 
 @app.get("/api/metrics")
 async def metrics():
-    return db_get_metrics()
+    metrics_payload = db_get_metrics()
+    output_storage_bytes = 0
+    try:
+        for file in OUTPUT_DIR.glob("*.mp4"):
+            if file.is_file():
+                output_storage_bytes += file.stat().st_size
+    except FileNotFoundError:
+        output_storage_bytes = 0
+    metrics_payload["output_storage_bytes"] = output_storage_bytes
+    return metrics_payload
 
 
 if __name__ == "__main__":
