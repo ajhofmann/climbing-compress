@@ -35,6 +35,21 @@ def test_videos_api_cached_flag(tmp_path, monkeypatch):
             "duration": 1.0,
         },
     )
+    uncached_path = tmp_path / "uncached.mp4"
+    uncached_path.write_bytes(b"uncached-bytes")
+    db_module.register_video(
+        video_id="video-uncached",
+        filename="uncached.mp4",
+        path=str(uncached_path),
+        file_hash="hash-uncached",
+        info={
+            "fps": 30,
+            "width": 1280,
+            "height": 720,
+            "frame_count": 60,
+            "duration": 2.0,
+        },
+    )
 
     import pipeline.cache as cache_module
     importlib.reload(cache_module)
@@ -50,5 +65,8 @@ def test_videos_api_cached_flag(tmp_path, monkeypatch):
     response = client.get("/api/videos")
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload) == 1
-    assert payload[0]["cached"] is True
+    assert len(payload) == 2
+    cached = next(item for item in payload if item["video_id"] == "video-cached")
+    uncached = next(item for item in payload if item["video_id"] == "video-uncached")
+    assert cached["cached"] is True
+    assert uncached["cached"] is False
