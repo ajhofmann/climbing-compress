@@ -53,3 +53,5 @@ def test_list_videos_filters_and_names(tmp_path, monkeypatch):
     unassigned_videos = db_module.list_videos(project_id="unassigned")
     assert len(unassigned_videos) == 1
     assert unassigned_videos[0]["id"] == "video-unassigned"
+
+    assert db_module.list_videos(project_id="missing") == []
