@@ -44,7 +44,7 @@ export function useVideoLibrary() {
       if (nextProjectId) {
         window.localStorage.setItem("projectId", nextProjectId);
       } else {
-        window.localStorage.removeItem("projectId");
+        window.localStorage.setItem("projectId", "unassigned");
       }
     }
     setProgress(0, `Loaded ${video.filename}`);

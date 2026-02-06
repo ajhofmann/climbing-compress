@@ -26,8 +26,12 @@ export function useProjectManager() {
     try {
       const data = await listProjects();
       setProjects(data);
+      const stored = typeof window !== "undefined" ? window.localStorage.getItem("projectId") : null;
+      if (stored === "unassigned") {
+        setSelectedProjectId(null);
+        return;
+      }
       if (!selectedProjectId && data.length > 0) {
-        const stored = typeof window !== "undefined" ? window.localStorage.getItem("projectId") : null;
         const match = stored ? data.find((p) => p.id === stored) : null;
         setSelectedProjectId(match?.id ?? data[0].id);
       }
@@ -63,7 +67,7 @@ export function useProjectManager() {
       if (projectId) {
         window.localStorage.setItem("projectId", projectId);
       } else {
-        window.localStorage.removeItem("projectId");
+        window.localStorage.setItem("projectId", "unassigned");
       }
     }
     if (videoId) {
@@ -126,7 +130,7 @@ export function useProjectManager() {
       setProjects(updated);
       setSelectedProjectId(null);
       if (typeof window !== "undefined") {
-        window.localStorage.removeItem("projectId");
+        window.localStorage.setItem("projectId", "unassigned");
       }
       setSummary(null);
     } catch (err: unknown) {
