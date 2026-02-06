@@ -21,6 +21,12 @@ export function ProjectManager() {
     return `${hours}h`;
   };
 
+  const formatOutputType = (outputType: string) => {
+    if (outputType === "main") return "render";
+    if (outputType === "comparison") return "compare";
+    return outputType;
+  };
+
   const selected = projects.find((project) => project.id === selectedProjectId) ?? null;
 
   const onCreate = async () => {
@@ -107,7 +113,7 @@ export function ProjectManager() {
           <span>jobs: <span className="font-mono text-text">{summary.jobs}</span></span>
           {summary.latest_output && (
             <span>
-              latest: <span className="font-mono text-text">{summary.latest_output.output_type}</span>
+              latest: <span className="font-mono text-text">{formatOutputType(summary.latest_output.output_type)}</span>
               {summary.latest_output.created_at && (
                 <span className="ml-1 text-text-muted">{formatAge(summary.latest_output.created_at)}</span>
               )}
