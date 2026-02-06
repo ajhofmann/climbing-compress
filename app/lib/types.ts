@@ -131,6 +131,8 @@ export interface Settings {
   renderComparison: boolean;
   // Queue mode
   queueMode: boolean;
+  // Auto preview
+  autoPreview: boolean;
   // Highlight blend
   highlightActionWeight: number;
   highlightProgressWeight: number;
@@ -171,6 +173,7 @@ export const DEFAULT_SETTINGS: Settings = {
   includeAudio: true,
   renderComparison: false,
   queueMode: false,
+  autoPreview: false,
   highlightActionWeight: 0.7,
   highlightProgressWeight: 0.3,
 };

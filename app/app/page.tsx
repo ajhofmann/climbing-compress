@@ -20,21 +20,8 @@ import { OutputHistory } from "@/components/output-history";
 export default function Home() {
   const store = useStore();
   const solveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { videoId, analysis, settings, pins, playbackTime } = store;
-
-  useEffect(() => {
-    if (!videoId || !analysis) return;
-    if (solveTimeout.current) clearTimeout(solveTimeout.current);
-    solveTimeout.current = setTimeout(async () => {
-      try {
-        const result = await solveCurve(videoId, settings, pins);
-        store.setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions);
-      } catch (e) {
-        console.error("solve:", e);
-      }
-    }, 80);
-    return () => { if (solveTimeout.current) clearTimeout(solveTimeout.current); };
-  }, [videoId, analysis, settings, pins]);
+  const previewTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { videoId, analysis, settings, pins, playbackTime, isPreviewing, isAnalyzing, isRendering } = store;
 
   const handleAnalyze = useCallback(async () => {
     if (!videoId) return;
@@ -146,6 +133,38 @@ export default function Home() {
       store.setPreviewing(false);
     }
   }, [videoId, analysis, settings, pins, playbackTime]);
+
+  useEffect(() => {
+    if (!videoId || !analysis) return;
+    if (solveTimeout.current) clearTimeout(solveTimeout.current);
+    solveTimeout.current = setTimeout(async () => {
+      try {
+        const result = await solveCurve(videoId, settings, pins);
+        store.setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions);
+        if (settings.autoPreview && !isPreviewing && !isAnalyzing && !isRendering) {
+          if (previewTimeout.current) clearTimeout(previewTimeout.current);
+          previewTimeout.current = setTimeout(() => {
+            handlePreview();
+          }, 600);
+        }
+      } catch (e) {
+        console.error("solve:", e);
+      }
+    }, 80);
+    return () => {
+      if (solveTimeout.current) clearTimeout(solveTimeout.current);
+      if (previewTimeout.current) clearTimeout(previewTimeout.current);
+    };
+  }, [
+    videoId,
+    analysis,
+    settings,
+    pins,
+    handlePreview,
+    isPreviewing,
+    isAnalyzing,
+    isRendering,
+  ]);
 
   const hasAnalysis = !!analysis;
 

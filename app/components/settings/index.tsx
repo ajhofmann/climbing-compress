@@ -255,6 +255,7 @@ export function SettingsPanel() {
             <ToggleSwitch label="AUD" checked={s.includeAudio} onChange={(v) => u("includeAudio", v)} title="Include time-stretched audio from source" />
             <ToggleSwitch label="OVL" checked={s.debugOverlay} onChange={(v) => u("debugOverlay", v)} color="#76ff03" title="Show skeleton + speed badge overlay on video" />
             <ToggleSwitch label="A/B" checked={s.renderComparison} onChange={(v) => u("renderComparison", v)} color="#e040fb" title="Also render a uniform-speed version for comparison" />
+            <ToggleSwitch label="AUTO" checked={s.autoPreview} onChange={(v) => u("autoPreview", v)} color="#00e5ff" title="Auto-preview after curve edits" />
             <ToggleSwitch label="QUEUE" checked={s.queueMode} onChange={(v) => u("queueMode", v)} color="#00e5ff" title="Run jobs via background queue (poll status)" />
             <ToggleSwitch label="STAB" checked={s.stabilize} onChange={(v) => u("stabilize", v)} color="#ff6e40" title="Enable pose-anchored video stabilization" />
             {s.stabilize && (
