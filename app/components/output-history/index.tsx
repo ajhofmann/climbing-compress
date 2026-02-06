@@ -3,19 +3,12 @@
 import { useOutputHistory } from "./use-output-history";
 import { styles } from "./styles";
 import { useStore } from "@/lib/store";
-import { formatAge, formatBytes } from "@/lib/format";
+import { formatAge, formatBytes, formatOutputType } from "@/lib/format";
 
 function formatDuration(duration?: number | null) {
   if (duration === null || duration === undefined) return "";
   const seconds = Math.round(duration);
   return `${seconds}s`;
-}
-
-function formatOutputType(outputType: string) {
-  if (outputType === "main") return "render";
-  if (outputType === "comparison") return "compare";
-  if (outputType === "preview") return "preview";
-  return outputType;
 }
 
 export function OutputHistory() {

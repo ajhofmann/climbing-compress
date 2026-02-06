@@ -20,3 +20,10 @@ export const formatBytes = (size?: number | null, empty = "") => {
   const gb = mb / 1024;
   return `${gb.toFixed(1)}gb`;
 };
+
+export const formatOutputType = (outputType: string) => {
+  if (outputType === "main") return "render";
+  if (outputType === "comparison") return "compare";
+  if (outputType === "preview") return "preview";
+  return outputType.replace(/_/g, " ");
+};

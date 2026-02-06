@@ -2,16 +2,10 @@
 
 import { useSystemMetrics } from "./use-system-metrics";
 import { styles } from "./styles";
-import { formatBytes } from "@/lib/format";
+import { formatBytes, formatOutputType } from "@/lib/format";
 
 function formatLabel(label: string) {
   return label.replace(/_/g, " ");
-}
-
-function formatOutputType(label: string) {
-  if (label === "main") return "render";
-  if (label === "comparison") return "compare";
-  return formatLabel(label);
 }
 
 function formatSeconds(value?: number) {
