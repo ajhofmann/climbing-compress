@@ -51,6 +51,7 @@ def test_jobs_api_includes_project_and_duration(tmp_path, monkeypatch):
     assert len(payload) == 1
     job = payload[0]
     assert job["id"] == "job-api"
+    assert job["video_id"] == video_id
     assert job["project_name"] == "Project Jobs API"
     assert job["project_id"] == project_id
     assert job["video_filename"] == "jobs.mp4"
