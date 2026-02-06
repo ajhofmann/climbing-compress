@@ -73,3 +73,23 @@ def test_metrics_output_types_and_avg_duration(tmp_path, monkeypatch):
     assert metrics["avg_duration_by_type"]["analysis"] == 6.5
     assert metrics["avg_duration_by_type"]["render"] == 3.0
     assert metrics["db_size_bytes"] > 0
+
+
+def test_metrics_empty_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "empty.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    import db as db_module
+    importlib.reload(db_module)
+
+    db_module.init_db()
+
+    metrics = db_module.get_metrics()
+    assert metrics["videos"] == 0
+    assert metrics["outputs"] == 0
+    assert metrics["projects"] == 0
+    assert metrics["jobs_by_type"] == {}
+    assert metrics["jobs_by_status"] == {}
+    assert metrics["outputs_by_type"] == {}
+    assert metrics["avg_output_duration_by_type"] == {}
+    assert metrics["avg_duration_by_type"] == {}
