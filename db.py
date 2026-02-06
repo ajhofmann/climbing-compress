@@ -721,5 +721,6 @@ def get_metrics() -> dict[str, Any]:
         "outputs_by_type": outputs_by_type,
         "avg_output_duration_by_type": avg_output_duration_by_type,
         "avg_duration_by_type": avg_duration_by_type,
+        "db_size_bytes": DB_PATH.stat().st_size if DB_PATH.exists() else 0,
     }
 

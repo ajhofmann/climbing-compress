@@ -13,6 +13,16 @@ function formatOutputType(label: string) {
   return formatLabel(label);
 }
 
+function formatBytes(size?: number) {
+  if (!size) return "0kb";
+  const kb = size / 1024;
+  if (kb < 1024) return `${Math.round(kb)}kb`;
+  const mb = kb / 1024;
+  if (mb < 1024) return `${mb.toFixed(1)}mb`;
+  const gb = mb / 1024;
+  return `${gb.toFixed(1)}gb`;
+}
+
 export function SystemMetrics() {
   const { metrics, error } = useSystemMetrics();
 
@@ -91,6 +101,15 @@ export function SystemMetrics() {
               <span className="font-mono text-text">{duration}s</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {metrics && (
+        <div className={styles.list}>
+          <div className={styles.pill} style={{ background: "#080810" }}>
+            <span>db size</span>
+            <span className="font-mono text-text">{formatBytes(metrics.db_size_bytes)}</span>
+          </div>
         </div>
       )}
     </div>
