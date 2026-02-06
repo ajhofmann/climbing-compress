@@ -15,6 +15,11 @@ Optional (for person tracking):
 pip install climb-ramp[tracking]
 ```
 
+Optional cache version override:
+```
+export CACHE_VERSION=v2
+```
+
 ## Setup
 
 ```bash
