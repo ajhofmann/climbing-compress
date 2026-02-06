@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from pipeline.cache import (
     load_analysis, has_cache, content_hash, load_flow_scores,
-    load_camera_motion,
+    load_camera_motion, CACHE_DIR,
 )
 from pipeline.orchestrate import (
     run_analysis, run_render, compute_scores_and_curve, curve_stats,
@@ -794,6 +794,7 @@ async def metrics():
     metrics_payload = db_get_metrics()
     output_storage_bytes = 0
     input_storage_bytes = 0
+    cache_storage_bytes = 0
     try:
         for file in OUTPUT_DIR.glob("*.mp4"):
             if file.is_file():
@@ -806,8 +807,16 @@ async def metrics():
                 input_storage_bytes += file.stat().st_size
     except FileNotFoundError:
         input_storage_bytes = 0
+    try:
+        if CACHE_DIR.exists():
+            for file in CACHE_DIR.rglob("*"):
+                if file.is_file():
+                    cache_storage_bytes += file.stat().st_size
+    except FileNotFoundError:
+        cache_storage_bytes = 0
     metrics_payload["output_storage_bytes"] = output_storage_bytes
     metrics_payload["input_storage_bytes"] = input_storage_bytes
+    metrics_payload["cache_storage_bytes"] = cache_storage_bytes
     return metrics_payload
 
 
