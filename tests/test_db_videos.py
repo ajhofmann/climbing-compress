@@ -61,3 +61,8 @@ def test_list_videos_filters_and_names(tmp_path, monkeypatch):
     assert by_hash["id"] == "video-assigned"
 
     assert db_module.get_video_by_hash("missing-hash") is None
+
+    video = db_module.get_video("video-assigned")
+    assert video is not None
+    assert video["filename"] == "assigned.mp4"
+    assert db_module.get_video("missing") is None
