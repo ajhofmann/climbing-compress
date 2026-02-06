@@ -25,6 +25,16 @@ function formatAge(timestamp?: number) {
   return `${hours}h`;
 }
 
+function formatDuration(start?: number, end?: number) {
+  if (!start || !end) return "";
+  const seconds = Math.max(0, Math.floor(end - start));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h`;
+}
+
 export function JobMonitor() {
   const { jobs, error, cancel, isCancelling, retry, isRetrying } = useJobMonitor();
 
@@ -41,13 +51,21 @@ export function JobMonitor() {
         <div className={styles.list}>
           {jobs.map((job) => (
             <div key={job.id} className={styles.row}>
+              {(() => {
+                const isDone = job.status === "success" || job.status === "failed" || job.status === "cancelled";
+                const timeLabel = isDone
+                  ? formatDuration(job.created_at, job.updated_at)
+                  : formatAge(job.created_at);
+                const timePrefix = isDone ? "dur " : "";
+                return (
+                  <>
               <span className={styles.badge} style={{ background: "#080810", color: STATUS_COLORS[job.status] ?? "var(--text)" }}>
                 {job.status}
               </span>
               <span className="uppercase text-text-muted">{formatJobType(job.job_type)}</span>
               <span className="font-mono text-text">{Math.round((job.progress ?? 0) * 100)}%</span>
-              {job.created_at && (
-                <span className="text-text-muted">{formatAge(job.created_at)}</span>
+              {timeLabel && (
+                <span className="text-text-muted">{timePrefix}{timeLabel}</span>
               )}
               {job.message && (
                 <span className="text-text-muted truncate max-w-[160px]">{job.message}</span>
@@ -71,6 +89,9 @@ export function JobMonitor() {
                   {isRetrying === job.id ? "RETRY..." : "RETRY"}
                 </button>
               )}
+                  </>
+                );
+              })()}
             </div>
           ))}
         </div>
