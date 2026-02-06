@@ -54,6 +54,12 @@ export async function listJobs(): Promise<JobRecord[]> {
   return res.json();
 }
 
+export async function cancelJob(jobId: string): Promise<{ id: string; status: string }> {
+  const res = await fetch(`${API}/api/jobs/${jobId}/cancel`, { method: "POST" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function analyzeVideo(
   videoId: string,
   stride: number,

@@ -16,7 +16,7 @@ function formatJobType(jobType: string) {
 }
 
 export function JobMonitor() {
-  const { jobs, error } = useJobMonitor();
+  const { jobs, error, cancel, isCancelling } = useJobMonitor();
 
   return (
     <div className={styles.panel}>
@@ -37,6 +37,15 @@ export function JobMonitor() {
               <span className="uppercase text-text-muted">{formatJobType(job.job_type)}</span>
               <span className="font-mono text-text">{Math.round((job.progress ?? 0) * 100)}%</span>
               <span className="ml-auto text-text-muted">{job.video_id}</span>
+              {(job.status === "queued" || job.status === "running") && (
+                <button
+                  onClick={() => cancel(job.id)}
+                  disabled={isCancelling === job.id}
+                  className="text-[9px] font-pixel uppercase text-neon-magenta hover:text-white"
+                >
+                  {isCancelling === job.id ? "CANCEL..." : "CANCEL"}
+                </button>
+              )}
             </div>
           ))}
         </div>

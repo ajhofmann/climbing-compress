@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listJobs } from "@/lib/api";
+import { cancelJob, listJobs } from "@/lib/api";
 import { JobRecord } from "@/lib/types";
 
 export function useJobMonitor() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -19,11 +20,24 @@ export function useJobMonitor() {
     }
   }, []);
 
+  const cancel = useCallback(async (jobId: string) => {
+    setIsCancelling(jobId);
+    try {
+      await cancelJob(jobId);
+      await refresh();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to cancel job";
+      setError(msg);
+    } finally {
+      setIsCancelling(null);
+    }
+  }, [refresh]);
+
   useEffect(() => {
     refresh();
     const id = window.setInterval(refresh, 6000);
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  return { jobs, error };
+  return { jobs, error, cancel, isCancelling };
 }
