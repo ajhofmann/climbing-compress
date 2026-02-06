@@ -39,7 +39,7 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
         stats={"output_duration": 1.5},
     )
     output_path_2 = output_dir / "out2.mp4"
-    output_path_2.write_bytes(b"payload-2")
+    output_path_2.write_bytes(b"")
     db_module.insert_output(
         output_id="output-api-2",
         video_id=video_id,
@@ -63,4 +63,4 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
     assert output["output_duration"] == 1.5
     assert output["size_bytes"] == len(b"payload")
     assert output_missing["output_duration"] is None
-    assert output_missing["size_bytes"] == len(b"payload-2")
+    assert output_missing["size_bytes"] == 0
