@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import numpy as np
 
-CACHE_DIR = Path(__file__).parent.parent / "data" / "cache"
+CACHE_VERSION = os.environ.get("CACHE_VERSION", "v1")
+CACHE_DIR = Path(__file__).parent.parent / "data" / "cache" / CACHE_VERSION
 
 
 def content_hash(video_path: str) -> str:
