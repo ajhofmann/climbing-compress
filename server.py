@@ -287,7 +287,7 @@ def _render_job_worker(job_id: str, path: Path, req: RenderRequest, emit) -> Non
                     job_id=job_id,
                     output_type="comparison",
                     path=str(comparison_path),
-                    stats=None,
+                    stats=payload.get("stats"),
                 )
             update_job(
                 job_id,
