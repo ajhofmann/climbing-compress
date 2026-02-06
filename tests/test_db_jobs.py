@@ -56,6 +56,7 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
     unassigned = next(job for job in jobs if job["id"] == "job-unassigned")
     assert assigned["project_id"] == project_id
     assert assigned["project_name"] == "Project Jobs"
+    assert json.loads(assigned["request_json"])["video_id"] == assigned_video_id
     assert assigned["video_filename"] == "assigned.mp4"
     assert unassigned["project_id"] is None
     assert unassigned["project_name"] is None
