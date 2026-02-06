@@ -24,7 +24,7 @@ function formatBytes(size?: number) {
 }
 
 export function SystemMetrics() {
-  const { metrics, error, refresh } = useSystemMetrics();
+  const { metrics, error, refresh, lastUpdated } = useSystemMetrics();
 
   const jobStatuses = metrics?.jobs_by_status ?? {};
   const jobTypes = metrics?.jobs_by_type ?? {};
@@ -38,6 +38,11 @@ export function SystemMetrics() {
         <span className={styles.title} style={{ color: "var(--neon-lime)" }}>system metrics</span>
         <div className="flex items-center gap-2">
           {error && <span className="text-[10px] text-danger">{error}</span>}
+          {lastUpdated && (
+            <span className="text-[10px] text-text-muted">
+              {new Date(lastUpdated).toLocaleTimeString()}
+            </span>
+          )}
           <button className={styles.button} onClick={refresh}>Refresh</button>
         </div>
       </div>

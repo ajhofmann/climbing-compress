@@ -7,12 +7,14 @@ import { Metrics } from "@/lib/types";
 export function useSystemMetrics() {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     try {
       const data = await getMetrics();
       setMetrics(data);
       setError(null);
+      setLastUpdated(Date.now());
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load metrics";
       setError(msg);
@@ -25,5 +27,5 @@ export function useSystemMetrics() {
     return () => window.clearInterval(id);
   }, [refresh]);
 
-  return { metrics, error, refresh };
+  return { metrics, error, refresh, lastUpdated };
 }
