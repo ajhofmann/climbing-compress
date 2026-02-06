@@ -19,6 +19,7 @@ export function useProjectManager() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summary, setSummary] = useState<ProjectSummary | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -26,6 +27,7 @@ export function useProjectManager() {
     try {
       const data = await listProjects();
       setProjects(data);
+      setLastUpdated(Date.now());
       const stored = typeof window !== "undefined" ? window.localStorage.getItem("projectId") : null;
       if (stored === "unassigned") {
         setSelectedProjectId(null);
@@ -52,6 +54,7 @@ export function useProjectManager() {
     try {
       const data = await getProjectSummary(targetId);
       setSummary(data);
+      setLastUpdated(Date.now());
     } catch {
       setSummary(null);
     }
@@ -155,5 +158,6 @@ export function useProjectManager() {
     update,
     summary,
     remove,
+    lastUpdated,
   };
 }
