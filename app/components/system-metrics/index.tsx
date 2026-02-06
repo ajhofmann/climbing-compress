@@ -37,6 +37,7 @@ export function SystemMetrics() {
   const outputTypes = metrics?.outputs_by_type ?? {};
   const avgOutputDurations = metrics?.avg_output_duration_by_type ?? {};
   const avgDurations = metrics?.avg_duration_by_type ?? {};
+  const activeJobs = (jobStatuses.queued ?? 0) + (jobStatuses.running ?? 0);
 
   return (
     <div className={styles.panel}>
@@ -68,6 +69,10 @@ export function SystemMetrics() {
       </div>
 
       <div className={styles.list}>
+        <div className={styles.pill} style={{ background: "#080810" }}>
+          <span>active jobs</span>
+          <span className="font-mono text-text">{activeJobs}</span>
+        </div>
         {Object.entries(jobStatuses).map(([status, count]) => (
           <div key={status} className={styles.pill} style={{ background: "#080810" }}>
             <span>{formatLabel(status)}</span>
