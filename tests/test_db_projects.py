@@ -60,3 +60,4 @@ def test_delete_project_unassigns_videos(tmp_path, monkeypatch):
     assert row[0] is None
     assert db_module.get_project(project_id) is None
     assert project_id not in {project["id"] for project in db_module.list_projects()}
+    assert db_module.get_project("missing") is None
