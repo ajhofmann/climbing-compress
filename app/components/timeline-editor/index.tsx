@@ -95,6 +95,50 @@ export function TimelineEditor() {
 
   const handlers = { ...baseHandlers, onMouseMove, onMouseLeave };
 
+  const applyCruxKeyframes = useCallback(() => {
+    if (!analysis) return;
+    const rangeStart = settings.trimStart;
+    const rangeEnd = settings.trimEnd > 0 ? settings.trimEnd : analysis.duration;
+    const inRangeCrux = cruxPoints
+      .map((c) => c.time)
+      .filter((t) => t >= rangeStart && t <= rangeEnd);
+
+    const sampleSpeedAt = (time: number) => {
+      if (!curve.length || !curveTimes.length) return 1.0;
+      let bestIdx = 0;
+      let bestDist = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < curveTimes.length; i++) {
+        const d = Math.abs(curveTimes[i] - time);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      return curve[bestIdx] ?? 1.0;
+    };
+
+    const rawTimes = [rangeStart, ...inRangeCrux, rangeEnd].sort((a, b) => a - b);
+    const dedupedTimes: number[] = [];
+    for (const t of rawTimes) {
+      if (!dedupedTimes.length || Math.abs(t - dedupedTimes[dedupedTimes.length - 1]) > 0.2) {
+        dedupedTimes.push(t);
+      }
+    }
+
+    const generated = dedupedTimes.map((t, idx) => {
+      let speed = sampleSpeedAt(t);
+      if (idx > 0 && idx < dedupedTimes.length - 1) {
+        speed = Math.max(settings.minSpeed, Math.min(settings.maxSpeed, speed * 0.78));
+      } else {
+        speed = Math.max(0.9, Math.min(settings.maxSpeed, speed));
+      }
+      return { time: Number(t.toFixed(2)), speed: Number(speed.toFixed(2)) };
+    });
+
+    setKeyframes(generated);
+    updateSettings({ editMode: "keyframes" });
+  }, [analysis, settings, cruxPoints, curve, curveTimes, setKeyframes, updateSettings]);
+
   if (!analysis) {
     return (
       <div className="rounded-lg bg-bg-card border border-border flex items-center justify-center h-24 text-text-muted text-xs font-pixel uppercase tracking-wider opacity-60">
@@ -144,6 +188,16 @@ export function TimelineEditor() {
                 className="text-danger hover:underline"
               >
                 clear all
+              </button>
+            </Tooltip>
+          )}
+          {settings.editMode === "keyframes" && cruxPoints.length > 0 && (
+            <Tooltip text="Auto-generate keyframes from detected crux markers in the current trim range">
+              <button
+                onClick={applyCruxKeyframes}
+                className="text-neon-magenta hover:underline"
+              >
+                from crux
               </button>
             </Tooltip>
           )}

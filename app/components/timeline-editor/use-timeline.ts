@@ -117,12 +117,12 @@ export function useTimeline(config: TimelineConfig) {
 
     // Crux markers (backend suggestions)
     if (cruxPoints.length > 0) {
-      for (const cp of cruxPoints) {
+      cruxPoints.forEach((cp, idx) => {
         const x = timeToX(cp.time, w);
-        if (!isFinite(x) || x < 0 || x > w) continue;
-        const lineAlpha = Math.max(0.12, Math.min(0.5, cp.score));
+        if (!isFinite(x) || x < 0 || x > w) return;
+        const lineAlpha = Math.max(0.25, Math.min(0.75, cp.score));
         ctx.strokeStyle = `rgba(224, 64, 251, ${lineAlpha})`;
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, h);
@@ -136,7 +136,21 @@ export function useTimeline(config: TimelineConfig) {
         ctx.lineTo(x + 4, 0);
         ctx.closePath();
         ctx.fill();
-      }
+        ctx.beginPath();
+        ctx.arc(x, 8, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        const tag = `C${idx + 1}`;
+        ctx.font = "bold 10px system-ui";
+        const tw = ctx.measureText(tag).width;
+        const lx = Math.min(Math.max(3, x - tw / 2 - 3), w - tw - 6);
+        ctx.fillStyle = "rgba(24, 8, 34, 0.8)";
+        ctx.beginPath();
+        ctx.roundRect(lx, 10, tw + 6, 12, 3);
+        ctx.fill();
+        ctx.fillStyle = "#f2b8ff";
+        ctx.fillText(tag, lx + 3, 19);
+      });
     }
 
     // Trim dimmed regions
@@ -387,6 +401,21 @@ export function useTimeline(config: TimelineConfig) {
     return null;
   }, [trimStart, trimEnd, duration, timeToX]);
 
+  const maybeSnapToCrux = useCallback((t: number) => {
+    if (cruxPoints.length === 0 || editMode !== "keyframes") return t;
+    const SNAP_WINDOW_S = 0.18;
+    let best = t;
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (const cp of cruxPoints) {
+      const d = Math.abs(cp.time - t);
+      if (d < bestDist) {
+        bestDist = d;
+        best = cp.time;
+      }
+    }
+    return bestDist <= SNAP_WINDOW_S ? best : t;
+  }, [cruxPoints, editMode]);
+
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const pos = getPos(e);
@@ -423,7 +452,7 @@ export function useTimeline(config: TimelineConfig) {
     if (idx >= 0) {
       setDragging({ type: editMode === "pins" ? "pin" : "keyframe", index: idx });
     } else {
-      const t = xToTime(pos.x, rect.width);
+      const t = maybeSnapToCrux(xToTime(pos.x, rect.width));
       const s = yToSpeed(pos.y, rect.height);
       if (editMode === "pins") {
         const next = [...pins, { time: t, speed: s, radius: DEFAULT_PIN_RADIUS }];
@@ -434,7 +463,7 @@ export function useTimeline(config: TimelineConfig) {
         onKeyframesChange(next);
       }
     }
-  }, [editMode, pins, keyframes, findNear, findNearTrim, getPos, onPinsChange, onKeyframesChange, xToTime, yToSpeed]);
+  }, [editMode, pins, keyframes, findNear, findNearTrim, getPos, onPinsChange, onKeyframesChange, maybeSnapToCrux, xToTime, yToSpeed]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     const pos = getPos(e);
@@ -457,7 +486,7 @@ export function useTimeline(config: TimelineConfig) {
         const next = pins.map((p, i) => i === dragging.index ? { ...p, time: t, speed: s } : p);
         onPinsChange(next);
       } else if (dragging.type === "keyframe") {
-        const t = xToTime(pos.x, rect.width);
+        const t = maybeSnapToCrux(xToTime(pos.x, rect.width));
         const s = yToSpeed(pos.y, rect.height);
         const next = keyframes.map((k, i) => i === dragging.index ? { ...k, time: t, speed: s } : k);
         onKeyframesChange(next);
@@ -479,7 +508,7 @@ export function useTimeline(config: TimelineConfig) {
         }
       }
     }
-  }, [dragging, pins, keyframes, trimStart, trimEnd, duration, findNear, findNearTrim, getPos, onPinsChange, onKeyframesChange, onTrimChange, xToTime, yToSpeed]);
+  }, [dragging, pins, keyframes, trimStart, trimEnd, duration, findNear, findNearTrim, getPos, onPinsChange, onKeyframesChange, onTrimChange, maybeSnapToCrux, xToTime, yToSpeed]);
 
   const onMouseUp = useCallback(() => {
     setDragging(null);
