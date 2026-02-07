@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { uploadVideo } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
 
 export function VideoUpload() {
-  const { videoId, videoInfo, thumbnails, setVideo, setProgress } = useStore();
+  const { videoId, videoInfo, setVideo, setProgress } = useStore();
   const [isDragging, setIsDragging] = useState(false);
 
   const handleFile = async (file: File) => {

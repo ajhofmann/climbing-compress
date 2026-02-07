@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import { videoUrl } from "@/lib/api";
 
 export function VideoPlayer() {
-  const { outputId, comparisonId, isRendering, setPlaybackTime } = useStore();
+  const { outputId, comparisonId, setPlaybackTime } = useStore();
   const smartRef = useRef<HTMLVideoElement>(null);
   const compRef = useRef<HTMLVideoElement>(null);
   const singleRef = useRef<HTMLVideoElement>(null);
