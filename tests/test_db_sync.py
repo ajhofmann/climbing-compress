@@ -46,3 +46,11 @@ def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
     repeat = db_module.get_video("video1")
     assert repeat is not None
     assert repeat["file_hash"] == before
+
+    renamed = input_dir / "video1.mov"
+    file_one.rename(renamed)
+    db_module.sync_input_dir(input_dir)
+    renamed_record = db_module.get_video("video1")
+    assert renamed_record is not None
+    assert renamed_record["path"] == str(renamed)
+    assert renamed_record["filename"] == "video1.mov"

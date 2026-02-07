@@ -117,7 +117,10 @@ def sync_input_dir(input_dir: Path) -> None:
         except (OSError, ValueError):
             continue
 
-        cur.execute("SELECT id, file_hash FROM videos WHERE id = ?", (video_id,))
+        cur.execute(
+            "SELECT id, file_hash, path, filename, info_json FROM videos WHERE id = ?",
+            (video_id,),
+        )
         existing = cur.fetchone()
 
         if existing is None:
@@ -144,10 +147,18 @@ def sync_input_dir(input_dir: Path) -> None:
             )
         else:
             # Update hash/path if needed (e.g., renamed file)
-            if existing["file_hash"] != file_hash:
+            if (
+                existing["file_hash"] != file_hash
+                or existing["path"] != str(file)
+                or existing["filename"] != file.name
+            ):
+                info_json = existing["info_json"]
+                if existing["file_hash"] != file_hash:
+                    info = get_video_info(str(file))
+                    info_json = json.dumps(info)
                 cur.execute(
-                    "UPDATE videos SET file_hash = ?, path = ? WHERE id = ?",
-                    (file_hash, str(file), video_id),
+                    "UPDATE videos SET file_hash = ?, path = ?, filename = ?, info_json = ? WHERE id = ?",
+                    (file_hash, str(file), file.name, info_json, video_id),
                 )
 
     conn.commit()
