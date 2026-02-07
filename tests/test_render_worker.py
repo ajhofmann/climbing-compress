@@ -1,4 +1,5 @@
 import importlib
+import json
 
 from pathlib import Path
 
@@ -61,6 +62,7 @@ def test_render_worker_records_outputs(tmp_path, monkeypatch):
     assert updated["status"] == "success"
     assert updated["progress"] == 1.0
     assert updated["message"] == "Done"
+    assert json.loads(updated["result_json"])["output_id"] == "output-main"
 
     outputs = db_module.list_outputs()
     output_ids = {output["id"] for output in outputs}
@@ -121,6 +123,7 @@ def test_preview_worker_records_output(tmp_path, monkeypatch):
     assert updated is not None
     assert updated["status"] == "success"
     assert updated["progress"] == 1.0
+    assert json.loads(updated["result_json"])["output_id"] == "output-preview"
 
     outputs = db_module.list_outputs()
     output_ids = {output["id"] for output in outputs}
@@ -176,6 +179,7 @@ def test_render_worker_done_without_outputs(tmp_path, monkeypatch):
     assert updated is not None
     assert updated["status"] == "success"
     assert db_module.list_outputs() == []
+    assert json.loads(updated["result_json"])["done"] is True
 
 
 def test_preview_worker_done_without_output(tmp_path, monkeypatch):
@@ -227,6 +231,7 @@ def test_preview_worker_done_without_output(tmp_path, monkeypatch):
     assert updated is not None
     assert updated["status"] == "success"
     assert db_module.list_outputs() == []
+    assert json.loads(updated["result_json"])["done"] is True
 
 
 def test_render_worker_marks_failed(tmp_path, monkeypatch):
