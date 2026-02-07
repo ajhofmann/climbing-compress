@@ -33,7 +33,7 @@ export const formatOutputType = (outputType: string) => {
 export const formatDuration = (duration?: number | null) => {
   if (duration === null || duration === undefined) return "";
   if (!Number.isFinite(duration)) return "";
-  return `${Math.round(duration)}s`;
+  return `${Math.round(Math.max(0, duration))}s`;
 };
 
 export const formatDurationSeconds = (duration?: number | null) => {
