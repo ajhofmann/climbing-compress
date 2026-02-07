@@ -2,6 +2,60 @@ import { AnalysisData, Keyframe, Pin, Settings, SolveResult } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+type SseProgress = {
+  progress?: number;
+  message?: string;
+  done?: boolean;
+};
+
+async function consumeSseJson<T>(
+  res: Response,
+  onProgress: (progress: number, message: string) => void,
+): Promise<T | null> {
+  if (!res.body) throw new Error("No response body");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: T | null = null;
+
+  const handleEvent = (block: string) => {
+    const lines = block.split(/\r?\n/);
+    const dataLines: string[] = [];
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line.startsWith("data:")) continue;
+      dataLines.push(line.slice(5).trimStart());
+    }
+    if (dataLines.length === 0) return;
+
+    try {
+      const payload = JSON.parse(dataLines.join("\n")) as SseProgress & T;
+      onProgress(payload.progress ?? 0, payload.message ?? "");
+      if (payload.done) result = payload;
+    } catch {
+      // Ignore malformed events and keep consuming stream.
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split(/\r?\n\r?\n/);
+    buffer = chunks.pop() ?? "";
+    for (const chunk of chunks) {
+      if (chunk.trim()) handleEvent(chunk);
+    }
+  }
+
+  buffer += decoder.decode();
+  if (buffer.trim()) handleEvent(buffer);
+
+  return result;
+}
+
 export async function uploadVideo(file: File) {
   const form = new FormData();
   form.append("file", file);
@@ -38,29 +92,7 @@ export async function analyzeVideo(
   });
 
   if (!res.ok) throw new Error(await res.text());
-  if (!res.body) throw new Error("No response body");
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let result: AnalysisData | null = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const text = decoder.decode(value);
-    for (const line of text.split("\n")) {
-      if (line.startsWith("data: ")) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          onProgress(data.progress, data.message);
-          if (data.done) result = data;
-        } catch {
-          // skip malformed SSE lines
-        }
-      }
-    }
-  }
-  return result;
+  return consumeSseJson<AnalysisData>(res, onProgress);
 }
 
 export async function solveCurve(
@@ -163,29 +195,7 @@ export async function renderVideo(
   });
 
   if (!res.ok) throw new Error(await res.text());
-  if (!res.body) throw new Error("No response body");
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let result: RenderResult | null = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const text = decoder.decode(value);
-    for (const line of text.split("\n")) {
-      if (line.startsWith("data: ")) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          onProgress(data.progress, data.message);
-          if (data.done) result = data;
-        } catch {
-          // skip malformed SSE lines
-        }
-      }
-    }
-  }
-  return result;
+  return consumeSseJson<RenderResult>(res, onProgress);
 }
 
 export function videoUrl(id: string) {
