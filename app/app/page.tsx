@@ -13,9 +13,25 @@ import { Tooltip } from "@/components/tooltip";
 import { HeaderArt } from "@/components/header-art";
 
 export default function Home() {
-  const store = useStore();
+  const videoId = useStore((s) => s.videoId);
+  const analysis = useStore((s) => s.analysis);
+  const analysisParams = useStore((s) => s.analysisParams);
+  const settings = useStore((s) => s.settings);
+  const pins = useStore((s) => s.pins);
+  const keyframes = useStore((s) => s.keyframes);
+  const isAnalyzing = useStore((s) => s.isAnalyzing);
+  const isRendering = useStore((s) => s.isRendering);
+
+  const setCurve = useStore((s) => s.setCurve);
+  const setAnalysis = useStore((s) => s.setAnalysis);
+  const setAnalyzing = useStore((s) => s.setAnalyzing);
+  const setRendering = useStore((s) => s.setRendering);
+  const setProgress = useStore((s) => s.setProgress);
+  const updateSettings = useStore((s) => s.updateSettings);
+  const setOutputId = useStore((s) => s.setOutputId);
+  const setComparisonId = useStore((s) => s.setComparisonId);
+
   const solveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { videoId, analysis, settings, pins, keyframes } = store;
 
   useEffect(() => {
     if (!videoId || !analysis) return;
@@ -23,13 +39,13 @@ export default function Home() {
     solveTimeout.current = setTimeout(async () => {
       try {
         const result = await solveCurve(videoId, settings, pins, keyframes);
-        store.setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions, result.crux_points);
+        setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions, result.crux_points);
       } catch (e) {
         console.error("solve:", e);
       }
     }, 80);
     return () => { if (solveTimeout.current) clearTimeout(solveTimeout.current); };
-  }, [videoId, analysis, settings, pins, keyframes]);
+  }, [videoId, analysis, settings, pins, keyframes, setCurve]);
 
   const handleAnalyze = useCallback(async () => {
     if (!videoId) return;
@@ -38,53 +54,53 @@ export default function Home() {
       useTracker: settings.useTracker,
       useFlow: settings.useFlow,
     };
-    const cached = store.analysisParams;
+    const cached = analysisParams;
     const paramsMatch = cached && cached.stride === currentParams.stride && cached.useTracker === currentParams.useTracker && cached.useFlow === currentParams.useFlow;
     const force = !!(analysis && paramsMatch);
-    store.setAnalyzing(true);
-    store.setProgress(0, force ? "Re-analyzing (fresh)..." : "Starting analysis...");
+    setAnalyzing(true);
+    setProgress(0, force ? "Re-analyzing (fresh)..." : "Starting analysis...");
     try {
-      const result = await analyzeVideo(videoId, settings.analyzeStride, force, (p, msg) => { store.setProgress(p, msg); }, settings.useTracker, settings.useFlow, settings.trackerModel);
+      const result = await analyzeVideo(videoId, settings.analyzeStride, force, (p, msg) => { setProgress(p, msg); }, settings.useTracker, settings.useFlow, settings.trackerModel);
       if (result) {
-        store.setAnalysis(result, currentParams);
-        if (settings.trimEnd === 0) store.updateSettings({ trimEnd: result.duration });
-        store.setProgress(0.95, "Computing speed curve...");
+        setAnalysis(result, currentParams);
+        if (settings.trimEnd === 0) updateSettings({ trimEnd: result.duration });
+        setProgress(0.95, "Computing speed curve...");
         const updatedSettings = { ...settings, trimEnd: settings.trimEnd === 0 ? result.duration : settings.trimEnd };
         const solveResult = await solveCurve(videoId, updatedSettings, pins, keyframes);
-        store.setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions, solveResult.crux_points);
-        store.setProgress(0, "Analysis complete!");
+        setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions, solveResult.crux_points);
+        setProgress(0, "Analysis complete!");
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error";
-      store.setProgress(0, `Error: ${msg}`);
+      setProgress(0, `Error: ${msg}`);
     } finally {
-      store.setAnalyzing(false);
+      setAnalyzing(false);
     }
-  }, [videoId, analysis, settings, pins, keyframes]);
+  }, [videoId, analysis, analysisParams, settings, pins, keyframes, setAnalyzing, setProgress, setAnalysis, updateSettings, setCurve]);
 
   const handleRender = useCallback(async () => {
     if (!videoId) return;
-    store.setRendering(true);
-    store.setProgress(0, "Starting render...");
+    setRendering(true);
+    setProgress(0, "Starting render...");
     try {
-      const result = await renderVideo(videoId, settings, pins, keyframes, (p, msg) => { store.setProgress(p, msg); });
+      const result = await renderVideo(videoId, settings, pins, keyframes, (p, msg) => { setProgress(p, msg); });
       if (result?.output_id) {
-        store.setOutputId(result.output_id);
-        store.setComparisonId(result.comparison_id ?? null);
-        store.setProgress(0, `Done! ${result.stats?.output_duration}s video ready`);
+        setOutputId(result.output_id);
+        setComparisonId(result.comparison_id ?? null);
+        setProgress(0, `Done! ${result.stats?.output_duration}s video ready`);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error";
-      store.setProgress(0, `Error: ${msg}`);
+      setProgress(0, `Error: ${msg}`);
     } finally {
-      store.setRendering(false);
+      setRendering(false);
     }
-  }, [videoId, settings, pins, keyframes]);
+  }, [videoId, settings, pins, keyframes, setRendering, setProgress, setOutputId, setComparisonId]);
 
   const handleQuickRender = useCallback(async () => {
     if (!videoId) return;
-    store.setRendering(true);
-    store.setProgress(0, "Starting quick preview render...");
+    setRendering(true);
+    setProgress(0, "Starting quick preview render...");
     try {
       const draftSettings = {
         ...settings,
@@ -95,19 +111,19 @@ export default function Home() {
         debugOverlay: false,
         renderComparison: false,
       };
-      const result = await renderVideo(videoId, draftSettings, pins, keyframes, (p, msg) => { store.setProgress(p, `[preview] ${msg}`); });
+      const result = await renderVideo(videoId, draftSettings, pins, keyframes, (p, msg) => { setProgress(p, `[preview] ${msg}`); });
       if (result?.output_id) {
-        store.setOutputId(result.output_id);
-        store.setComparisonId(null);
-        store.setProgress(0, "Quick preview ready");
+        setOutputId(result.output_id);
+        setComparisonId(null);
+        setProgress(0, "Quick preview ready");
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Unknown error";
-      store.setProgress(0, `Error: ${msg}`);
+      setProgress(0, `Error: ${msg}`);
     } finally {
-      store.setRendering(false);
+      setRendering(false);
     }
-  }, [videoId, settings, pins, keyframes]);
+  }, [videoId, settings, pins, keyframes, setRendering, setProgress, setOutputId, setComparisonId]);
 
   const hasAnalysis = !!analysis;
 
@@ -131,14 +147,14 @@ export default function Home() {
               <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb."}>
                 <button
                   onClick={handleAnalyze}
-                  disabled={!videoId || store.isAnalyzing}
+                  disabled={!videoId || isAnalyzing}
                   className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
-                    store.isAnalyzing ? "retro-btn-primary opacity-70"
+                    isAnalyzing ? "retro-btn-primary opacity-70"
                       : videoId && !hasAnalysis ? "retro-btn-primary pulse-border"
                       : "retro-btn"
                   } disabled:opacity-30 disabled:cursor-not-allowed`}
                 >
-                  {store.isAnalyzing ? "ANALYZING..." : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
+                  {isAnalyzing ? "ANALYZING..." : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
                 </button>
               </Tooltip>
               <div className="flex-1 min-w-0">
@@ -149,7 +165,7 @@ export default function Home() {
               <Tooltip text={"Fast local preview render.\nUses lower resolution + higher CRF + no audio\nfor rapid iteration while tuning curve edits."}>
                 <button
                   onClick={handleQuickRender}
-                  disabled={!videoId || !hasAnalysis || store.isRendering}
+                  disabled={!videoId || !hasAnalysis || isRendering}
                   className={`px-4 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
                     hasAnalysis ? "retro-btn" : "retro-btn"
                   } disabled:opacity-30 disabled:cursor-not-allowed`}
@@ -161,13 +177,13 @@ export default function Home() {
               <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel."}>
                 <button
                   onClick={handleRender}
-                  disabled={!videoId || !hasAnalysis || store.isRendering}
+                  disabled={!videoId || !hasAnalysis || isRendering}
                   className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
-                    store.isRendering ? "retro-btn opacity-70" : hasAnalysis ? "retro-btn-primary" : "retro-btn"
+                    isRendering ? "retro-btn opacity-70" : hasAnalysis ? "retro-btn-primary" : "retro-btn"
                   } disabled:opacity-30 disabled:cursor-not-allowed`}
-                  style={store.isRendering ? { borderColor: "var(--neon-orange)", color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.5)" } : {}}
+                  style={isRendering ? { borderColor: "var(--neon-orange)", color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.5)" } : {}}
                 >
-                  {store.isRendering ? "RENDERING..." : "RENDER"}
+                  {isRendering ? "RENDERING..." : "RENDER"}
                 </button>
               </Tooltip>
             </div>
