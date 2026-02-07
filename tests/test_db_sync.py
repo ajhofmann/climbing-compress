@@ -1,4 +1,6 @@
 import importlib
+import json
+from pathlib import Path
 
 
 def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
@@ -9,13 +11,18 @@ def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
     importlib.reload(db_module)
     db_module.init_db()
 
-    db_module.get_video_info = lambda path: {
-        "fps": 30,
-        "width": 1920,
-        "height": 1080,
-        "frame_count": 30,
-        "duration": 1.0,
-    }
+    def get_video_info(path: str):
+        content = Path(path).read_bytes()
+        duration = 2.0 if content == b"payload-updated" else 1.0
+        return {
+            "fps": 30,
+            "width": 1920,
+            "height": 1080,
+            "frame_count": 30,
+            "duration": duration,
+        }
+
+    db_module.get_video_info = get_video_info
 
     input_dir = tmp_path / "input"
     input_dir.mkdir()
@@ -40,12 +47,14 @@ def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
     updated = db_module.get_video("video1")
     assert updated is not None
     assert updated["file_hash"] == db_module.content_hash(str(file_one))
+    assert json.loads(updated["info_json"])["duration"] == 2.0
 
     before = updated["file_hash"]
     db_module.sync_input_dir(input_dir)
     repeat = db_module.get_video("video1")
     assert repeat is not None
     assert repeat["file_hash"] == before
+    assert json.loads(repeat["info_json"])["duration"] == 2.0
 
     renamed = input_dir / "video1.mov"
     file_one.rename(renamed)
@@ -54,3 +63,4 @@ def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
     assert renamed_record is not None
     assert renamed_record["path"] == str(renamed)
     assert renamed_record["filename"] == "video1.mov"
+    assert json.loads(renamed_record["info_json"])["duration"] == 2.0
