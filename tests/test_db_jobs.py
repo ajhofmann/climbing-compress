@@ -110,3 +110,8 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
     assert job["id"] == "job-assigned"
     assert json.loads(job["request_json"])["video_id"] == assigned_video_id
     assert db_module.get_job("missing") is None
+
+    db_module.update_job(job_id="job-unassigned")
+    unchanged = db_module.get_job("job-unassigned")
+    assert unchanged is not None
+    assert unchanged["status"] == "queued"
