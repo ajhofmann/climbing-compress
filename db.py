@@ -99,6 +99,19 @@ def _row_to_dict(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict[str, Any]:
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
 
+def _coerce_output_duration(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
 def sync_input_dir(input_dir: Path) -> None:
     """Ensure all input videos are registered in the database."""
     conn = _connect()
@@ -440,7 +453,7 @@ def get_project_summary(project_id: str) -> dict[str, Any]:
         try:
             stats = json.loads(latest["stats_json"])
             if isinstance(stats, dict):
-                latest_duration = stats.get("output_duration")
+                latest_duration = _coerce_output_duration(stats.get("output_duration"))
         except json.JSONDecodeError:
             latest_duration = None
 
@@ -728,7 +741,7 @@ def get_metrics() -> dict[str, Any]:
             continue
         if not isinstance(stats, dict):
             continue
-        duration = stats.get("output_duration")
+        duration = _coerce_output_duration(stats.get("output_duration"))
         if duration is None:
             continue
         output_type = row["output_type"]

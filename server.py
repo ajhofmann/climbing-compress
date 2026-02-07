@@ -357,6 +357,19 @@ def _start_background(worker, *args) -> None:
     thread.start()
 
 
+def _coerce_output_duration(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
 # ---- Endpoints ----
 
 @app.post("/api/upload")
@@ -715,6 +728,9 @@ async def get_output(output_id: str):
             stats = None
     if stats is not None and not isinstance(stats, dict):
         stats = None
+    if stats is not None and "output_duration" in stats:
+        stats = dict(stats)
+        stats["output_duration"] = _coerce_output_duration(stats.get("output_duration"))
     return {
         "id": output["id"],
         "video_id": output["video_id"],
@@ -750,6 +766,7 @@ async def list_outputs(
                 stats = None
         if stats is not None and not isinstance(stats, dict):
             stats = None
+        output_duration = _coerce_output_duration(stats.get("output_duration")) if stats else None
         payload.append({
             "id": output["id"],
             "video_id": output["video_id"],
@@ -760,7 +777,7 @@ async def list_outputs(
             "output_type": output["output_type"],
             "path": output["path"],
             "created_at": output["created_at"],
-            "output_duration": stats.get("output_duration") if stats else None,
+            "output_duration": output_duration,
             "size_bytes": size_bytes,
         })
     return payload

@@ -46,6 +46,15 @@ def test_project_summary_includes_output_duration(tmp_path, monkeypatch):
         stats={"output_duration": 4.4},
     )
 
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE outputs SET stats_json = ? WHERE id = ?",
+        (json.dumps({"output_duration": "4.4"}), "out-test-2"),
+    )
+    conn.commit()
+    conn.close()
+
     summary = db_module.get_project_summary(project_id)
     assert summary["videos"] == 1
     assert summary["outputs"] == 2

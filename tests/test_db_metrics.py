@@ -1,4 +1,5 @@
 import importlib
+import json
 import sqlite3
 
 
@@ -84,6 +85,10 @@ def test_metrics_output_types_and_avg_duration(tmp_path, monkeypatch):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute("UPDATE outputs SET stats_json = ? WHERE id = ?", ("not-json", "out-invalid"))
+    cur.execute(
+        "UPDATE outputs SET stats_json = ? WHERE id = ?",
+        (json.dumps({"output_duration": "3.0"}), "out-main-2"),
+    )
     cur.execute("UPDATE outputs SET stats_json = ? WHERE id = ?", ("[1, 2]", "out-list"))
     cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (10.0, 15.0, "job-a"))
     cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (20.0, 28.0, "job-b"))

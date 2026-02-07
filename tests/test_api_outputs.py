@@ -1,4 +1,5 @@
 import importlib
+import json
 import sqlite3
 
 from fastapi.testclient import TestClient
@@ -73,6 +74,10 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute("UPDATE outputs SET stats_json = ? WHERE id = ?", ("not-json", "output-invalid"))
+    cur.execute(
+        "UPDATE outputs SET stats_json = ? WHERE id = ?",
+        (json.dumps({"output_duration": "1.5"}), "output-api"),
+    )
     cur.execute("UPDATE outputs SET stats_json = ? WHERE id = ?", ("[1,2]", "output-list"))
     conn.commit()
     conn.close()
