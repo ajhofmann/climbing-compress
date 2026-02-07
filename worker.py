@@ -21,7 +21,11 @@ def _handle_job(job: dict) -> None:
     job_id = job["id"]
     job_type = job["job_type"]
     request_json = job.get("request_json")
-    payload = json.loads(request_json) if request_json else {}
+    try:
+        payload = json.loads(request_json) if request_json else {}
+    except json.JSONDecodeError as exc:
+        update_job(job_id, status="failed", message=f"Invalid request payload: {exc}")
+        return
 
     try:
         if job_type == "analyze":
