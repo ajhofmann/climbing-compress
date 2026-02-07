@@ -5,6 +5,7 @@ import type { CruxPoint, EditMode, Keyframe, Pin } from "@/lib/types";
 
 interface TimelineConfig {
   duration: number;
+  minSpeed: number;
   maxSpeed: number;
   curve: number[];
   curveTimes: number[];
@@ -37,7 +38,7 @@ export function useTimeline(config: TimelineConfig) {
   const [hoverTrim, setHoverTrim] = useState<"start" | "end" | null>(null);
 
   const {
-    duration, maxSpeed, curve, curveTimes, editMode, pins, keyframes,
+    duration, minSpeed, maxSpeed, curve, curveTimes, editMode, pins, keyframes,
     waveformUrl, cruxPoints, onPinsChange, onKeyframesChange,
     trimStart, trimEnd, onTrimChange,
   } = config;
@@ -45,7 +46,10 @@ export function useTimeline(config: TimelineConfig) {
   const timeToX = useCallback((t: number, w: number) => (t / duration) * w, [duration]);
   const xToTime = useCallback((x: number, w: number) => Math.max(0, Math.min(duration, (x / w) * duration)), [duration]);
   const speedToY = useCallback((s: number, h: number) => h - (Math.min(s, maxSpeed) / maxSpeed) * h, [maxSpeed]);
-  const yToSpeed = useCallback((y: number, h: number) => Math.max(0.1, Math.min(maxSpeed, (1 - y / h) * maxSpeed)), [maxSpeed]);
+  const yToSpeed = useCallback(
+    (y: number, h: number) => Math.max(minSpeed, Math.min(maxSpeed, (1 - y / h) * maxSpeed)),
+    [minSpeed, maxSpeed],
+  );
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -588,7 +592,7 @@ export function useTimeline(config: TimelineConfig) {
           return {
             ...pin,
             time: Math.max(0, Math.min(duration, pin.time + timeDelta)),
-            speed: Math.max(0.1, Math.min(maxSpeed, pin.speed + speedDelta)),
+            speed: Math.max(minSpeed, Math.min(maxSpeed, pin.speed + speedDelta)),
           };
         });
         onPinsChange(next);
@@ -598,7 +602,7 @@ export function useTimeline(config: TimelineConfig) {
           return {
             ...kf,
             time: Math.max(0, Math.min(duration, kf.time + timeDelta)),
-            speed: Math.max(0.1, Math.min(maxSpeed, kf.speed + speedDelta)),
+            speed: Math.max(minSpeed, Math.min(maxSpeed, kf.speed + speedDelta)),
           };
         });
         onKeyframesChange(next);
@@ -607,7 +611,7 @@ export function useTimeline(config: TimelineConfig) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [hoverIdx, dragging, editMode, pins, keyframes, onPinsChange, onKeyframesChange, duration, maxSpeed]);
+  }, [hoverIdx, dragging, editMode, pins, keyframes, onPinsChange, onKeyframesChange, duration, minSpeed, maxSpeed]);
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

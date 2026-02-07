@@ -36,6 +36,7 @@ export function TimelineEditor() {
 
   const { canvasRef, handlers: baseHandlers } = useTimeline({
     duration: analysis?.duration ?? 60,
+    minSpeed: settings.minSpeed,
     maxSpeed: settings.maxSpeed,
     curve,
     curveTimes,
@@ -269,12 +270,12 @@ export function TimelineEditor() {
                 <input
                   type="number"
                   value={Number(kf.speed.toFixed(2))}
-                  min={0.1}
+                  min={settings.minSpeed}
                   max={settings.maxSpeed}
                   step={0.05}
                   className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
                   onChange={(e) => {
-                    const s = Math.max(0.1, Math.min(settings.maxSpeed, Number(e.target.value)));
+                    const s = Math.max(settings.minSpeed, Math.min(settings.maxSpeed, Number(e.target.value)));
                     const next = [...keyframes];
                     next[idx] = { ...next[idx], speed: Number.isFinite(s) ? s : next[idx].speed };
                     setKeyframes(next);
