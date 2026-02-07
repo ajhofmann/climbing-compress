@@ -36,6 +36,7 @@ export default function Home() {
   const analyzeAbortRef = useRef<AbortController | null>(null);
   const analyzeSolveAbortRef = useRef<AbortController | null>(null);
   const renderAbortRef = useRef<AbortController | null>(null);
+  const renderRunRef = useRef(0);
   const suspendAutoSolveRef = useRef(false);
 
   const isAbortError = (e: unknown) => e instanceof Error && e.name === "AbortError";
@@ -134,11 +135,29 @@ export default function Home() {
     }
   }, [videoId, analysis, analysisParams, settings, pins, keyframes, setAnalyzing, setProgress, setAnalysis, updateSettings, setCurve]);
 
+  const handleCancelAnalyze = useCallback(() => {
+    if (solveTimeout.current) {
+      clearTimeout(solveTimeout.current);
+      solveTimeout.current = null;
+    }
+    autoSolveAbortRef.current?.abort();
+    autoSolveAbortRef.current = null;
+    analyzeSolveAbortRef.current?.abort();
+    analyzeSolveAbortRef.current = null;
+    analyzeAbortRef.current?.abort();
+    analyzeAbortRef.current = null;
+    suspendAutoSolveRef.current = false;
+    setAnalyzing(false);
+    setProgress(0, "Analysis cancelled");
+  }, [setAnalyzing, setProgress]);
+
   const handleRender = useCallback(async () => {
     if (!videoId) return;
     renderAbortRef.current?.abort();
     const renderController = new AbortController();
     renderAbortRef.current = renderController;
+    const runId = renderRunRef.current + 1;
+    renderRunRef.current = runId;
     setRendering(true);
     setProgress(0, "Starting render...");
     try {
@@ -147,10 +166,13 @@ export default function Home() {
         settings,
         pins,
         keyframes,
-        (p, msg) => { setProgress(p, msg); },
+        (p, msg) => {
+          if (renderRunRef.current !== runId) return;
+          setProgress(p, msg);
+        },
         renderController.signal,
       );
-      if (renderController.signal.aborted) return;
+      if (renderController.signal.aborted || renderRunRef.current !== runId) return;
       if (result?.output_id) {
         setOutputId(result.output_id);
         setComparisonId(result.comparison_id ?? null);
@@ -161,7 +183,7 @@ export default function Home() {
       const msg = e instanceof Error ? e.message : "Unknown error";
       setProgress(0, `Error: ${msg}`);
     } finally {
-      if (renderAbortRef.current === renderController) {
+      if (renderRunRef.current === runId && renderAbortRef.current === renderController) {
         renderAbortRef.current = null;
         setRendering(false);
       }
@@ -173,6 +195,8 @@ export default function Home() {
     renderAbortRef.current?.abort();
     const renderController = new AbortController();
     renderAbortRef.current = renderController;
+    const runId = renderRunRef.current + 1;
+    renderRunRef.current = runId;
     setRendering(true);
     setProgress(0, "Starting quick preview render...");
     try {
@@ -190,10 +214,13 @@ export default function Home() {
         draftSettings,
         pins,
         keyframes,
-        (p, msg) => { setProgress(p, `[preview] ${msg}`); },
+        (p, msg) => {
+          if (renderRunRef.current !== runId) return;
+          setProgress(p, `[preview] ${msg}`);
+        },
         renderController.signal,
       );
-      if (renderController.signal.aborted) return;
+      if (renderController.signal.aborted || renderRunRef.current !== runId) return;
       if (result?.output_id) {
         setOutputId(result.output_id);
         setComparisonId(null);
@@ -204,12 +231,29 @@ export default function Home() {
       const msg = e instanceof Error ? e.message : "Unknown error";
       setProgress(0, `Error: ${msg}`);
     } finally {
-      if (renderAbortRef.current === renderController) {
+      if (renderRunRef.current === runId && renderAbortRef.current === renderController) {
         renderAbortRef.current = null;
         setRendering(false);
       }
     }
   }, [videoId, settings, pins, keyframes, setRendering, setProgress, setOutputId, setComparisonId]);
+
+  const handleCancelRender = useCallback(() => {
+    renderRunRef.current += 1;
+    renderAbortRef.current?.abort();
+    renderAbortRef.current = null;
+    setRendering(false);
+    setProgress(0, "Render cancelled");
+  }, [setRendering, setProgress]);
+
+  useEffect(() => {
+    if (!isRendering) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleCancelRender();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isRendering, handleCancelRender]);
 
   const hasAnalysis = !!analysis;
 
@@ -232,15 +276,20 @@ export default function Home() {
             <div className="flex items-center gap-3 mb-2">
               <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb."}>
                 <button
-                  onClick={handleAnalyze}
-                  disabled={!videoId || isAnalyzing}
+                  onClick={isAnalyzing ? handleCancelAnalyze : handleAnalyze}
+                  disabled={!videoId}
                   className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
-                    isAnalyzing ? "retro-btn-primary opacity-70"
+                    isAnalyzing ? "retro-btn"
                       : videoId && !hasAnalysis ? "retro-btn-primary pulse-border"
                       : "retro-btn"
                   } disabled:opacity-30 disabled:cursor-not-allowed`}
+                  style={isAnalyzing ? {
+                    borderColor: "var(--danger)",
+                    color: "var(--danger)",
+                    textShadow: "0 0 8px rgba(255,23,68,0.35)",
+                  } : {}}
                 >
-                  {isAnalyzing ? "ANALYZING..." : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
+                  {isAnalyzing ? "CANCEL ANALYZE" : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
                 </button>
               </Tooltip>
               <div className="flex-1 min-w-0">
@@ -267,11 +316,29 @@ export default function Home() {
                   className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
                     isRendering ? "retro-btn opacity-70" : hasAnalysis ? "retro-btn-primary" : "retro-btn"
                   } disabled:opacity-30 disabled:cursor-not-allowed`}
-                  style={isRendering ? { borderColor: "var(--neon-orange)", color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.5)" } : {}}
+                  style={isRendering ? { borderColor: "var(--neon-orange)", color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.45)" } : {}}
                 >
                   {isRendering ? "RENDERING..." : "RENDER"}
                 </button>
               </Tooltip>
+              {isRendering && (
+                <button
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    handleCancelRender();
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleCancelRender();
+                  }}
+                  onClick={handleCancelRender}
+                  className="px-4 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap retro-btn min-w-[11rem]"
+                  style={{ borderColor: "var(--danger)", color: "var(--danger)", textShadow: "0 0 8px rgba(255,23,68,0.45)" }}
+                  title="Cancel the active render request (Esc also works)"
+                >
+                  CANCEL (ESC)
+                </button>
+              )}
             </div>
             <TimelineEditor />
           </>
