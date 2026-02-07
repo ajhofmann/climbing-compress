@@ -80,9 +80,10 @@ const STYLE_TEMPLATES: Array<{
 ];
 
 export function SettingsPanel() {
-  const store = useStore();
-  const { settings, updateSettings, stats, analysis } = store;
-  const s = settings;
+  const s = useStore((state) => state.settings);
+  const updateSettings = useStore((state) => state.updateSettings);
+  const stats = useStore((state) => state.stats);
+  const analysis = useStore((state) => state.analysis);
   const u = (k: keyof Settings, v: Settings[keyof Settings]) => updateSettings({ [k]: v });
 
   return (

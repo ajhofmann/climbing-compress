@@ -6,7 +6,10 @@ import { uploadVideo } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
 
 export function VideoUpload() {
-  const { videoId, videoInfo, setVideo, setProgress } = useStore();
+  const videoId = useStore((state) => state.videoId);
+  const videoInfo = useStore((state) => state.videoInfo);
+  const setVideo = useStore((state) => state.setVideo);
+  const setProgress = useStore((state) => state.setProgress);
   const [isDragging, setIsDragging] = useState(false);
 
   const handleFile = async (file: File) => {

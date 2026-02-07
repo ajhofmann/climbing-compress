@@ -5,7 +5,9 @@ import { useStore } from "@/lib/store";
 import { videoUrl } from "@/lib/api";
 
 export function VideoPlayer() {
-  const { outputId, comparisonId, setPlaybackTime } = useStore();
+  const outputId = useStore((state) => state.outputId);
+  const comparisonId = useStore((state) => state.comparisonId);
+  const setPlaybackTime = useStore((state) => state.setPlaybackTime);
   const smartRef = useRef<HTMLVideoElement>(null);
   const compRef = useRef<HTMLVideoElement>(null);
   const singleRef = useRef<HTMLVideoElement>(null);

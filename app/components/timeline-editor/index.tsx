@@ -10,12 +10,19 @@ const THUMB_W = 160;
 const THUMB_H = 90;
 
 export function TimelineEditor() {
-  const {
-    videoId, analysis, curve, curveTimes,
-    pins, setPins,
-    keyframes, setKeyframes, removeKeyframe,
-    cruxPoints, settings, updateSettings, stats,
-  } = useStore();
+  const videoId = useStore((state) => state.videoId);
+  const analysis = useStore((state) => state.analysis);
+  const curve = useStore((state) => state.curve);
+  const curveTimes = useStore((state) => state.curveTimes);
+  const pins = useStore((state) => state.pins);
+  const setPins = useStore((state) => state.setPins);
+  const keyframes = useStore((state) => state.keyframes);
+  const setKeyframes = useStore((state) => state.setKeyframes);
+  const removeKeyframe = useStore((state) => state.removeKeyframe);
+  const cruxPoints = useStore((state) => state.cruxPoints);
+  const settings = useStore((state) => state.settings);
+  const updateSettings = useStore((state) => state.updateSettings);
+  const stats = useStore((state) => state.stats);
 
   const waveformUrl = analysis
     ? (

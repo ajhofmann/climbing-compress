@@ -161,7 +161,14 @@ function ChartSection({
 // ---------------------------------------------------------------------------
 
 export function DebugCharts() {
-  const { analysis, curve, curveTimes, solveScores, restRegions, settings, stats, playbackTime } = useStore();
+  const analysis = useStore((state) => state.analysis);
+  const curve = useStore((state) => state.curve);
+  const curveTimes = useStore((state) => state.curveTimes);
+  const solveScores = useStore((state) => state.solveScores);
+  const restRegions = useStore((state) => state.restRegions);
+  const settings = useStore((state) => state.settings);
+  const stats = useStore((state) => state.stats);
+  const playbackTime = useStore((state) => state.playbackTime);
   const [isOpen, setIsOpen] = useState(true);
   const [showComparison, setShowComparison] = useState(false);
 
