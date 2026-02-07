@@ -38,3 +38,9 @@ def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
     updated = db_module.get_video("video1")
     assert updated is not None
     assert updated["file_hash"] == db_module.content_hash(str(file_one))
+
+    before = updated["file_hash"]
+    db_module.sync_input_dir(input_dir)
+    repeat = db_module.get_video("video1")
+    assert repeat is not None
+    assert repeat["file_hash"] == before
