@@ -13,6 +13,7 @@ def test_project_crud_api(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setenv("INPUT_DIR", str(input_dir))
     monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-projects-{tmp_path.name}")
 
     import db as db_module
     importlib.reload(db_module)
@@ -74,7 +75,7 @@ def test_project_assignment_api(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setenv("INPUT_DIR", str(input_dir))
     monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
-    monkeypatch.setenv("CACHE_VERSION", "test")
+    monkeypatch.setenv("CACHE_VERSION", f"test-assign-{tmp_path.name}")
 
     import db as db_module
     importlib.reload(db_module)
