@@ -36,6 +36,8 @@ def test_claim_next_job_orders_and_updates(tmp_path, monkeypatch):
     first = db_module.claim_next_job()
     assert first is not None
     assert first["id"] == "job-one"
+    assert first["status"] == "running"
+    assert first["updated_at"] is not None
 
     running = db_module.get_job("job-one")
     assert running is not None
@@ -44,6 +46,7 @@ def test_claim_next_job_orders_and_updates(tmp_path, monkeypatch):
     second = db_module.claim_next_job()
     assert second is not None
     assert second["id"] == "job-two"
+    assert second["status"] == "running"
 
     assert db_module.claim_next_job() is None
 

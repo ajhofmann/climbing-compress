@@ -641,10 +641,13 @@ def claim_next_job() -> dict[str, Any] | None:
     row = cur.fetchone()
     row_dict = _row_to_dict(cur, row) if row is not None else None
     if row:
+        update_time = time.time()
         cur.execute(
             "UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?",
-            ("running", time.time(), row["id"]),
+            ("running", update_time, row["id"]),
         )
+        row_dict["status"] = "running"
+        row_dict["updated_at"] = update_time
     conn.commit()
     conn.close()
     if row_dict is None:
