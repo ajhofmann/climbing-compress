@@ -23,7 +23,9 @@ from pipeline.speed_curve import (
 )
 from pipeline.constants import SPEED_FLOOR, SPEED_CEIL
 from pipeline.render import render_preview
-from pipeline.stabilize import compute_stabilization_offsets, stabilization_stats
+from pipeline.stabilize import (
+    compute_stabilization_offsets, stabilization_stats, compute_anchor_trajectory,
+)
 from pipeline.cache import (
     save_analysis, load_analysis,
     save_tracks, load_tracks, has_tracks,
@@ -555,6 +557,15 @@ def run_render(
 
     trim_start_s = start_frame / fps if fps > 0 else 0.0
 
+    # Optional output reframing center path (for vertical/square aspect exports)
+    reframe_center = None
+    if (
+        getattr(req, "auto_reframe", False)
+        and getattr(req, "output_aspect", "original") != "original"
+    ):
+        ax, ay = compute_anchor_trajectory(trimmed)
+        reframe_center = (ax, ay)
+
     # Stabilisation
     stab_offsets = None
     stab_info: dict = {}
@@ -701,6 +712,9 @@ def run_render(
         progress_cb=render_progress,
         stabilize_offsets=stab_offsets,
         stabilize_crop=req.stabilize_crop,
+        output_aspect=getattr(req, "output_aspect", "original"),
+        auto_reframe=getattr(req, "auto_reframe", False),
+        reframe_center=reframe_center,
         trim_start_s=trim_start_s,
         include_audio=req.include_audio,
     )
@@ -739,6 +753,9 @@ def run_render(
                 "progress": 0.92 + p * 0.07,
                 "message": f"Rendering comparison... {int(p * 100)}%",
             }),
+            output_aspect=getattr(req, "output_aspect", "original"),
+            auto_reframe=getattr(req, "auto_reframe", False),
+            reframe_center=reframe_center,
             trim_start_s=trim_start_s,
             include_audio=False,
         )

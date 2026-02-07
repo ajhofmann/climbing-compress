@@ -14,6 +14,72 @@ from pipeline.speed_curve import get_time_mapping
 from utils.video_io import get_video_info
 
 
+def _even(v: int) -> int:
+    return max(2, v - (v % 2))
+
+
+def _resolve_output_geometry(
+    src_w: int,
+    src_h: int,
+    scale: float,
+    output_aspect: str,
+) -> tuple[int, int, int, int]:
+    """Resolve render geometry.
+
+    Returns:
+        (base_w, base_h, out_w, out_h)
+        - base_*: scaled full-frame dimensions before aspect crop
+        - out_*: final encoded dimensions
+    """
+    base_w = _even(int(src_w * scale))
+    base_h = _even(int(src_h * scale))
+
+    if output_aspect == "vertical":
+        target_ratio = 9.0 / 16.0
+    elif output_aspect == "square":
+        target_ratio = 1.0
+    else:
+        target_ratio = base_w / max(base_h, 1)
+
+    current_ratio = base_w / max(base_h, 1)
+    if abs(current_ratio - target_ratio) < 1e-6:
+        return base_w, base_h, base_w, base_h
+
+    if current_ratio > target_ratio:
+        out_h = base_h
+        out_w = _even(int(out_h * target_ratio))
+    else:
+        out_w = base_w
+        out_h = _even(int(out_w / target_ratio))
+
+    out_w = min(base_w, max(2, out_w))
+    out_h = min(base_h, max(2, out_h))
+    return base_w, base_h, out_w, out_h
+
+
+def _crop_to_output_aspect(
+    frame: np.ndarray,
+    out_w: int,
+    out_h: int,
+    center_x: float = 0.5,
+    center_y: float = 0.5,
+) -> np.ndarray:
+    """Crop frame to output aspect around normalized center."""
+    h, w = frame.shape[:2]
+    if out_w >= w and out_h >= h:
+        return frame
+
+    cx = int(np.clip(center_x, 0.0, 1.0) * max(0, w - 1))
+    cy = int(np.clip(center_y, 0.0, 1.0) * max(0, h - 1))
+
+    x1 = cx - out_w // 2
+    y1 = cy - out_h // 2
+    x1 = max(0, min(x1, w - out_w))
+    y1 = max(0, min(y1, h - out_h))
+
+    return frame[y1:y1 + out_h, x1:x1 + out_w, :]
+
+
 def _has_audio_stream(video_path: str) -> bool:
     """Check if the source video contains an audio stream."""
     cmd = [
@@ -181,6 +247,9 @@ def render_preview(
     progress_cb: Callable[[float], None] | None = None,
     stabilize_offsets: tuple[np.ndarray, np.ndarray] | None = None,
     stabilize_crop: float = 0.15,
+    output_aspect: str = "original",
+    auto_reframe: bool = False,
+    reframe_center: tuple[np.ndarray, np.ndarray] | None = None,
     trim_start_s: float = 0.0,
     include_audio: bool = True,
 ) -> str:
@@ -200,6 +269,10 @@ def render_preview(
         stabilize_offsets: (dx, dy) arrays from compute_stabilization_offsets.
                            Normalized coordinates, one per source frame.
         stabilize_crop: fraction of frame used as stabilization padding.
+        output_aspect: "original", "vertical" (9:16), or "square" (1:1).
+        auto_reframe: if True and aspect-cropping is active, center crop around
+                      reframe_center trajectory per frame.
+        reframe_center: optional (cx, cy) arrays in normalized [0,1] frame coords.
         include_audio: whether to include time-stretched audio in output.
     """
     if output_path is None:
@@ -208,25 +281,22 @@ def render_preview(
     # Get source dimensions
     info = get_video_info(video_path)
     src_w, src_h = info["width"], info["height"]
-    out_w = int(src_w * scale)
-    out_h = int(src_h * scale)
-    out_w -= out_w % 2
-    out_h -= out_h % 2
+    base_w, base_h, out_w, out_h = _resolve_output_geometry(
+        src_w, src_h, scale, output_aspect,
+    )
 
     # Stabilization: decode at padded resolution, crop per-frame
     stabilizing = stabilize_offsets is not None
     if stabilizing:
         stab_dx, stab_dy = stabilize_offsets
         # Padded decode dimensions — extra room for crop offset
-        pad_w = int(out_w / (1.0 - stabilize_crop))
-        pad_h = int(out_h / (1.0 - stabilize_crop))
-        pad_w -= pad_w % 2
-        pad_h -= pad_h % 2
-        margin_w = (pad_w - out_w) // 2
-        margin_h = (pad_h - out_h) // 2
+        pad_w = _even(int(base_w / (1.0 - stabilize_crop)))
+        pad_h = _even(int(base_h / (1.0 - stabilize_crop)))
+        margin_w = (pad_w - base_w) // 2
+        margin_h = (pad_h - base_h) // 2
         decode_w, decode_h = pad_w, pad_h
     else:
-        decode_w, decode_h = out_w, out_h
+        decode_w, decode_h = base_w, base_h
 
     # Build frame mapping
     time_map = get_time_mapping(speed_curve, fps)
@@ -319,16 +389,31 @@ def render_preview(
                 crop_x = margin_w + int(dx * pad_w)
                 crop_y = margin_h + int(dy * pad_h)
                 # Clamp to valid bounds
-                crop_x = max(0, min(crop_x, pad_w - out_w))
-                crop_y = max(0, min(crop_y, pad_h - out_h))
-                frame_out = current_frame[crop_y:crop_y + out_h, crop_x:crop_x + out_w, :]
+                crop_x = max(0, min(crop_x, pad_w - base_w))
+                crop_y = max(0, min(crop_y, pad_h - base_h))
+                frame_base = current_frame[crop_y:crop_y + base_h, crop_x:crop_x + base_w, :]
             else:
-                frame_out = current_frame
+                frame_base = current_frame
 
-            # Debug overlay drawn AFTER stabilization crop
+            # Draw overlay in full base frame before aspect crop.
             if debug_overlay_fn is not None:
                 speed_val = float(speed_curve[target_src]) if target_src < len(speed_curve) else 1.0
-                frame_out = debug_overlay_fn(frame_out.copy(), target_src, speed_val)
+                frame_base = debug_overlay_fn(frame_base.copy(), target_src, speed_val)
+
+            # Optional aspect crop (original/vertical/square)
+            if out_w != base_w or out_h != base_h:
+                if (
+                    auto_reframe
+                    and reframe_center is not None
+                    and target_src < len(reframe_center[0])
+                ):
+                    cx = float(reframe_center[0][target_src])
+                    cy = float(reframe_center[1][target_src])
+                else:
+                    cx, cy = 0.5, 0.5
+                frame_out = _crop_to_output_aspect(frame_base, out_w, out_h, cx, cy)
+            else:
+                frame_out = frame_base
 
             encode_proc.stdin.write(frame_out.tobytes())
 

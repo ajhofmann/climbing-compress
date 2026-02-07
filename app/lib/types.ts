@@ -55,6 +55,7 @@ export interface AnalysisData {
 
 export type SpeedMode = "progress" | "action" | "hybrid";
 export type EditMode = "pins" | "keyframes";
+export type OutputAspect = "original" | "vertical" | "square";
 
 export interface Settings {
   mode: SpeedMode;
@@ -72,6 +73,8 @@ export interface Settings {
   scale: number;
   outputFps: number;
   crf: number;
+  outputAspect: OutputAspect;
+  autoReframe: boolean;
   debugOverlay: boolean;
   trimStart: number;
   trimEnd: number;
@@ -117,6 +120,8 @@ export const DEFAULT_SETTINGS: Settings = {
   scale: 0.5,
   outputFps: 30,
   crf: 23,
+  outputAspect: "original",
+  autoReframe: false,
   debugOverlay: true,
   trimStart: 0,
   trimEnd: 0,

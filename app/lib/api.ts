@@ -147,6 +147,8 @@ export async function renderVideo(
       scale: settings.scale,
       output_fps: settings.outputFps,
       crf: settings.crf,
+      output_aspect: settings.outputAspect,
+      auto_reframe: settings.autoReframe,
       debug_overlay: settings.debugOverlay,
       stabilize: settings.stabilize,
       stabilize_strength: settings.stabilizeStrength,

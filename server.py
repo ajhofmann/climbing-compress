@@ -103,6 +103,8 @@ class RenderRequest(SolveRequest):
     scale: float = 0.5
     output_fps: float = 30
     crf: int = 23
+    output_aspect: str = "original"
+    auto_reframe: bool = False
     debug_overlay: bool = True
     include_audio: bool = True
     # Pose-anchored stabilization

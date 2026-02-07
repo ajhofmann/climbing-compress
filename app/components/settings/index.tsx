@@ -42,6 +42,8 @@ const STYLE_TEMPLATES: Array<{
       debugOverlay: false,
       renderComparison: false,
       renderChapters: false,
+      outputAspect: "original",
+      autoReframe: false,
       includeAudio: true,
     },
   },
@@ -56,6 +58,8 @@ const STYLE_TEMPLATES: Array<{
       includeAudio: false,
       renderComparison: true,
       renderChapters: true,
+      outputAspect: "original",
+      autoReframe: false,
     },
   },
   {
@@ -68,6 +72,8 @@ const STYLE_TEMPLATES: Array<{
       maxSpeed: 16,
       outputFps: 30,
       scale: 0.7,
+      outputAspect: "vertical",
+      autoReframe: true,
       renderChapters: true,
     },
   },
@@ -291,6 +297,17 @@ export function SettingsPanel() {
               onChange={(v) => u("outputFps", v)}
               title="Output frame rate: 24 = cinematic, 30 = standard, 60 = smooth"
             />
+            <RotarySelect
+              label="ASPECT"
+              value={s.outputAspect}
+              options={[
+                { value: "original", label: "ORI" },
+                { value: "vertical", label: "9:16" },
+                { value: "square", label: "1:1" },
+              ]}
+              onChange={(v) => u("outputAspect", v)}
+              title="Output aspect ratio: original frame, vertical social (9:16), or square (1:1)"
+            />
           </div>
         </Module>
 
@@ -321,6 +338,7 @@ export function SettingsPanel() {
             <ToggleSwitch label="OVL" checked={s.debugOverlay} onChange={(v) => u("debugOverlay", v)} color="#76ff03" title="Show skeleton + speed badge overlay on video" />
             <ToggleSwitch label="A/B" checked={s.renderComparison} onChange={(v) => u("renderComparison", v)} color="#e040fb" title="Also render a uniform-speed version for comparison" />
             <ToggleSwitch label="CHPT" checked={s.renderChapters} onChange={(v) => u("renderChapters", v)} color="#e040fb" title="Overlay auto chapters (START / CRUX / SEND)" />
+            <ToggleSwitch label="REFR" checked={s.autoReframe} onChange={(v) => u("autoReframe", v)} color="#00e5ff" title="For vertical/square exports, follow the climber center while cropping" />
             <ToggleSwitch label="STAB" checked={s.stabilize} onChange={(v) => u("stabilize", v)} color="#ff6e40" title="Enable pose-anchored video stabilization" />
             {s.stabilize && (
               <>
