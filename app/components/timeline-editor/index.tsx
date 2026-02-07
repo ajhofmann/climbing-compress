@@ -10,10 +10,16 @@ const THUMB_W = 160;
 const THUMB_H = 90;
 
 export function TimelineEditor() {
-  const { videoId, analysis, curve, curveTimes, pins, setPins, settings, updateSettings, stats } = useStore();
+  const { videoId, analysis, curve, curveTimes, pins, cruxPoints, setPins, settings, updateSettings, stats } = useStore();
 
   const waveformUrl = analysis
-    ? (settings.mode === "progress" ? analysis.waveform_progress : analysis.waveform_action)
+    ? (
+      settings.mode === "progress"
+        ? analysis.waveform_progress
+        : settings.mode === "action"
+          ? analysis.waveform_action
+          : (settings.progressActionBlend < 0.5 ? analysis.waveform_progress : analysis.waveform_action)
+    )
     : "";
 
   // Frame preview state
@@ -29,6 +35,7 @@ export function TimelineEditor() {
     curve,
     curveTimes,
     pins,
+    cruxPoints,
     waveformUrl,
     onPinsChange: setPins,
     trimStart: settings.trimStart,
@@ -105,6 +112,7 @@ export function TimelineEditor() {
           <span>drag to move</span>
           <span>scroll to resize</span>
           <span>right-click to delete</span>
+          {cruxPoints.length > 0 && <span className="text-neon-magenta">crux: {cruxPoints.length}</span>}
           {pins.length > 0 && (
             <Tooltip text="Remove all speed pins from the timeline">
               <button onClick={() => setPins([])} className="text-danger hover:underline">

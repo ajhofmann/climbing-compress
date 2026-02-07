@@ -18,14 +18,14 @@ import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from pipeline.cache import (
     load_analysis, has_cache, content_hash, load_flow_scores,
     load_camera_motion,
 )
 from pipeline.orchestrate import (
-    run_analysis, run_render, compute_scores_and_curve, curve_stats,
+    run_analysis, run_render, compute_scores_and_curve, curve_stats, detect_crux_points,
 )
 from pipeline.speed_curve import detect_rest
 from utils.sse import sse_response
@@ -75,6 +75,7 @@ class Pin(BaseModel):
 class SolveRequest(BaseModel):
     video_id: str
     mode: str = "progress"
+    progress_action_blend: float = Field(default=0.5, ge=0.0, le=1.0)
     target_duration: float = 15
     sensitivity: float = 0.35
     max_speed: float = 10
@@ -248,6 +249,14 @@ async def solve_curve(req: SolveRequest):
         t1 = float(e) / fps + trim_offset
         rest_regions.append([round(t0, 2), round(t1, 2)])
 
+    crux_points = []
+    for fi, score in detect_crux_points(scores, fps):
+        t = float(fi) / fps + trim_offset
+        crux_points.append({
+            "time": round(t, 2),
+            "score": round(float(score), 3),
+        })
+
     stats = curve_stats(curve, fps)
 
     return {
@@ -255,6 +264,7 @@ async def solve_curve(req: SolveRequest):
         "times": times_ds,
         "scores": scores_ds,
         "rest_regions": rest_regions,
+        "crux_points": crux_points,
         "stats": stats,
     }
 

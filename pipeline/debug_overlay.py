@@ -331,7 +331,7 @@ def _draw_frame_info(frame: np.ndarray, src_idx: int, fps: float,
     fs = max(0.5, h / 900)
     small = fs * 0.65
     src_t = src_idx / fps if fps > 0 else 0
-    tag = "PROG" if mode == "progress" else "ACT"
+    tag = "PROG" if mode == "progress" else "ACT" if mode == "action" else "HYB"
 
     # Include output time when time_map is available
     if time_map is not None and len(time_map) > 0 and src_idx < len(time_map):

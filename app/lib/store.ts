@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { Pin, Settings, CurveStats, AnalysisData, VideoInfo, DEFAULT_SETTINGS } from "./types";
+import { Pin, Settings, CurveStats, AnalysisData, VideoInfo, DEFAULT_SETTINGS, CruxPoint } from "./types";
 
 export interface AnalysisParams {
   stride: number;
@@ -26,8 +26,16 @@ interface Store {
   curveTimes: number[];
   solveScores: number[];
   restRegions: [number, number][];
+  cruxPoints: CruxPoint[];
   stats: CurveStats | null;
-  setCurve: (curve: number[], times: number[], stats: CurveStats, scores?: number[], restRegions?: [number, number][]) => void;
+  setCurve: (
+    curve: number[],
+    times: number[],
+    stats: CurveStats,
+    scores?: number[],
+    restRegions?: [number, number][],
+    cruxPoints?: CruxPoint[],
+  ) => void;
 
   // Pins
   pins: Pin[];
@@ -64,7 +72,7 @@ export const useStore = create<Store>((set) => ({
   videoId: null,
   videoInfo: null,
   thumbnails: [],
-  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], solveScores: [], restRegions: [], stats: null, outputId: null, comparisonId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
+  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], solveScores: [], restRegions: [], cruxPoints: [], stats: null, outputId: null, comparisonId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
 
   analysis: null,
   analysisParams: null,
@@ -74,11 +82,13 @@ export const useStore = create<Store>((set) => ({
   curveTimes: [],
   solveScores: [],
   restRegions: [],
+  cruxPoints: [],
   stats: null,
-  setCurve: (curve, times, stats, scores, restRegions) => set({
+  setCurve: (curve, times, stats, scores, restRegions, cruxPoints) => set({
     curve, curveTimes: times, stats,
     solveScores: scores ?? [],
     restRegions: restRegions ?? [],
+    cruxPoints: cruxPoints ?? [],
   }),
 
   pins: [],

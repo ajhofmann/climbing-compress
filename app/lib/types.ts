@@ -20,12 +20,18 @@ export interface CurveStats {
   action_rest_ratio: number;
 }
 
+export interface CruxPoint {
+  time: number;
+  score: number;
+}
+
 export interface SolveResult {
   curve: number[];
   times: number[];
   stats: CurveStats;
   scores: number[];
   rest_regions: [number, number][];
+  crux_points: CruxPoint[];
 }
 
 export interface AnalysisData {
@@ -42,12 +48,13 @@ export interface AnalysisData {
   camera_motion_available?: boolean;
 }
 
-export type SpeedMode = "progress" | "action";
+export type SpeedMode = "progress" | "action" | "hybrid";
 
 export interface Settings {
   mode: SpeedMode;
   targetDuration: number;
   sensitivity: number;
+  progressActionBlend: number;
   maxSpeed: number;
   minSpeed: number;
   steepness: number;
@@ -89,6 +96,7 @@ export const DEFAULT_SETTINGS: Settings = {
   mode: "progress",
   targetDuration: 15,
   sensitivity: 0.35,
+  progressActionBlend: 0.5,
   maxSpeed: 15,
   minSpeed: 0.25,
   steepness: 14,

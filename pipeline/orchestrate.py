@@ -18,7 +18,7 @@ from pipeline.pose import extract_poses, interpolate_missing_poses
 from pipeline.movement import score_movement, score_progress, analyze_rest_signals
 from pipeline.speed_curve import (
     solve_speed_curve, solve_constant_progress, get_output_duration,
-    detect_rest,
+    detect_rest, solve_hybrid_curve,
 )
 from pipeline.constants import SPEED_FLOOR, SPEED_CEIL
 from pipeline.render import render_preview
@@ -125,7 +125,7 @@ def compute_scores_and_curve(
             com_variance=rest_signals["com_variance"],
             limb_ratio=rest_signals["limb_ratio"],
         )
-    else:
+    elif req.mode == "action":
         scores = score_movement(
             trimmed, fps,
             smooth_sigma_s=req.smoothing,
@@ -143,6 +143,44 @@ def compute_scores_and_curve(
             sensitivity=req.sensitivity,
             steepness=req.steepness,
             pins=pins,
+        )
+    else:
+        # Hybrid mode blends progress and action curves/scores.
+        progress_scores = score_progress(
+            trimmed, fps,
+            smooth_sigma_s=req.smoothing,
+            vertical_bias=req.vertical_bias,
+            down_weight=getattr(req, "down_weight", 0.15),
+            camera_motion=trimmed_cam,
+        )
+        action_scores = score_movement(
+            trimmed, fps,
+            smooth_sigma_s=req.smoothing,
+            hand_weight=req.hand_weight,
+            foot_weight=req.foot_weight,
+            core_weight=req.core_weight,
+            flow_scores=trimmed_flow,
+            camera_motion=trimmed_cam,
+        )
+        rest_signals = analyze_rest_signals(trimmed, fps, camera_motion=trimmed_cam)
+        blend = float(np.clip(getattr(req, "progress_action_blend", 0.5), 0.0, 1.0))
+        scores = progress_scores * (1.0 - blend) + action_scores * blend
+        curve = solve_hybrid_curve(
+            progress_scores,
+            action_scores,
+            fps,
+            target_duration=req.target_duration,
+            blend=blend,
+            min_speed=req.min_speed,
+            max_speed=req.max_speed,
+            sensitivity=req.sensitivity,
+            steepness=req.steepness,
+            smoothing=req.smoothing,
+            rest_threshold_s=req.rest_threshold_s,
+            progress_floor=req.progress_floor,
+            pins=pins,
+            com_variance=rest_signals["com_variance"],
+            limb_ratio=rest_signals["limb_ratio"],
         )
 
     return scores, curve, trimmed, start_frame
@@ -166,6 +204,50 @@ def curve_stats(curve: np.ndarray, fps: float) -> dict[str, float]:
         "slow_pct": round(slow_pct, 0),
         "action_rest_ratio": round(ratio, 1),
     }
+
+
+def detect_crux_points(
+    scores: np.ndarray,
+    fps: float,
+    top_k: int = 5,
+    min_distance_s: float = 1.2,
+    quantile_threshold: float = 80.0,
+) -> list[tuple[int, float]]:
+    """Detect likely crux moments from score peaks.
+
+    Returns a list of ``(frame_index, score)`` sorted by frame index.
+    """
+    n = len(scores)
+    if n < 3 or fps <= 0:
+        return []
+
+    local_peaks = np.where(
+        (scores[1:-1] > scores[:-2]) & (scores[1:-1] >= scores[2:])
+    )[0] + 1
+
+    if local_peaks.size == 0:
+        max_idx = int(np.argmax(scores))
+        return [(max_idx, float(scores[max_idx]))]
+
+    thresh = float(np.percentile(scores, quantile_threshold))
+    candidates = local_peaks[scores[local_peaks] >= thresh]
+    if candidates.size == 0:
+        max_idx = int(np.argmax(scores))
+        return [(max_idx, float(scores[max_idx]))]
+
+    order = candidates[np.argsort(scores[candidates])[::-1]]
+    min_dist = max(1, int(min_distance_s * fps))
+
+    selected: list[tuple[int, float]] = []
+    for idx in order:
+        idx_i = int(idx)
+        if all(abs(idx_i - prev_idx) >= min_dist for prev_idx, _ in selected):
+            selected.append((idx_i, float(scores[idx_i])))
+        if len(selected) >= top_k:
+            break
+
+    selected.sort(key=lambda x: x[0])
+    return selected
 
 
 # ---------------------------------------------------------------------------
@@ -460,7 +542,7 @@ def run_render(
             if ef <= len(flow_scores):
                 debug_flow = flow_scores[start_frame:ef]
 
-        if req.mode == "progress":
+        if req.mode in ("progress", "hybrid"):
             # Trim camera motion for rest signal analysis
             debug_cam = None
             if camera_motion is not None:

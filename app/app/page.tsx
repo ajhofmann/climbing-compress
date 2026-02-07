@@ -23,7 +23,7 @@ export default function Home() {
     solveTimeout.current = setTimeout(async () => {
       try {
         const result = await solveCurve(videoId, settings, pins);
-        store.setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions);
+        store.setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions, result.crux_points);
       } catch (e) {
         console.error("solve:", e);
       }
@@ -51,7 +51,7 @@ export default function Home() {
         store.setProgress(0.95, "Computing speed curve...");
         const updatedSettings = { ...settings, trimEnd: settings.trimEnd === 0 ? result.duration : settings.trimEnd };
         const solveResult = await solveCurve(videoId, updatedSettings, pins);
-        store.setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions);
+        store.setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions, solveResult.crux_points);
         store.setProgress(0, "Analysis complete!");
       }
     } catch (e: unknown) {

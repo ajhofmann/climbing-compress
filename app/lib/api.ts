@@ -74,6 +74,7 @@ export async function solveCurve(
     body: JSON.stringify({
       video_id: videoId,
       mode: settings.mode,
+      progress_action_blend: settings.progressActionBlend,
       target_duration: settings.targetDuration,
       sensitivity: settings.sensitivity,
       max_speed: settings.maxSpeed,
@@ -120,6 +121,7 @@ export async function renderVideo(
     body: JSON.stringify({
       video_id: videoId,
       mode: settings.mode,
+      progress_action_blend: settings.progressActionBlend,
       target_duration: settings.targetDuration,
       sensitivity: settings.sensitivity,
       max_speed: settings.maxSpeed,

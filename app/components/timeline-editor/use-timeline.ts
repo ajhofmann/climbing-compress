@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pin } from "@/lib/types";
+import type { CruxPoint } from "@/lib/types";
 
 interface TimelineConfig {
   duration: number;
@@ -10,6 +11,7 @@ interface TimelineConfig {
   curveTimes: number[];
   pins: Pin[];
   waveformUrl: string;
+  cruxPoints: CruxPoint[];
   onPinsChange: (pins: Pin[]) => void;
   trimStart: number;
   trimEnd: number;
@@ -31,7 +33,7 @@ export function useTimeline(config: TimelineConfig) {
   const [hoverIdx, setHoverIdx] = useState(-1);
   const [hoverTrim, setHoverTrim] = useState<"start" | "end" | null>(null);
 
-  const { duration, maxSpeed, curve, curveTimes, pins, waveformUrl, onPinsChange, trimStart, trimEnd, onTrimChange } = config;
+  const { duration, maxSpeed, curve, curveTimes, pins, waveformUrl, cruxPoints, onPinsChange, trimStart, trimEnd, onTrimChange } = config;
 
   // Load waveform image
   useEffect(() => {
@@ -113,6 +115,31 @@ export function useTimeline(config: TimelineConfig) {
         if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
       }
       if (started) ctx.stroke();
+    }
+
+    // Crux markers
+    if (cruxPoints.length > 0) {
+      const cruxColor = getComputedStyle(document.documentElement).getPropertyValue("--neon-magenta").trim() || "#e040fb";
+      for (const cp of cruxPoints) {
+        const x = timeToX(cp.time, w);
+        if (!isFinite(x) || x < 0 || x > w) continue;
+        const lineAlpha = Math.max(0.15, Math.min(0.55, cp.score));
+        ctx.strokeStyle = `${cruxColor}${Math.round(lineAlpha * 255).toString(16).padStart(2, "0")}`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+
+        // Top triangle marker
+        ctx.fillStyle = cruxColor;
+        ctx.beginPath();
+        ctx.moveTo(x, 5);
+        ctx.lineTo(x - 4, 0);
+        ctx.lineTo(x + 4, 0);
+        ctx.closePath();
+        ctx.fill();
+      }
     }
 
     // Trim dimmed regions
@@ -252,7 +279,7 @@ export function useTimeline(config: TimelineConfig) {
         ctx.fillText(label, Math.max(8, lx), ly);
       }
     }
-  }, [curve, curveTimes, pins, duration, maxSpeed, hoverIdx, dragging, trimStart, trimEnd, hoverTrim, timeToX, speedToY]);
+  }, [curve, curveTimes, pins, cruxPoints, duration, maxSpeed, hoverIdx, dragging, trimStart, trimEnd, hoverTrim, timeToX, speedToY]);
 
   // Redraw on changes
   useEffect(() => { draw(); }, [draw]);

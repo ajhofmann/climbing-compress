@@ -428,7 +428,9 @@ export function DebugCharts() {
             description={
               settings.mode === "progress"
                 ? "Upward wall displacement per frame. Measures how much the climber's center of mass moves toward the top. High values = active climbing. Low values = resting or readjusting. This signal determines how output time is allocated."
-                : "Per-frame limb velocity with weighted contributions from hands, feet, and core. High values = dynamic moves that get slow-mo. Low values = stillness that gets fast-forwarded. Tweak hand/foot/core weights in settings to reshape this."
+                : settings.mode === "action"
+                  ? "Per-frame limb velocity with weighted contributions from hands, feet, and core. High values = dynamic moves that get slow-mo. Low values = stillness that gets fast-forwarded. Tweak hand/foot/core weights in settings to reshape this."
+                  : "Hybrid score blends progress and action signals. Use BLEND in Program to shift from even wall progression to dynamic move emphasis."
             }
           >
             <div
@@ -471,7 +473,7 @@ export function DebugCharts() {
                     tickLine={{ stroke: "var(--border)" }}
                     width={42}
                     label={{
-                      value: settings.mode === "progress" ? "displacement" : "velocity",
+                      value: settings.mode === "progress" ? "displacement" : settings.mode === "action" ? "velocity" : "hybrid",
                       angle: -90,
                       position: "insideLeft",
                       offset: 12,
@@ -491,7 +493,7 @@ export function DebugCharts() {
 
                   <Area
                     dataKey="score"
-                    name={settings.mode === "progress" ? "progress" : "action"}
+                    name={settings.mode === "progress" ? "progress" : settings.mode === "action" ? "action" : "hybrid"}
                     fill="var(--warm)"
                     fillOpacity={0.25}
                     stroke="var(--warm)"
