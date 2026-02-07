@@ -21,6 +21,10 @@ def test_delete_project_unassigns_videos(tmp_path, monkeypatch):
     renamed = db_module.get_project(project_id)
     assert renamed is not None
     assert renamed["name"] == "Project DB 2"
+    db_module.update_project(project_id)
+    unchanged = db_module.get_project(project_id)
+    assert unchanged is not None
+    assert unchanged["name"] == "Project DB 2"
     db_module.insert_project("proj-old", "Project Old")
     db_module.insert_project("proj-new", "Project New")
     db_module.register_video(
