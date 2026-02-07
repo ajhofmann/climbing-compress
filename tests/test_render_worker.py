@@ -67,6 +67,9 @@ def test_render_worker_records_outputs(tmp_path, monkeypatch):
     outputs = db_module.list_outputs()
     output_ids = {output["id"] for output in outputs}
     assert output_ids == {"output-main", "output-comp"}
+    output_types = {output["id"]: output["output_type"] for output in outputs}
+    assert output_types["output-main"] == "main"
+    assert output_types["output-comp"] == "comparison"
 
 
 def test_preview_worker_records_output(tmp_path, monkeypatch):
@@ -128,6 +131,7 @@ def test_preview_worker_records_output(tmp_path, monkeypatch):
     outputs = db_module.list_outputs()
     output_ids = {output["id"] for output in outputs}
     assert output_ids == {"output-preview"}
+    assert outputs[0]["output_type"] == "preview"
 
 
 def test_render_worker_done_without_outputs(tmp_path, monkeypatch):
