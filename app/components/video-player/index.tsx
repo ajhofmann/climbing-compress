@@ -113,6 +113,8 @@ export function VideoPlayer() {
             autoPlay
             loop
             playsInline
+          aria-label="Rendered climb video (keyboard: J/K/L, Space)"
+          aria-keyshortcuts="J K L Space"
             onTimeUpdate={onTimeUpdate}
             className="w-full max-h-[70vh] object-contain"
           />
@@ -137,6 +139,8 @@ export function VideoPlayer() {
             autoPlay
             loop
             playsInline
+            aria-label="Rendered climb video smart ramp comparison (keyboard: J/K/L, Space)"
+            aria-keyshortcuts="J K L Space"
             className="w-full max-h-[70vh] object-contain"
             onPlay={syncPlay}
             onPause={syncPause}
@@ -155,6 +159,7 @@ export function VideoPlayer() {
             loop
             playsInline
             muted
+            aria-hidden="true"
             className="w-full max-h-[70vh] object-contain"
           />
         </div>
