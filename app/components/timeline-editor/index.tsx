@@ -180,6 +180,7 @@ export function TimelineEditor() {
           <span>drag to move</span>
           {settings.editMode === "pins" && <span>scroll to resize</span>}
           <span>right-click to delete</span>
+          <span>del to delete hovered</span>
           {cruxPoints.length > 0 && <span className="text-neon-magenta">crux: {cruxPoints.length}</span>}
           {(settings.editMode === "pins" ? pins.length > 0 : keyframes.length > 0) && (
             <Tooltip text={settings.editMode === "pins" ? "Remove all speed pins from the timeline" : "Remove all keyframes from the timeline"}>
@@ -207,9 +208,10 @@ export function TimelineEditor() {
         <canvas
           ref={canvasRef}
           {...handlers}
-          aria-label={`Speed curve editor (${settings.editMode}) — click to add, drag to move, right-click to delete${settings.editMode === "pins" ? ", scroll to resize pin radius" : ""}`}
+          tabIndex={0}
+          aria-label={`Speed curve editor (${settings.editMode}) — click to add, drag to move, right-click or Delete to remove${settings.editMode === "pins" ? ", scroll to resize pin radius" : ""}`}
           role="img"
-          className="w-full h-44 rounded-lg border border-border"
+          className="w-full h-44 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-accent/60"
         />
         {/* Frame preview tooltip */}
         {previewPos && previewReady && (

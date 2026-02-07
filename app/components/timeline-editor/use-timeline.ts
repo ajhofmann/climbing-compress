@@ -550,6 +550,31 @@ export function useTimeline(config: TimelineConfig) {
     return () => canvas.removeEventListener("wheel", handleWheel);
   }, [editMode, pins, findNear, onPinsChange]);
 
+  // Keyboard delete for hovered pin/keyframe.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      if (hoverIdx < 0 || dragging !== null) return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+
+      e.preventDefault();
+      if (editMode === "pins") {
+        const next = pins.filter((_, i) => i !== hoverIdx);
+        onPinsChange(next);
+      } else {
+        const next = keyframes.filter((_, i) => i !== hoverIdx);
+        onKeyframesChange(next);
+      }
+      setHoverIdx(-1);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [hoverIdx, dragging, editMode, pins, keyframes, onPinsChange, onKeyframesChange]);
+
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
   }, []);
