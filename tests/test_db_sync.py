@@ -84,3 +84,48 @@ def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
     assert renamed_record["path"] == str(renamed)
     assert renamed_record["filename"] == "video1.mov"
     assert json.loads(renamed_record["info_json"])["duration"] == 2.0
+
+
+def test_sync_input_dir_recomputes_non_dict_info_json(tmp_path, monkeypatch):
+    db_path = tmp_path / "sync-non-dict.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    def get_video_info(_path: str):
+        return {
+            "fps": 30,
+            "width": 1920,
+            "height": 1080,
+            "frame_count": 30,
+            "duration": 1.0,
+        }
+
+    db_module.get_video_info = get_video_info
+
+    input_dir = tmp_path / "input"
+    input_dir.mkdir()
+    video_path = input_dir / "video1.mp4"
+    video_path.write_bytes(b"payload")
+
+    db_module.register_video(
+        video_id="video1",
+        filename="video1.mp4",
+        path=str(video_path),
+        file_hash=db_module.content_hash(str(video_path)),
+        info={"duration": 0.5},
+    )
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE videos SET info_json = ? WHERE id = ?", (json.dumps(["bad-info"]), "video1"))
+    conn.commit()
+    conn.close()
+
+    db_module.sync_input_dir(input_dir)
+    updated = db_module.get_video("video1")
+    assert updated is not None
+    info = json.loads(updated["info_json"])
+    assert isinstance(info, dict)
+    assert info["duration"] == 1.0

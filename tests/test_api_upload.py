@@ -578,3 +578,61 @@ def test_upload_reuse_invalid_info_json(tmp_path, monkeypatch):
     record = db_module.get_video("video-invalid")
     assert record is not None
     assert json.loads(record["info_json"])["duration"] == 8.0
+
+
+def test_upload_reuse_non_dict_info_json(tmp_path, monkeypatch):
+    db_path = tmp_path / "upload-non-dict-info.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-upload-non-dict-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    monkeypatch.setattr(
+        server_module,
+        "get_video_info",
+        lambda _path: {"fps": 24, "width": 1280, "height": 720, "frame_count": 240, "duration": 8.0},
+    )
+    monkeypatch.setattr(server_module, "generate_thumbnails", lambda *_args, **_kwargs: [])
+
+    video_path = input_dir / "video-non-dict.mp4"
+    video_path.write_bytes(b"non-dict-info")
+    file_hash = content_hash(str(video_path))
+    db_module.register_video(
+        video_id="video-non-dict",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash=file_hash,
+        info={"duration": 1.0},
+    )
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE videos SET info_json = ? WHERE id = ?", (json.dumps(["bad-info"]), "video-non-dict"))
+    conn.commit()
+    conn.close()
+
+    client = TestClient(server_module.app)
+    response = client.post(
+        "/api/upload",
+        files={"file": ("upload.mp4", b"non-dict-info", "video/mp4")},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["reused"] is True
+    assert payload["video_id"] == "video-non-dict"
+    assert payload["info"]["duration"] == 8.0
+
+    record = db_module.get_video("video-non-dict")
+    assert record is not None
+    assert json.loads(record["info_json"])["duration"] == 8.0

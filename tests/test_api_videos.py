@@ -183,6 +183,60 @@ def test_videos_api_handles_invalid_info_json(tmp_path, monkeypatch):
     assert json.loads(record["info_json"])["duration"] == 2.0
 
 
+def test_videos_api_handles_non_dict_info_json(tmp_path, monkeypatch):
+    db_path = tmp_path / "videos-non-dict.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-non-dict-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    video_path = tmp_path / "info.mp4"
+    video_path.write_bytes(b"info-bytes")
+    db_module.register_video(
+        video_id="video-non-dict",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash="hash-non-dict",
+        info={"duration": 1.0},
+    )
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE videos SET info_json = ? WHERE id = ?", (json.dumps(["bad-info"]), "video-non-dict"))
+    conn.commit()
+    conn.close()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    info = {
+        "fps": 24,
+        "width": 1280,
+        "height": 720,
+        "frame_count": 24,
+        "duration": 2.5,
+    }
+    monkeypatch.setattr(server_module, "get_video_info", lambda _path: info)
+
+    client = TestClient(server_module.app)
+    response = client.get("/api/videos")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload[0]["info"]["duration"] == 2.5
+
+    record = db_module.get_video("video-non-dict")
+    assert record is not None
+    assert json.loads(record["info_json"])["duration"] == 2.5
+
+
 def test_videos_api_skips_invalid_info(tmp_path, monkeypatch):
     db_path = tmp_path / "videos-invalid-info.db"
     input_dir = tmp_path / "input"

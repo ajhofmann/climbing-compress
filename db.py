@@ -151,7 +151,9 @@ def sync_input_dir(input_dir: Path) -> None:
             needs_info = existing["file_hash"] != file_hash or info_json is None
             if info_json is not None:
                 try:
-                    json.loads(info_json)
+                    parsed_info = json.loads(info_json)
+                    if not isinstance(parsed_info, dict):
+                        needs_info = True
                 except json.JSONDecodeError:
                     needs_info = True
             if (

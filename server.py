@@ -387,6 +387,8 @@ async def upload_video(file: UploadFile = File(...), project_id: str | None = Qu
                         info = json.loads(existing["info_json"])
                     except json.JSONDecodeError:
                         info = None
+                if info is not None and not isinstance(info, dict):
+                    info = None
                 if info is None:
                     info = get_video_info(str(existing_path))
                     update_video_info(existing_id, info)
@@ -455,6 +457,8 @@ async def list_videos(project_id: str | None = Query(default=None)):
                 info = json.loads(record["info_json"])
             except json.JSONDecodeError:
                 info = None
+        if info is not None and not isinstance(info, dict):
+            info = None
         if info is None:
             try:
                 info = get_video_info(str(path))
