@@ -343,3 +343,46 @@ def test_worker_render_job_invokes_worker(tmp_path, monkeypatch):
     assert captured["path"] == Path(video_path)
     assert captured["req"].video_id == "video-render"
     assert captured["req"].target_duration == 12
+
+
+def test_worker_handles_missing_request_fields(tmp_path, monkeypatch):
+    db_path = tmp_path / "worker-missing-request.db"
+    input_dir = tmp_path / "input-missing-request"
+    output_dir = tmp_path / "output-missing-request"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    video_path = tmp_path / "missing-request.mp4"
+    video_path.write_bytes(b"")
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.register_video(
+        video_id="video-missing-request",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash="hash-missing-request",
+    )
+    db_module.insert_job(
+        job_id="job-missing-request",
+        video_id="video-missing-request",
+        job_type="analyze",
+        status="queued",
+    )
+
+    import worker as worker_module
+    importlib.reload(worker_module)
+
+    job = db_module.get_job("job-missing-request")
+    assert job is not None
+    worker_module._handle_job(job)
+
+    updated = db_module.get_job("job-missing-request")
+    assert updated is not None
+    assert updated["status"] == "failed"
+    assert "validation error" in updated["message"].lower()
