@@ -47,6 +47,44 @@ def test_upload_video_creates_record(tmp_path, monkeypatch):
     assert record["filename"].endswith(".mp4")
 
 
+def test_upload_defaults_extension(tmp_path, monkeypatch):
+    db_path = tmp_path / "upload-default.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-upload-default-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    monkeypatch.setattr(
+        server_module,
+        "get_video_info",
+        lambda _path: {"fps": 30, "width": 1920, "height": 1080, "frame_count": 300, "duration": 10.0},
+    )
+    monkeypatch.setattr(server_module, "generate_thumbnails", lambda *_args, **_kwargs: [])
+
+    client = TestClient(server_module.app)
+    response = client.post(
+        "/api/upload",
+        files={"file": ("upload", b"video-bytes", "application/octet-stream")},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    record = db_module.get_video(payload["video_id"])
+    assert record is not None
+    assert record["filename"].endswith(".mov")
+
+
 def test_upload_video_reuses_existing(tmp_path, monkeypatch):
     db_path = tmp_path / "upload-reuse.db"
     input_dir = tmp_path / "input"
@@ -227,6 +265,16 @@ def test_upload_reuse_keeps_project(tmp_path, monkeypatch):
     db_module.init_db()
     db_module.insert_project("project-keep", "Project Keep")
 
+    import server as server_module
+    importlib.reload(server_module)
+
+    monkeypatch.setattr(
+        server_module,
+        "get_video_info",
+        lambda _path: {"fps": 24, "width": 1280, "height": 720, "frame_count": 240, "duration": 8.0},
+    )
+    monkeypatch.setattr(server_module, "generate_thumbnails", lambda *_args, **_kwargs: [])
+
     video_path = input_dir / "video-keep.mp4"
     video_path.write_bytes(b"keep-bytes")
     file_hash = content_hash(str(video_path))
@@ -237,9 +285,6 @@ def test_upload_reuse_keeps_project(tmp_path, monkeypatch):
         file_hash=file_hash,
         project_id="project-keep",
     )
-
-    import server as server_module
-    importlib.reload(server_module)
 
     monkeypatch.setattr(
         server_module,
@@ -279,16 +324,6 @@ def test_upload_reuse_updates_missing_info(tmp_path, monkeypatch):
     importlib.reload(db_module)
     db_module.init_db()
 
-    video_path = input_dir / "video-info.mp4"
-    video_path.write_bytes(b"info-bytes")
-    file_hash = content_hash(str(video_path))
-    db_module.register_video(
-        video_id="video-info",
-        filename=video_path.name,
-        path=str(video_path),
-        file_hash=file_hash,
-    )
-
     import server as server_module
     importlib.reload(server_module)
 
@@ -298,6 +333,16 @@ def test_upload_reuse_updates_missing_info(tmp_path, monkeypatch):
         lambda _path: {"fps": 24, "width": 1280, "height": 720, "frame_count": 240, "duration": 8.0},
     )
     monkeypatch.setattr(server_module, "generate_thumbnails", lambda *_args, **_kwargs: [])
+
+    video_path = input_dir / "video-info.mp4"
+    video_path.write_bytes(b"info-bytes")
+    file_hash = content_hash(str(video_path))
+    db_module.register_video(
+        video_id="video-info",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash=file_hash,
+    )
 
     client = TestClient(server_module.app)
     response = client.post(
