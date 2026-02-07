@@ -36,6 +36,17 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
         job_type="analysis",
         request={"video_id": assigned_video_id},
     )
+    db_module.update_job(
+        job_id="job-assigned",
+        progress=0.75,
+        message="Updated",
+        result={"ok": True},
+    )
+    updated_job = db_module.get_job("job-assigned")
+    assert updated_job is not None
+    assert updated_job["progress"] == 0.75
+    assert updated_job["message"] == "Updated"
+    assert json.loads(updated_job["result_json"])["ok"] is True
     db_module.insert_job(
         job_id="job-unassigned",
         video_id=unassigned_video_id,
