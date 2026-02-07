@@ -41,6 +41,7 @@ from db import (
     get_video_by_hash,
     register_video,
     update_video_info,
+    update_video_file,
     set_video_project,
     insert_project,
     update_project,
@@ -393,6 +394,22 @@ async def upload_video(file: UploadFile = File(...), project_id: str | None = Qu
                     "cached": has_cache(str(existing_path)),
                     "reused": True,
                 }
+            # Existing record but file missing; replace file while keeping ID.
+            video_id = existing_id
+            dest = INPUT_DIR / f"{video_id}{ext}"
+            tmp.rename(dest)
+            info = get_video_info(str(dest))
+            thumbs = generate_thumbnails(str(dest), n=8)
+            update_video_file(video_id, dest.name, str(dest), ch, info)
+            if project_id is not None:
+                set_video_project(video_id, project_id)
+            return {
+                "video_id": video_id,
+                "info": info,
+                "thumbnails": _encode_thumbnails(thumbs),
+                "cached": has_cache(str(dest)),
+                "reused": False,
+            }
 
         # New video — rename temp to final
         video_id = uuid.uuid4().hex[:10]

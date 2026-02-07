@@ -245,6 +245,23 @@ def update_video_info(video_id: str, info: dict[str, Any]) -> None:
     conn.close()
 
 
+def update_video_file(
+    video_id: str,
+    filename: str,
+    path: str,
+    file_hash: str,
+    info: dict[str, Any] | None,
+) -> None:
+    conn = _connect()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE videos SET filename = ?, path = ?, file_hash = ?, info_json = ? WHERE id = ?",
+        (filename, path, file_hash, json.dumps(info) if info is not None else None, video_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def set_video_project(video_id: str, project_id: str | None) -> None:
     conn = _connect()
     cur = conn.cursor()

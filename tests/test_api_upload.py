@@ -2,6 +2,8 @@ import importlib
 
 from fastapi.testclient import TestClient
 
+from pipeline.cache import content_hash
+
 
 def test_upload_video_creates_record(tmp_path, monkeypatch):
     db_path = tmp_path / "upload.db"
@@ -149,3 +151,59 @@ def test_upload_rejects_invalid_video(tmp_path, monkeypatch):
     )
     assert response.status_code == 500
     assert list(input_dir.iterdir()) == []
+
+
+def test_upload_replaces_missing_file(tmp_path, monkeypatch):
+    db_path = tmp_path / "upload-replace.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-upload-replace-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.insert_project("project-replace", "Project Replace")
+
+    temp_path = tmp_path / "source.mp4"
+    temp_path.write_bytes(b"same-bytes")
+    file_hash = content_hash(str(temp_path))
+
+    db_module.register_video(
+        video_id="video-replace",
+        filename="missing.mp4",
+        path=str(tmp_path / "missing.mp4"),
+        file_hash=file_hash,
+        project_id="project-replace",
+    )
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    monkeypatch.setattr(
+        server_module,
+        "get_video_info",
+        lambda _path: {"fps": 24, "width": 1280, "height": 720, "frame_count": 240, "duration": 8.0},
+    )
+    monkeypatch.setattr(server_module, "generate_thumbnails", lambda *_args, **_kwargs: [])
+
+    client = TestClient(server_module.app)
+    response = client.post(
+        "/api/upload",
+        files={"file": ("upload.mp4", b"same-bytes", "video/mp4")},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["video_id"] == "video-replace"
+    assert payload["reused"] is False
+
+    record = db_module.get_video("video-replace")
+    assert record is not None
+    assert record["project_id"] == "project-replace"
+    assert record["path"] == str(input_dir / "video-replace.mp4")
+    assert (input_dir / "video-replace.mp4").exists()
