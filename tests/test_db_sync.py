@@ -1,6 +1,7 @@
 import importlib
 import json
 from pathlib import Path
+import sqlite3
 
 
 def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
@@ -51,6 +52,11 @@ def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
         file_hash=db_module.content_hash(str(file_four)),
         info=None,
     )
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE videos SET info_json = ? WHERE id = ?", ("not-json", "video4"))
+    conn.commit()
+    conn.close()
     db_module.sync_input_dir(input_dir)
     restored = db_module.get_video("video4")
     assert restored is not None

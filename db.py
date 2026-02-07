@@ -147,13 +147,18 @@ def sync_input_dir(input_dir: Path) -> None:
             )
         else:
             # Update hash/path if needed (e.g., renamed file)
-            needs_info = existing["file_hash"] != file_hash or existing["info_json"] is None
+            info_json = existing["info_json"]
+            needs_info = existing["file_hash"] != file_hash or info_json is None
+            if info_json is not None:
+                try:
+                    json.loads(info_json)
+                except json.JSONDecodeError:
+                    needs_info = True
             if (
                 needs_info
                 or existing["path"] != str(file)
                 or existing["filename"] != file.name
             ):
-                info_json = existing["info_json"]
                 if needs_info:
                     info = get_video_info(str(file))
                     info_json = json.dumps(info)
