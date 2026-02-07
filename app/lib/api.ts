@@ -77,10 +77,12 @@ export async function analyzeVideo(
   useTracker: boolean = true,
   useFlow: boolean = true,
   trackerModel: string = "yolo26m",
+  signal?: AbortSignal,
 ): Promise<AnalysisData | null> {
   const res = await fetch(`${API}/api/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal,
     body: JSON.stringify({
       video_id: videoId,
       stride,
@@ -100,10 +102,12 @@ export async function solveCurve(
   settings: Settings,
   pins: Pin[],
   keyframes: Keyframe[],
+  signal?: AbortSignal,
 ): Promise<SolveResult> {
   const res = await fetch(`${API}/api/solve`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal,
     body: JSON.stringify({
       video_id: videoId,
       mode: settings.mode,
@@ -150,10 +154,12 @@ export async function renderVideo(
   pins: Pin[],
   keyframes: Keyframe[],
   onProgress: (progress: number, message: string) => void,
+  signal?: AbortSignal,
 ): Promise<RenderResult | null> {
   const res = await fetch(`${API}/api/render`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal,
     body: JSON.stringify({
       video_id: videoId,
       mode: settings.mode,

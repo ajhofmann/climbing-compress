@@ -32,23 +32,59 @@ export default function Home() {
   const setComparisonId = useStore((s) => s.setComparisonId);
 
   const solveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSolveAbortRef = useRef<AbortController | null>(null);
+  const analyzeAbortRef = useRef<AbortController | null>(null);
+  const analyzeSolveAbortRef = useRef<AbortController | null>(null);
+  const renderAbortRef = useRef<AbortController | null>(null);
+  const suspendAutoSolveRef = useRef(false);
+
+  const isAbortError = (e: unknown) => e instanceof Error && e.name === "AbortError";
 
   useEffect(() => {
-    if (!videoId || !analysis) return;
+    return () => {
+      analyzeAbortRef.current?.abort();
+      analyzeSolveAbortRef.current?.abort();
+      autoSolveAbortRef.current?.abort();
+      renderAbortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!videoId || !analysis || suspendAutoSolveRef.current) return;
     if (solveTimeout.current) clearTimeout(solveTimeout.current);
+    autoSolveAbortRef.current?.abort();
     solveTimeout.current = setTimeout(async () => {
+      const controller = new AbortController();
+      autoSolveAbortRef.current = controller;
       try {
-        const result = await solveCurve(videoId, settings, pins, keyframes);
+        const result = await solveCurve(videoId, settings, pins, keyframes, controller.signal);
+        if (controller.signal.aborted) return;
         setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions, result.crux_points);
       } catch (e) {
+        if (isAbortError(e)) return;
         console.error("solve:", e);
+      } finally {
+        if (autoSolveAbortRef.current === controller) {
+          autoSolveAbortRef.current = null;
+        }
       }
     }, 80);
-    return () => { if (solveTimeout.current) clearTimeout(solveTimeout.current); };
+    return () => {
+      if (solveTimeout.current) clearTimeout(solveTimeout.current);
+      autoSolveAbortRef.current?.abort();
+    };
   }, [videoId, analysis, settings, pins, keyframes, setCurve]);
 
   const handleAnalyze = useCallback(async () => {
     if (!videoId) return;
+    suspendAutoSolveRef.current = true;
+    analyzeAbortRef.current?.abort();
+    analyzeSolveAbortRef.current?.abort();
+    autoSolveAbortRef.current?.abort();
+    const analyzeController = new AbortController();
+    analyzeAbortRef.current = analyzeController;
+    let solveController: AbortController | null = null;
+
     const currentParams: AnalysisParams = {
       stride: settings.analyzeStride,
       useTracker: settings.useTracker,
@@ -60,45 +96,83 @@ export default function Home() {
     setAnalyzing(true);
     setProgress(0, force ? "Re-analyzing (fresh)..." : "Starting analysis...");
     try {
-      const result = await analyzeVideo(videoId, settings.analyzeStride, force, (p, msg) => { setProgress(p, msg); }, settings.useTracker, settings.useFlow, settings.trackerModel);
+      const result = await analyzeVideo(
+        videoId,
+        settings.analyzeStride,
+        force,
+        (p, msg) => { setProgress(p, msg); },
+        settings.useTracker,
+        settings.useFlow,
+        settings.trackerModel,
+        analyzeController.signal,
+      );
       if (result) {
         setAnalysis(result, currentParams);
         if (settings.trimEnd === 0) updateSettings({ trimEnd: result.duration });
         setProgress(0.95, "Computing speed curve...");
         const updatedSettings = { ...settings, trimEnd: settings.trimEnd === 0 ? result.duration : settings.trimEnd };
-        const solveResult = await solveCurve(videoId, updatedSettings, pins, keyframes);
+        solveController = new AbortController();
+        analyzeSolveAbortRef.current = solveController;
+        const solveResult = await solveCurve(videoId, updatedSettings, pins, keyframes, solveController.signal);
+        if (solveController.signal.aborted) return;
         setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions, solveResult.crux_points);
         setProgress(0, "Analysis complete!");
       }
     } catch (e: unknown) {
+      if (isAbortError(e)) return;
       const msg = e instanceof Error ? e.message : "Unknown error";
       setProgress(0, `Error: ${msg}`);
     } finally {
-      setAnalyzing(false);
+      if (analyzeSolveAbortRef.current === solveController) {
+        analyzeSolveAbortRef.current = null;
+      }
+      if (analyzeAbortRef.current === analyzeController) {
+        analyzeAbortRef.current = null;
+        suspendAutoSolveRef.current = false;
+        setAnalyzing(false);
+      }
     }
   }, [videoId, analysis, analysisParams, settings, pins, keyframes, setAnalyzing, setProgress, setAnalysis, updateSettings, setCurve]);
 
   const handleRender = useCallback(async () => {
     if (!videoId) return;
+    renderAbortRef.current?.abort();
+    const renderController = new AbortController();
+    renderAbortRef.current = renderController;
     setRendering(true);
     setProgress(0, "Starting render...");
     try {
-      const result = await renderVideo(videoId, settings, pins, keyframes, (p, msg) => { setProgress(p, msg); });
+      const result = await renderVideo(
+        videoId,
+        settings,
+        pins,
+        keyframes,
+        (p, msg) => { setProgress(p, msg); },
+        renderController.signal,
+      );
+      if (renderController.signal.aborted) return;
       if (result?.output_id) {
         setOutputId(result.output_id);
         setComparisonId(result.comparison_id ?? null);
         setProgress(0, `Done! ${result.stats?.output_duration}s video ready`);
       }
     } catch (e: unknown) {
+      if (isAbortError(e)) return;
       const msg = e instanceof Error ? e.message : "Unknown error";
       setProgress(0, `Error: ${msg}`);
     } finally {
-      setRendering(false);
+      if (renderAbortRef.current === renderController) {
+        renderAbortRef.current = null;
+        setRendering(false);
+      }
     }
   }, [videoId, settings, pins, keyframes, setRendering, setProgress, setOutputId, setComparisonId]);
 
   const handleQuickRender = useCallback(async () => {
     if (!videoId) return;
+    renderAbortRef.current?.abort();
+    const renderController = new AbortController();
+    renderAbortRef.current = renderController;
     setRendering(true);
     setProgress(0, "Starting quick preview render...");
     try {
@@ -111,17 +185,29 @@ export default function Home() {
         debugOverlay: false,
         renderComparison: false,
       };
-      const result = await renderVideo(videoId, draftSettings, pins, keyframes, (p, msg) => { setProgress(p, `[preview] ${msg}`); });
+      const result = await renderVideo(
+        videoId,
+        draftSettings,
+        pins,
+        keyframes,
+        (p, msg) => { setProgress(p, `[preview] ${msg}`); },
+        renderController.signal,
+      );
+      if (renderController.signal.aborted) return;
       if (result?.output_id) {
         setOutputId(result.output_id);
         setComparisonId(null);
         setProgress(0, "Quick preview ready");
       }
     } catch (e: unknown) {
+      if (isAbortError(e)) return;
       const msg = e instanceof Error ? e.message : "Unknown error";
       setProgress(0, `Error: ${msg}`);
     } finally {
-      setRendering(false);
+      if (renderAbortRef.current === renderController) {
+        renderAbortRef.current = null;
+        setRendering(false);
+      }
     }
   }, [videoId, settings, pins, keyframes, setRendering, setProgress, setOutputId, setComparisonId]);
 
