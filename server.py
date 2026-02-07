@@ -362,6 +362,7 @@ async def upload_video(file: UploadFile = File(...), project_id: str | None = Qu
 
     # Save to temp first so we can hash before committing
     tmp = INPUT_DIR / f"_tmp_{uuid.uuid4().hex[:8]}{ext}"
+    dest: Path | None = None
     try:
         with open(tmp, "wb") as f:
             shutil.copyfileobj(file.file, f)
@@ -412,6 +413,8 @@ async def upload_video(file: UploadFile = File(...), project_id: str | None = Qu
     except (OSError, ValueError) as exc:
         if tmp.exists():
             tmp.unlink()
+        if dest and dest.exists():
+            dest.unlink()
         logger.error("Upload failed: %s", exc)
         raise HTTPException(500, f"Upload failed: {exc}") from exc
 

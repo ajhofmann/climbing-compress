@@ -148,3 +148,4 @@ def test_upload_rejects_invalid_video(tmp_path, monkeypatch):
         files={"file": ("upload.mp4", b"bad", "video/mp4")},
     )
     assert response.status_code == 500
+    assert list(input_dir.iterdir()) == []
