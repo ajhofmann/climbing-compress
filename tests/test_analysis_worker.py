@@ -58,7 +58,9 @@ def test_analysis_worker_marks_success(tmp_path, monkeypatch):
     assert updated["status"] == "success"
     assert updated["progress"] == 1.0
     assert updated["message"] == "Done"
-    assert json.loads(updated["result_json"])["done"] is True
+    result = json.loads(updated["result_json"])
+    assert result["done"] is True
+    assert result["job_id"] == "job-analysis"
 
 
 def test_analysis_worker_marks_cancelled(tmp_path, monkeypatch):
