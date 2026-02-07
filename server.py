@@ -703,6 +703,8 @@ async def get_output(output_id: str):
             stats = json.loads(output["stats_json"])
         except json.JSONDecodeError:
             stats = None
+    if stats is not None and not isinstance(stats, dict):
+        stats = None
     return {
         "id": output["id"],
         "video_id": output["video_id"],
@@ -736,6 +738,8 @@ async def list_outputs(
                 stats = json.loads(output["stats_json"])
             except json.JSONDecodeError:
                 stats = None
+        if stats is not None and not isinstance(stats, dict):
+            stats = None
         payload.append({
             "id": output["id"],
             "video_id": output["video_id"],

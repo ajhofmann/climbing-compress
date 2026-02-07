@@ -59,10 +59,21 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
         path=str(output_path_3),
         stats={"output_duration": 3.3},
     )
+    output_path_4 = output_dir / "out4.mp4"
+    output_path_4.write_bytes(b"payload-4")
+    db_module.insert_output(
+        output_id="output-list",
+        video_id=video_id,
+        job_id="job-api-4",
+        output_type="preview",
+        path=str(output_path_4),
+        stats={"output_duration": 4.4},
+    )
 
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
     cur.execute("UPDATE outputs SET stats_json = ? WHERE id = ?", ("not-json", "output-invalid"))
+    cur.execute("UPDATE outputs SET stats_json = ? WHERE id = ?", ("[1,2]", "output-list"))
     conn.commit()
     conn.close()
 
@@ -73,10 +84,11 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
     response = client.get("/api/outputs")
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload) == 3
+    assert len(payload) == 4
     output = next(item for item in payload if item["id"] == "output-api")
     output_missing = next(item for item in payload if item["id"] == "output-api-2")
     output_invalid = next(item for item in payload if item["id"] == "output-invalid")
+    output_list = next(item for item in payload if item["id"] == "output-list")
     assert output["project_name"] == "Project API"
     assert output["project_id"] == project_id
     assert output["video_filename"] == "demo.mp4"
@@ -93,3 +105,4 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
     assert output_missing["size_bytes"] == 0
     assert output_invalid["output_duration"] is None
     assert output_invalid["size_bytes"] == len(b"payload-3")
+    assert output_list["output_duration"] is None
