@@ -174,3 +174,31 @@ def test_preview_endpoint_enqueues_job(tmp_path, monkeypatch):
     assert captured["preview_req"] == {"sentinel": True}
     assert captured["build_req"].preview_duration == 2.5
     assert captured["build_path"] == Path(video_path)
+
+
+def test_endpoints_error_on_missing_video(tmp_path, monkeypatch):
+    db_path = tmp_path / "missing.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-missing-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    client = TestClient(server_module.app)
+    response = client.post("/api/analyze", json={"video_id": "missing"})
+    assert response.status_code == 404
+    response = client.post("/api/render", json={"video_id": "missing"})
+    assert response.status_code == 404
+    response = client.post("/api/preview", json={"video_id": "missing"})
+    assert response.status_code == 404
