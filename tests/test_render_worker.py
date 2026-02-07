@@ -179,6 +179,58 @@ def test_render_worker_marks_failed(tmp_path, monkeypatch):
     assert updated["message"] == "boom"
 
 
+def test_render_worker_marks_cancelled(tmp_path, monkeypatch):
+    db_path = tmp_path / "render-cancelled.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    video_path = input_dir / "render.mp4"
+    video_path.write_bytes(b"")
+    db_module.register_video(
+        video_id="video-render",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash="hash-render",
+    )
+    db_module.insert_job(
+        job_id="job-render",
+        video_id="video-render",
+        job_type="render",
+        status="queued",
+    )
+
+    def _run_render(_path, _req, _out_dir, emit):
+        db_module.update_job(job_id="job-render", status="cancelled")
+        emit({"progress": 0.2, "message": "Working"})
+
+    monkeypatch.setattr(server_module, "run_render", _run_render)
+
+    server_module._render_job_worker(
+        "job-render",
+        Path(video_path),
+        server_module.RenderRequest(video_id="video-render"),
+        lambda _payload: None,
+    )
+
+    updated = db_module.get_job("job-render")
+    assert updated is not None
+    assert updated["status"] == "cancelled"
+    assert db_module.list_outputs() == []
+
+
 def test_preview_worker_marks_failed(tmp_path, monkeypatch):
     db_path = tmp_path / "preview-failed.db"
     input_dir = tmp_path / "input"
@@ -229,3 +281,55 @@ def test_preview_worker_marks_failed(tmp_path, monkeypatch):
     assert updated is not None
     assert updated["status"] == "failed"
     assert updated["message"] == "boom"
+
+
+def test_preview_worker_marks_cancelled(tmp_path, monkeypatch):
+    db_path = tmp_path / "preview-cancelled.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    video_path = input_dir / "preview.mp4"
+    video_path.write_bytes(b"")
+    db_module.register_video(
+        video_id="video-preview",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash="hash-preview",
+    )
+    db_module.insert_job(
+        job_id="job-preview",
+        video_id="video-preview",
+        job_type="preview",
+        status="queued",
+    )
+
+    def _run_render(_path, _req, _out_dir, emit):
+        db_module.update_job(job_id="job-preview", status="cancelled")
+        emit({"progress": 0.2, "message": "Working"})
+
+    monkeypatch.setattr(server_module, "run_render", _run_render)
+
+    server_module._preview_job_worker(
+        "job-preview",
+        Path(video_path),
+        server_module.RenderRequest(video_id="video-preview"),
+        lambda _payload: None,
+    )
+
+    updated = db_module.get_job("job-preview")
+    assert updated is not None
+    assert updated["status"] == "cancelled"
+    assert db_module.list_outputs() == []
