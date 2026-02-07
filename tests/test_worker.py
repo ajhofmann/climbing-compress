@@ -429,3 +429,46 @@ def test_worker_handles_missing_render_request_fields(tmp_path, monkeypatch):
     assert updated is not None
     assert updated["status"] == "failed"
     assert "validation error" in updated["message"].lower()
+
+
+def test_worker_handles_missing_preview_request_fields(tmp_path, monkeypatch):
+    db_path = tmp_path / "worker-missing-preview.db"
+    input_dir = tmp_path / "input-missing-preview"
+    output_dir = tmp_path / "output-missing-preview"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    video_path = tmp_path / "missing-preview.mp4"
+    video_path.write_bytes(b"")
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.register_video(
+        video_id="video-missing-preview",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash="hash-missing-preview",
+    )
+    db_module.insert_job(
+        job_id="job-missing-preview",
+        video_id="video-missing-preview",
+        job_type="preview",
+        status="queued",
+    )
+
+    import worker as worker_module
+    importlib.reload(worker_module)
+
+    job = db_module.get_job("job-missing-preview")
+    assert job is not None
+    worker_module._handle_job(job)
+
+    updated = db_module.get_job("job-missing-preview")
+    assert updated is not None
+    assert updated["status"] == "failed"
+    assert "validation error" in updated["message"].lower()
