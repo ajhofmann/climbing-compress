@@ -1,4 +1,5 @@
 import importlib
+import json
 import sqlite3
 
 
@@ -25,6 +26,7 @@ def test_list_outputs_includes_project_name(tmp_path, monkeypatch):
         job_id="job-assigned",
         output_type="main",
         path="/tmp/out-assigned.mp4",
+        stats={"output_duration": 2.5},
     )
 
     unassigned_video_id = "video-unassigned"
@@ -78,4 +80,5 @@ def test_list_outputs_includes_project_name(tmp_path, monkeypatch):
     output = db_module.get_output("output-assigned")
     assert output is not None
     assert output["id"] == "output-assigned"
+    assert json.loads(output["stats_json"])["output_duration"] == 2.5
     assert db_module.get_output("missing") is None
