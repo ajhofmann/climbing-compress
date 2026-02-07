@@ -70,6 +70,19 @@ def test_list_videos_filters_and_names(tmp_path, monkeypatch):
     updated = db_module.get_video("video-assigned")
     assert updated is not None
     assert json.loads(updated["info_json"])["duration"] == 9.9
+    db_module.update_video_file(
+        "video-assigned",
+        filename="assigned-new.mp4",
+        path="/tmp/assigned-new.mp4",
+        file_hash="hash-assigned-new",
+        info={"duration": 4.4},
+    )
+    updated_file = db_module.get_video("video-assigned")
+    assert updated_file is not None
+    assert updated_file["filename"] == "assigned-new.mp4"
+    assert updated_file["path"] == "/tmp/assigned-new.mp4"
+    assert updated_file["file_hash"] == "hash-assigned-new"
+    assert json.loads(updated_file["info_json"])["duration"] == 4.4
     db_module.set_video_project("video-assigned", None)
     unassigned = db_module.get_video("video-assigned")
     assert unassigned is not None
