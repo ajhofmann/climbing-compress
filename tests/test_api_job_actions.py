@@ -89,6 +89,11 @@ def test_retry_job_endpoint_requeues(tmp_path, monkeypatch):
     assert status_payload["status"] == "queued"
     assert status_payload["job_type"] == "analysis"
 
+    jobs_response = client.get("/api/jobs")
+    assert jobs_response.status_code == 200
+    job_ids = {job["id"] for job in jobs_response.json()}
+    assert job_ids == {"job-retry", new_job_id}
+
 
 def test_retry_job_endpoint_requires_request(tmp_path, monkeypatch):
     db_path = tmp_path / "retry-missing.db"
