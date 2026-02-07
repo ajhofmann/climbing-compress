@@ -70,4 +70,8 @@ def test_list_videos_filters_and_names(tmp_path, monkeypatch):
     updated = db_module.get_video("video-assigned")
     assert updated is not None
     assert json.loads(updated["info_json"])["duration"] == 9.9
+    db_module.set_video_project("video-assigned", None)
+    unassigned = db_module.get_video("video-assigned")
+    assert unassigned is not None
+    assert unassigned["project_id"] is None
     assert db_module.get_video("missing") is None
