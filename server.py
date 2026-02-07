@@ -379,12 +379,14 @@ async def upload_video(file: UploadFile = File(...), project_id: str | None = Qu
                 tmp.unlink()
                 if project_id is not None:
                     set_video_project(existing_id, project_id)
-                info = (
-                    json.loads(existing["info_json"])
-                    if existing.get("info_json")
-                    else get_video_info(str(existing_path))
-                )
-                if not existing.get("info_json"):
+                info = None
+                if existing.get("info_json"):
+                    try:
+                        info = json.loads(existing["info_json"])
+                    except json.JSONDecodeError:
+                        info = None
+                if info is None:
+                    info = get_video_info(str(existing_path))
                     update_video_info(existing_id, info)
                 thumbs = generate_thumbnails(str(existing_path), n=8)
                 return {
@@ -445,9 +447,13 @@ async def list_videos(project_id: str | None = Query(default=None)):
         if not path.exists():
             continue
         size_bytes = path.stat().st_size
+        info = None
         if record.get("info_json"):
-            info = json.loads(record["info_json"])
-        else:
+            try:
+                info = json.loads(record["info_json"])
+            except json.JSONDecodeError:
+                info = None
+        if info is None:
             info = get_video_info(str(path))
             update_video_info(record["id"], info)
         result.append({
