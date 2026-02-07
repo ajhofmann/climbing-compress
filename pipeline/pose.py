@@ -109,7 +109,7 @@ def extract_poses(
     max_short_side: int = 960,
     tracks: list[dict | None] | None = None,
     progress_cb: Callable[[float], None] | None = None,
-) -> tuple[list[dict | None], float]:
+) -> tuple[list[dict | None], float, tuple[np.ndarray, np.ndarray]]:
     """
     Run pose detection on video frames.
 
@@ -123,7 +123,10 @@ def extract_poses(
     so downstream code is unaffected.
 
     Returns:
-        (poses, fps) -- poses has one entry per source frame.
+        (poses, fps, raw_anchor):
+          - poses has one entry per source frame
+          - raw_anchor is the pre-smoothing anchor trajectory (x, y)
+            used by stabilization
     """
     model_path = _ensure_model()
 
