@@ -42,6 +42,20 @@ def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
     assert len(videos) == 2
     assert {video["id"] for video in videos} == {"video1", "video3"}
 
+    file_four = input_dir / "video4.mp4"
+    file_four.write_bytes(b"missing-info")
+    db_module.register_video(
+        video_id="video4",
+        filename="video4.mp4",
+        path=str(file_four),
+        file_hash=db_module.content_hash(str(file_four)),
+        info=None,
+    )
+    db_module.sync_input_dir(input_dir)
+    restored = db_module.get_video("video4")
+    assert restored is not None
+    assert json.loads(restored["info_json"])["duration"] == 1.0
+
     file_one.write_bytes(b"payload-updated")
     db_module.sync_input_dir(input_dir)
     updated = db_module.get_video("video1")
