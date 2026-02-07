@@ -181,3 +181,66 @@ def test_videos_api_handles_invalid_info_json(tmp_path, monkeypatch):
     record = db_module.get_video("video-invalid")
     assert record is not None
     assert json.loads(record["info_json"])["duration"] == 2.0
+
+
+def test_videos_api_skips_invalid_info(tmp_path, monkeypatch):
+    db_path = tmp_path / "videos-invalid-info.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-invalid-info-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    good_path = input_dir / "good.mp4"
+    bad_path = input_dir / "bad.mp4"
+    good_path.write_bytes(b"good")
+    bad_path.write_bytes(b"bad")
+    db_module.register_video(
+        video_id="video-good",
+        filename=good_path.name,
+        path=str(good_path),
+        file_hash="hash-good",
+        info=None,
+    )
+    db_module.register_video(
+        video_id="video-bad",
+        filename=bad_path.name,
+        path=str(bad_path),
+        file_hash="hash-bad",
+        info=None,
+    )
+
+    def _get_video_info(path: str):
+        if path.endswith("bad.mp4"):
+            raise ValueError("bad video")
+        return {
+            "fps": 24,
+            "width": 1280,
+            "height": 720,
+            "frame_count": 24,
+            "duration": 1.0,
+        }
+
+    monkeypatch.setattr(server_module, "get_video_info", _get_video_info)
+
+    client = TestClient(server_module.app)
+    response = client.get("/api/videos")
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload) == 1
+    assert payload[0]["video_id"] == "video-good"
+
+    record = db_module.get_video("video-good")
+    assert record is not None
+    assert json.loads(record["info_json"])["duration"] == 1.0

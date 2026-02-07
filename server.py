@@ -456,7 +456,11 @@ async def list_videos(project_id: str | None = Query(default=None)):
             except json.JSONDecodeError:
                 info = None
         if info is None:
-            info = get_video_info(str(path))
+            try:
+                info = get_video_info(str(path))
+            except (OSError, ValueError) as exc:
+                logger.error("Video info failed for %s: %s", path, exc)
+                continue
             update_video_info(record["id"], info)
         result.append({
             "video_id": record["id"],
