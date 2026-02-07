@@ -67,6 +67,9 @@ The solver also returns **crux markers** (`C1`, `C2`, …) on the timeline. In k
 - Keyboard transport shortcuts:
   - `Ctrl/Cmd + Enter` → Quick Preview
   - `Ctrl/Cmd + Shift + Enter` → Full Render
+- Playback shortcuts (when output player is visible):
+  - `K` (or `Space`) → Play / Pause
+  - `J` / `L` → Seek -1s / +1s
 - Optional **Chapter overlays** (`START`, `CRUX`, `SEND`) on rendered output.
 - Style templates in the UI (`Cinematic`, `Coaching`, `Social Vertical`) for one-click tuning.
 - Output **aspect control** (`original`, `9:16`, `1:1`) plus optional **auto-reframe** to follow the climber when cropping vertical/square exports.

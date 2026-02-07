@@ -36,6 +36,64 @@ export function VideoPlayer() {
     }
   }, []);
 
+  const safePlay = useCallback((video: HTMLVideoElement | null) => {
+    if (!video) return;
+    void video.play().catch(() => {
+      // Ignore autoplay/play promise interruptions.
+    });
+  }, []);
+
+  const togglePlayback = useCallback(() => {
+    const primary = smartRef.current ?? singleRef.current;
+    if (!primary) return;
+    if (primary.paused) {
+      safePlay(primary);
+      if (smartRef.current && compRef.current) safePlay(compRef.current);
+    } else {
+      primary.pause();
+      if (compRef.current) compRef.current.pause();
+    }
+  }, [safePlay]);
+
+  const seekBy = useCallback((deltaSeconds: number) => {
+    const primary = smartRef.current ?? singleRef.current;
+    if (!primary) return;
+    const duration = Number.isFinite(primary.duration) ? primary.duration : 0;
+    const next = Math.max(0, Math.min(duration || primary.currentTime + deltaSeconds, primary.currentTime + deltaSeconds));
+    primary.currentTime = next;
+    if (smartRef.current && compRef.current) {
+      compRef.current.currentTime = smartRef.current.currentTime;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!outputId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") return;
+
+      const key = e.key.toLowerCase();
+      if (e.code === "Space" || key === "k") {
+        e.preventDefault();
+        togglePlayback();
+        return;
+      }
+      if (key === "j") {
+        e.preventDefault();
+        seekBy(-1);
+        return;
+      }
+      if (key === "l") {
+        e.preventDefault();
+        seekBy(1);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [outputId, togglePlayback, seekBy]);
+
   if (!outputId) return null;
 
   if (!hasComparison) {
