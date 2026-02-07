@@ -59,6 +59,14 @@ def test_metrics_output_types_and_avg_duration(tmp_path, monkeypatch):
         path="/tmp/out4.mp4",
         stats={"output_duration": 5.0},
     )
+    db_module.insert_output(
+        output_id="out-none",
+        video_id=video_id,
+        job_id="job-6",
+        output_type="main",
+        path="/tmp/out6.mp4",
+        stats=None,
+    )
 
     db_module.insert_job(job_id="job-a", video_id=video_id, job_type="analysis", status="success")
     db_module.insert_job(job_id="job-b", video_id=video_id, job_type="analysis", status="failed")
@@ -76,7 +84,7 @@ def test_metrics_output_types_and_avg_duration(tmp_path, monkeypatch):
     conn.close()
 
     metrics = db_module.get_metrics()
-    assert metrics["outputs_by_type"]["main"] == 3
+    assert metrics["outputs_by_type"]["main"] == 4
     assert metrics["outputs_by_type"]["preview"] == 1
     assert metrics["outputs_by_type"]["comparison"] == 1
     assert metrics["avg_output_duration_by_type"]["main"] == 2.0
