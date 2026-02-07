@@ -64,3 +64,30 @@ def test_build_preview_request_min_duration(tmp_path, monkeypatch):
     preview_req = server_module._build_preview_request(req, Path("preview.mp4"))
     assert preview_req.trim_start == 0.0
     assert preview_req.trim_end == 0.5
+
+
+def test_build_preview_request_without_duration(tmp_path, monkeypatch):
+    db_path = tmp_path / "preview-none.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    monkeypatch.setattr(server_module, "get_video_info", lambda _path: {})
+
+    req = server_module.PreviewRequest(
+        video_id="video-preview",
+        preview_start=1.0,
+        preview_duration=2.0,
+    )
+
+    preview_req = server_module._build_preview_request(req, Path("preview.mp4"))
+    assert preview_req.trim_start == 1.0
+    assert preview_req.trim_end == 3.0
