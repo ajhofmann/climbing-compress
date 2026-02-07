@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { Pin, Settings, CurveStats, AnalysisData, VideoInfo, DEFAULT_SETTINGS, CruxPoint } from "./types";
+import { Pin, Keyframe, Settings, CurveStats, AnalysisData, VideoInfo, DEFAULT_SETTINGS, CruxPoint } from "./types";
 
 export interface AnalysisParams {
   stride: number;
@@ -43,6 +43,11 @@ interface Store {
   addPin: (pin: Pin) => void;
   removePin: (index: number) => void;
   updatePin: (index: number, pin: Pin) => void;
+  keyframes: Keyframe[];
+  setKeyframes: (keyframes: Keyframe[]) => void;
+  addKeyframe: (keyframe: Keyframe) => void;
+  removeKeyframe: (index: number) => void;
+  updateKeyframe: (index: number, keyframe: Keyframe) => void;
 
   // Settings
   settings: Settings;
@@ -72,7 +77,7 @@ export const useStore = create<Store>((set) => ({
   videoId: null,
   videoInfo: null,
   thumbnails: [],
-  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], solveScores: [], restRegions: [], cruxPoints: [], stats: null, outputId: null, comparisonId: null, pins: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0 } })),
+  setVideo: (id, info, thumbs) => set((s) => ({ videoId: id, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], solveScores: [], restRegions: [], cruxPoints: [], stats: null, outputId: null, comparisonId: null, pins: [], keyframes: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0, editMode: "pins" } })),
 
   analysis: null,
   analysisParams: null,
@@ -96,6 +101,13 @@ export const useStore = create<Store>((set) => ({
   addPin: (pin) => set((s) => ({ pins: [...s.pins, pin] })),
   removePin: (i) => set((s) => ({ pins: s.pins.filter((_, j) => j !== i) })),
   updatePin: (i, pin) => set((s) => ({ pins: s.pins.map((p, j) => j === i ? pin : p) })),
+  keyframes: [],
+  setKeyframes: (keyframes) => set({ keyframes: [...keyframes].sort((a, b) => a.time - b.time) }),
+  addKeyframe: (keyframe) => set((s) => ({ keyframes: [...s.keyframes, keyframe].sort((a, b) => a.time - b.time) })),
+  removeKeyframe: (i) => set((s) => ({ keyframes: s.keyframes.filter((_, j) => j !== i) })),
+  updateKeyframe: (i, keyframe) => set((s) => ({
+    keyframes: s.keyframes.map((k, j) => (j === i ? keyframe : k)).sort((a, b) => a.time - b.time),
+  })),
 
   settings: { ...DEFAULT_SETTINGS },
   updateSettings: (partial) => set((s) => ({ settings: { ...s.settings, ...partial } })),

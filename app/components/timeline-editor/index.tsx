@@ -10,7 +10,12 @@ const THUMB_W = 160;
 const THUMB_H = 90;
 
 export function TimelineEditor() {
-  const { videoId, analysis, curve, curveTimes, pins, cruxPoints, setPins, settings, updateSettings, stats } = useStore();
+  const {
+    videoId, analysis, curve, curveTimes,
+    pins, setPins,
+    keyframes, setKeyframes, removeKeyframe,
+    cruxPoints, settings, updateSettings, stats,
+  } = useStore();
 
   const waveformUrl = analysis
     ? (
@@ -25,7 +30,7 @@ export function TimelineEditor() {
   // Frame preview state
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [previewPos, setPreviewPos] = useState<{ x: number; time: number } | null>(null);
+  const [previewPos, setPreviewPos] = useState<{ x: number; time: number; width: number } | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
   const seekingRef = useRef(false);
 
@@ -34,10 +39,13 @@ export function TimelineEditor() {
     maxSpeed: settings.maxSpeed,
     curve,
     curveTimes,
+    editMode: settings.editMode,
     pins,
+    keyframes,
     cruxPoints,
     waveformUrl,
     onPinsChange: setPins,
+    onKeyframesChange: setKeyframes,
     trimStart: settings.trimStart,
     trimEnd: settings.trimEnd,
     onTrimChange: (start, end) => updateSettings({ trimStart: start, trimEnd: end }),
@@ -69,7 +77,7 @@ export function TimelineEditor() {
     const rect = canvasRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const time = Math.max(0, Math.min(analysis.duration, (x / rect.width) * analysis.duration));
-    setPreviewPos({ x, time });
+    setPreviewPos({ x, time, width: rect.width });
 
     // Seek the hidden video (throttled by seekingRef)
     const vid = previewVideoRef.current;
@@ -79,7 +87,7 @@ export function TimelineEditor() {
     }
   }, [baseHandlers, analysis, canvasRef]);
 
-  const onMouseLeave = useCallback((_e: React.MouseEvent) => {
+  const onMouseLeave = useCallback(() => {
     baseHandlers.onMouseLeave();
     setPreviewPos(null);
     setPreviewReady(false);
@@ -98,7 +106,7 @@ export function TimelineEditor() {
   // Compute preview tooltip position (above cursor, clamped to canvas bounds)
   const previewStyle: React.CSSProperties | undefined = previewPos ? {
     left: Math.max(0, Math.min(previewPos.x - THUMB_W / 2,
-      (canvasRef.current?.getBoundingClientRect().width ?? 600) - THUMB_W)),
+      previewPos.width - THUMB_W)),
     bottom: "100%",
     marginBottom: 8,
   } : undefined;
@@ -106,16 +114,35 @@ export function TimelineEditor() {
   return (
     <div className="flex flex-col gap-1">
       <div className="flex justify-between items-center px-1">
-        <span className="text-xs font-medium text-text">speed curve editor</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-text">speed curve editor</span>
+          <div className="flex rounded border border-border overflow-hidden">
+            <button
+              onClick={() => updateSettings({ editMode: "pins" })}
+              className={`px-2 py-0.5 text-[10px] font-pixel uppercase ${settings.editMode === "pins" ? "bg-accent/15 text-accent" : "text-text-muted hover:text-text"}`}
+            >
+              pins
+            </button>
+            <button
+              onClick={() => updateSettings({ editMode: "keyframes" })}
+              className={`px-2 py-0.5 text-[10px] font-pixel uppercase border-l border-border ${settings.editMode === "keyframes" ? "bg-warm/15 text-warm" : "text-text-muted hover:text-text"}`}
+            >
+              keyframes
+            </button>
+          </div>
+        </div>
         <div className="flex gap-3 text-[10px] text-text-muted">
           <span>click to add</span>
           <span>drag to move</span>
-          <span>scroll to resize</span>
+          {settings.editMode === "pins" && <span>scroll to resize</span>}
           <span>right-click to delete</span>
           {cruxPoints.length > 0 && <span className="text-neon-magenta">crux: {cruxPoints.length}</span>}
-          {pins.length > 0 && (
-            <Tooltip text="Remove all speed pins from the timeline">
-              <button onClick={() => setPins([])} className="text-danger hover:underline">
+          {(settings.editMode === "pins" ? pins.length > 0 : keyframes.length > 0) && (
+            <Tooltip text={settings.editMode === "pins" ? "Remove all speed pins from the timeline" : "Remove all keyframes from the timeline"}>
+              <button
+                onClick={() => settings.editMode === "pins" ? setPins([]) : setKeyframes([])}
+                className="text-danger hover:underline"
+              >
                 clear all
               </button>
             </Tooltip>
@@ -126,7 +153,7 @@ export function TimelineEditor() {
         <canvas
           ref={canvasRef}
           {...handlers}
-          aria-label="Speed curve editor — click to add pins, drag to move, scroll to resize, right-click to delete"
+          aria-label={`Speed curve editor (${settings.editMode}) — click to add, drag to move, right-click to delete${settings.editMode === "pins" ? ", scroll to resize pin radius" : ""}`}
           role="img"
           className="w-full h-44 rounded-lg border border-border"
         />
@@ -158,6 +185,56 @@ export function TimelineEditor() {
         )}
         <span>{analysis.duration.toFixed(0)}s</span>
       </div>
+
+      {settings.editMode === "keyframes" && keyframes.length > 0 && (
+        <div className="rounded border border-border p-2 flex flex-col gap-1">
+          <div className="text-[10px] font-pixel uppercase tracking-wider text-text-muted">keyframe values</div>
+          <div className="grid gap-1">
+            {keyframes.map((kf, idx) => (
+              <div key={`${idx}-${kf.time.toFixed(3)}-${kf.speed.toFixed(3)}`} className="flex items-center gap-2 text-[10px]">
+                <span className="text-text-muted w-8">#{idx + 1}</span>
+                <label className="text-text-muted">t</label>
+                <input
+                  type="number"
+                  value={Number(kf.time.toFixed(2))}
+                  min={0}
+                  max={analysis.duration}
+                  step={0.1}
+                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
+                  onChange={(e) => {
+                    const t = Math.max(0, Math.min(analysis.duration, Number(e.target.value)));
+                    const next = [...keyframes];
+                    next[idx] = { ...next[idx], time: Number.isFinite(t) ? t : next[idx].time };
+                    setKeyframes(next);
+                  }}
+                />
+                <label className="text-text-muted">spd</label>
+                <input
+                  type="number"
+                  value={Number(kf.speed.toFixed(2))}
+                  min={0.1}
+                  max={settings.maxSpeed}
+                  step={0.05}
+                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
+                  onChange={(e) => {
+                    const s = Math.max(0.1, Math.min(settings.maxSpeed, Number(e.target.value)));
+                    const next = [...keyframes];
+                    next[idx] = { ...next[idx], speed: Number.isFinite(s) ? s : next[idx].speed };
+                    setKeyframes(next);
+                  }}
+                />
+                <button
+                  onClick={() => removeKeyframe(idx)}
+                  className="text-danger hover:underline ml-auto"
+                >
+                  delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Hidden video for frame capture */}
       {videoId && (
         <video

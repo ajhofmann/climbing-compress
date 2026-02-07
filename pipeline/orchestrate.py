@@ -18,7 +18,7 @@ from pipeline.pose import extract_poses, interpolate_missing_poses
 from pipeline.movement import score_movement, score_progress, analyze_rest_signals
 from pipeline.speed_curve import (
     solve_speed_curve, solve_constant_progress, get_output_duration,
-    detect_rest, solve_hybrid_curve,
+    detect_rest, solve_hybrid_curve, curve_from_keyframes,
 )
 from pipeline.constants import SPEED_FLOOR, SPEED_CEIL
 from pipeline.render import render_preview
@@ -96,13 +96,19 @@ def compute_scores_and_curve(
         if end_frame <= len(cam_dx):
             trimmed_cam = (cam_dx[start_frame:end_frame], cam_dy[start_frame:end_frame])
 
-    # Offset pins into trimmed-region time and filter out-of-range
+    edit_mode = getattr(req, "edit_mode", "pins")
+
+    # Offset editable points into trimmed-region time and filter out-of-range
     trim_s = start_frame / fps if fps > 0 else 0
     trim_dur = len(trimmed) / fps if fps > 0 else 0
     pins = [
         (p.time - trim_s, p.speed, p.radius) for p in req.pins
         if trim_s <= p.time <= trim_s + trim_dur
-    ]
+    ] if edit_mode == "pins" else []
+    keyframes = [
+        (k.time - trim_s, k.speed) for k in getattr(req, "keyframes", [])
+        if trim_s <= k.time <= trim_s + trim_dur
+    ] if edit_mode == "keyframes" else []
 
     if req.mode == "progress":
         scores = score_progress(
@@ -181,6 +187,16 @@ def compute_scores_and_curve(
             pins=pins,
             com_variance=rest_signals["com_variance"],
             limb_ratio=rest_signals["limb_ratio"],
+        )
+
+    if edit_mode == "keyframes" and keyframes:
+        curve = curve_from_keyframes(
+            n_frames=len(trimmed),
+            fps=fps,
+            keyframes=keyframes,
+            min_speed=req.min_speed,
+            max_speed=req.max_speed,
+            smoothing=req.smoothing * 0.35,
         )
 
     return scores, curve, trimmed, start_frame

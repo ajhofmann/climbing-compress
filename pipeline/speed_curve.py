@@ -274,6 +274,57 @@ def solve_hybrid_curve(
     return np.clip(curve, min_speed, max_speed)
 
 
+def curve_from_keyframes(
+    n_frames: int,
+    fps: float,
+    keyframes: list[tuple[float, float]],
+    min_speed: float,
+    max_speed: float,
+    smoothing: float = 0.0,
+) -> np.ndarray:
+    """Build a speed curve from explicit keyframes using linear interpolation."""
+    if n_frames <= 0:
+        return np.array([])
+    if fps <= 0:
+        return np.full(n_frames, 1.0)
+    if not keyframes:
+        return np.full(n_frames, 1.0)
+
+    # Sort and clamp keyframes
+    dur = n_frames / fps
+    ordered = sorted(
+        (
+            float(np.clip(t, 0.0, dur)),
+            float(np.clip(s, min_speed, max_speed)),
+        )
+        for t, s in keyframes
+    )
+
+    times = np.array([t for t, _ in ordered], dtype=float)
+    speeds = np.array([s for _, s in ordered], dtype=float)
+
+    # Keep last value for duplicated times
+    uniq_t, uniq_s = [], []
+    for t, s in zip(times, speeds):
+        if uniq_t and abs(t - uniq_t[-1]) < 1e-6:
+            uniq_s[-1] = s
+        else:
+            uniq_t.append(t)
+            uniq_s.append(s)
+
+    if len(uniq_t) == 1:
+        curve = np.full(n_frames, uniq_s[0], dtype=float)
+    else:
+        frame_times = np.arange(n_frames, dtype=float) / fps
+        curve = np.interp(frame_times, uniq_t, uniq_s)
+
+    if smoothing > 0:
+        sigma_frames = max(1, fps * smoothing)
+        curve = gaussian_filter1d(curve, sigma=sigma_frames)
+
+    return np.clip(curve, min_speed, max_speed)
+
+
 def rest_confidence(
     progress_rate: np.ndarray,
     fps: float,

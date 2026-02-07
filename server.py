@@ -72,9 +72,14 @@ class Pin(BaseModel):
     speed: float
     radius: float = 2.0  # influence radius in seconds
 
+class Keyframe(BaseModel):
+    time: float
+    speed: float
+
 class SolveRequest(BaseModel):
     video_id: str
     mode: str = "progress"
+    edit_mode: str = "pins"
     progress_action_blend: float = Field(default=0.5, ge=0.0, le=1.0)
     target_duration: float = 15
     sensitivity: float = 0.35
@@ -92,6 +97,7 @@ class SolveRequest(BaseModel):
     trim_start: float = 0.0
     trim_end: float = 0.0
     pins: list[Pin] = []
+    keyframes: list[Keyframe] = []
 
 class RenderRequest(SolveRequest):
     scale: float = 0.5

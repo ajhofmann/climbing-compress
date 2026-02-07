@@ -15,21 +15,21 @@ import { HeaderArt } from "@/components/header-art";
 export default function Home() {
   const store = useStore();
   const solveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { videoId, analysis, settings, pins } = store;
+  const { videoId, analysis, settings, pins, keyframes } = store;
 
   useEffect(() => {
     if (!videoId || !analysis) return;
     if (solveTimeout.current) clearTimeout(solveTimeout.current);
     solveTimeout.current = setTimeout(async () => {
       try {
-        const result = await solveCurve(videoId, settings, pins);
+        const result = await solveCurve(videoId, settings, pins, keyframes);
         store.setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions, result.crux_points);
       } catch (e) {
         console.error("solve:", e);
       }
     }, 80);
     return () => { if (solveTimeout.current) clearTimeout(solveTimeout.current); };
-  }, [videoId, analysis, settings, pins]);
+  }, [videoId, analysis, settings, pins, keyframes]);
 
   const handleAnalyze = useCallback(async () => {
     if (!videoId) return;
@@ -50,7 +50,7 @@ export default function Home() {
         if (settings.trimEnd === 0) store.updateSettings({ trimEnd: result.duration });
         store.setProgress(0.95, "Computing speed curve...");
         const updatedSettings = { ...settings, trimEnd: settings.trimEnd === 0 ? result.duration : settings.trimEnd };
-        const solveResult = await solveCurve(videoId, updatedSettings, pins);
+        const solveResult = await solveCurve(videoId, updatedSettings, pins, keyframes);
         store.setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions, solveResult.crux_points);
         store.setProgress(0, "Analysis complete!");
       }
@@ -60,14 +60,14 @@ export default function Home() {
     } finally {
       store.setAnalyzing(false);
     }
-  }, [videoId, analysis, settings, pins]);
+  }, [videoId, analysis, settings, pins, keyframes]);
 
   const handleRender = useCallback(async () => {
     if (!videoId) return;
     store.setRendering(true);
     store.setProgress(0, "Starting render...");
     try {
-      const result = await renderVideo(videoId, settings, pins, (p, msg) => { store.setProgress(p, msg); });
+      const result = await renderVideo(videoId, settings, pins, keyframes, (p, msg) => { store.setProgress(p, msg); });
       if (result?.output_id) {
         store.setOutputId(result.output_id);
         store.setComparisonId(result.comparison_id ?? null);
@@ -79,7 +79,7 @@ export default function Home() {
     } finally {
       store.setRendering(false);
     }
-  }, [videoId, settings, pins]);
+  }, [videoId, settings, pins, keyframes]);
 
   const hasAnalysis = !!analysis;
 

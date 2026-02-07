@@ -12,6 +12,11 @@ export interface Pin {
   radius: number; // influence radius in seconds (default 2.0)
 }
 
+export interface Keyframe {
+  time: number;
+  speed: number;
+}
+
 export interface CurveStats {
   output_duration: number;
   speed_min: number;
@@ -49,9 +54,11 @@ export interface AnalysisData {
 }
 
 export type SpeedMode = "progress" | "action" | "hybrid";
+export type EditMode = "pins" | "keyframes";
 
 export interface Settings {
   mode: SpeedMode;
+  editMode: EditMode;
   targetDuration: number;
   sensitivity: number;
   progressActionBlend: number;
@@ -94,6 +101,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   mode: "progress",
+  editMode: "pins",
   targetDuration: 15,
   sensitivity: 0.35,
   progressActionBlend: 0.5,

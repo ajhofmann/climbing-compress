@@ -7,6 +7,7 @@ from pipeline.speed_curve import (
     solve_speed_curve,
     solve_constant_progress,
     solve_hybrid_curve,
+    curve_from_keyframes,
     get_output_duration,
     get_time_mapping,
     detect_rest,
@@ -257,6 +258,48 @@ class TestDetectRest:
         progress = np.zeros(100)
         rest = detect_rest(progress, fps, threshold_s=0)
         assert not rest.any()
+
+
+class TestCurveFromKeyframes:
+    """Tests for explicit keyframe-based curve construction."""
+
+    def test_interpolates_between_keyframes(self):
+        fps = 30
+        n = 120
+        curve = curve_from_keyframes(
+            n_frames=n,
+            fps=fps,
+            keyframes=[(0.0, 1.0), (2.0, 0.5), (4.0, 2.0)],
+            min_speed=0.25,
+            max_speed=4.0,
+        )
+        assert len(curve) == n
+        assert curve[0] == pytest.approx(1.0, abs=0.05)
+        assert curve[int(2 * fps)] == pytest.approx(0.5, abs=0.08)
+        assert curve[-1] == pytest.approx(2.0, abs=0.1)
+
+    def test_clamps_speed_bounds(self):
+        fps = 30
+        curve = curve_from_keyframes(
+            n_frames=90,
+            fps=fps,
+            keyframes=[(0.0, 0.01), (1.0, 99.0)],
+            min_speed=0.5,
+            max_speed=5.0,
+        )
+        assert curve.min() >= 0.5 - 1e-3
+        assert curve.max() <= 5.0 + 1e-3
+
+    def test_single_keyframe_makes_constant_curve(self):
+        fps = 30
+        curve = curve_from_keyframes(
+            n_frames=90,
+            fps=fps,
+            keyframes=[(1.0, 1.25)],
+            min_speed=0.5,
+            max_speed=3.0,
+        )
+        assert np.allclose(curve, 1.25, atol=1e-6)
 
 
 class TestDetectRestEnhanced:

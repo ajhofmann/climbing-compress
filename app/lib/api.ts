@@ -1,4 +1,4 @@
-import { AnalysisData, Pin, Settings, SolveResult } from "./types";
+import { AnalysisData, Keyframe, Pin, Settings, SolveResult } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -67,6 +67,7 @@ export async function solveCurve(
   videoId: string,
   settings: Settings,
   pins: Pin[],
+  keyframes: Keyframe[],
 ): Promise<SolveResult> {
   const res = await fetch(`${API}/api/solve`, {
     method: "POST",
@@ -74,6 +75,7 @@ export async function solveCurve(
     body: JSON.stringify({
       video_id: videoId,
       mode: settings.mode,
+      edit_mode: settings.editMode,
       progress_action_blend: settings.progressActionBlend,
       target_duration: settings.targetDuration,
       sensitivity: settings.sensitivity,
@@ -91,6 +93,7 @@ export async function solveCurve(
       trim_start: settings.trimStart,
       trim_end: settings.trimEnd,
       pins,
+      keyframes,
     }),
   });
   if (!res.ok) throw new Error(await res.text());
@@ -113,6 +116,7 @@ export async function renderVideo(
   videoId: string,
   settings: Settings,
   pins: Pin[],
+  keyframes: Keyframe[],
   onProgress: (progress: number, message: string) => void,
 ): Promise<RenderResult | null> {
   const res = await fetch(`${API}/api/render`, {
@@ -121,6 +125,7 @@ export async function renderVideo(
     body: JSON.stringify({
       video_id: videoId,
       mode: settings.mode,
+      edit_mode: settings.editMode,
       progress_action_blend: settings.progressActionBlend,
       target_duration: settings.targetDuration,
       sensitivity: settings.sensitivity,
@@ -138,6 +143,7 @@ export async function renderVideo(
       trim_start: settings.trimStart,
       trim_end: settings.trimEnd,
       pins,
+      keyframes,
       scale: settings.scale,
       output_fps: settings.outputFps,
       crf: settings.crf,
