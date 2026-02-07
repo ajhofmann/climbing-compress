@@ -32,6 +32,7 @@ def test_job_status_includes_duration_and_request(tmp_path, monkeypatch):
         request={"video_id": "video-status", "stride": 2},
         result={"ok": True},
     )
+    db_module.update_job(job_id="job-status", progress=0.4, message="Working")
 
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -49,6 +50,9 @@ def test_job_status_includes_duration_and_request(tmp_path, monkeypatch):
     assert payload["created_at"] == 10.0
     assert payload["updated_at"] == 25.0
     assert payload["duration"] == 15.0
+    assert payload["status"] == "success"
+    assert payload["progress"] == 0.4
+    assert payload["message"] == "Working"
     assert payload["request"]["stride"] == 2
     assert payload["result"]["ok"] is True
 
