@@ -62,6 +62,7 @@ The solver also returns **crux markers** (`C1`, `C2`, …) on the timeline. In k
 - Full **Render** for final quality output.
 - Optional **Chapter overlays** (`START`, `CRUX`, `SEND`) on rendered output.
 - Style templates in the UI (`Cinematic`, `Coaching`, `Social Vertical`) for one-click tuning.
+- Output **aspect control** (`original`, `9:16`, `1:1`) plus optional **auto-reframe** to follow the climber when cropping vertical/square exports.
 
 ## Architecture
 
