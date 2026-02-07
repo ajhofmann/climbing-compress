@@ -90,8 +90,8 @@ export function VideoPlayer() {
         seekBy(1);
       }
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [outputId, togglePlayback, seekBy]);
 
   if (!outputId) return null;
