@@ -310,6 +310,59 @@ def test_upload_reuse_keeps_project(tmp_path, monkeypatch):
     assert record["project_id"] == "project-keep"
 
 
+def test_upload_reuse_without_project_keeps_assignment(tmp_path, monkeypatch):
+    db_path = tmp_path / "upload-keep-project.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-upload-keep-project-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.insert_project("project-keep", "Project Keep")
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    monkeypatch.setattr(
+        server_module,
+        "get_video_info",
+        lambda _path: {"fps": 24, "width": 1280, "height": 720, "frame_count": 240, "duration": 8.0},
+    )
+    monkeypatch.setattr(server_module, "generate_thumbnails", lambda *_args, **_kwargs: [])
+
+    video_path = input_dir / "video-keep.mp4"
+    video_path.write_bytes(b"keep-bytes")
+    file_hash = content_hash(str(video_path))
+    db_module.register_video(
+        video_id="video-keep",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash=file_hash,
+        project_id="project-keep",
+    )
+
+    client = TestClient(server_module.app)
+    response = client.post(
+        "/api/upload",
+        files={"file": ("upload.mp4", b"keep-bytes", "video/mp4")},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["reused"] is True
+    assert payload["video_id"] == "video-keep"
+
+    record = db_module.get_video("video-keep")
+    assert record is not None
+    assert record["project_id"] == "project-keep"
+
+
 def test_upload_reuse_updates_missing_info(tmp_path, monkeypatch):
     db_path = tmp_path / "upload-info.db"
     input_dir = tmp_path / "input"
