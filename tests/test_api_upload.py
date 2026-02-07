@@ -116,3 +116,35 @@ def test_upload_video_missing_file_returns_error(tmp_path, monkeypatch):
     client = TestClient(server_module.app)
     response = client.post("/api/upload", files={})
     assert response.status_code == 422
+
+
+def test_upload_rejects_invalid_video(tmp_path, monkeypatch):
+    db_path = tmp_path / "upload-invalid.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-upload-invalid-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    def _raise_video_error(_path):
+        raise ValueError("bad video")
+
+    monkeypatch.setattr(server_module, "get_video_info", _raise_video_error)
+
+    client = TestClient(server_module.app)
+    response = client.post(
+        "/api/upload",
+        files={"file": ("upload.mp4", b"bad", "video/mp4")},
+    )
+    assert response.status_code == 500
