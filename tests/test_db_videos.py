@@ -92,4 +92,14 @@ def test_list_videos_filters_and_names(tmp_path, monkeypatch):
     assert reassigned is not None
     assert reassigned["project_id"] == project_id
     assert db_module.list_videos(project_id=project_id)[0]["id"] == "video-assigned"
+    db_module.update_video_file(
+        "video-assigned",
+        filename="assigned-again.mp4",
+        path="/tmp/assigned-again.mp4",
+        file_hash="hash-assigned-again",
+        info={"duration": 8.8},
+    )
+    reassigned_after_update = db_module.get_video("video-assigned")
+    assert reassigned_after_update is not None
+    assert reassigned_after_update["project_id"] == project_id
     assert db_module.get_video("missing") is None
