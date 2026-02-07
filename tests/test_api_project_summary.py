@@ -224,3 +224,47 @@ def test_project_summary_non_dict_stats(tmp_path, monkeypatch):
     summary = response.json()
     assert summary["latest_output"]["id"] == "output-list"
     assert summary["latest_output"]["output_duration"] is None
+
+
+def test_project_summary_negative_duration(tmp_path, monkeypatch):
+    db_path = tmp_path / "summary-negative.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    project_id = "proj-summary"
+    db_module.insert_project(project_id, "Project Summary")
+    db_module.register_video(
+        video_id="video-summary",
+        filename="summary.mp4",
+        path="/tmp/summary.mp4",
+        file_hash="hash-summary",
+        project_id=project_id,
+    )
+    db_module.insert_output(
+        output_id="output-negative",
+        video_id="video-summary",
+        job_id="job-negative",
+        output_type="main",
+        path="/tmp/summary-out.mp4",
+        stats={"output_duration": -4.5},
+    )
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    client = TestClient(server_module.app)
+    response = client.get(f"/api/projects/{project_id}/summary")
+    assert response.status_code == 200
+    summary = response.json()
+    assert summary["latest_output"]["id"] == "output-negative"
+    assert summary["latest_output"]["output_duration"] is None
