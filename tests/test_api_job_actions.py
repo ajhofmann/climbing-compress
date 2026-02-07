@@ -174,6 +174,47 @@ def test_retry_job_endpoint_invalid_request_payload(tmp_path, monkeypatch):
     assert response.status_code == 400
 
 
+def test_retry_job_endpoint_non_dict_request_payload(tmp_path, monkeypatch):
+    db_path = tmp_path / "retry-non-dict.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.register_video(
+        video_id="video-non-dict",
+        filename="invalid.mp4",
+        path="/tmp/invalid.mp4",
+        file_hash="hash-invalid",
+    )
+    db_module.insert_job(
+        job_id="job-non-dict",
+        video_id="video-non-dict",
+        job_type="analysis",
+        status="failed",
+        request={"video_id": "video-non-dict"},
+    )
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE jobs SET request_json = ? WHERE id = ?", ("[1, 2]", "job-non-dict"))
+    conn.commit()
+    conn.close()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    client = TestClient(server_module.app)
+    response = client.post("/api/jobs/job-non-dict/retry")
+    assert response.status_code == 400
+
+
 def test_cancel_job_endpoint_noop_for_success(tmp_path, monkeypatch):
     db_path = tmp_path / "cancel-success.db"
     input_dir = tmp_path / "input"

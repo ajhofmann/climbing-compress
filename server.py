@@ -604,12 +604,16 @@ async def job_status(job_id: str):
             result = json.loads(job["result_json"])
         except json.JSONDecodeError:
             result = None
+    if result is not None and not isinstance(result, dict):
+        result = None
     request = None
     if job.get("request_json"):
         try:
             request = json.loads(job["request_json"])
         except json.JSONDecodeError:
             request = None
+    if request is not None and not isinstance(request, dict):
+        request = None
     return {
         "id": job["id"],
         "video_id": job["video_id"],
@@ -649,6 +653,8 @@ async def retry_job(job_id: str):
             request_payload = json.loads(job["request_json"])
         except json.JSONDecodeError:
             request_payload = None
+    if request_payload is not None and not isinstance(request_payload, dict):
+        request_payload = None
     if not request_payload:
         raise HTTPException(400, "Job request payload missing")
 
