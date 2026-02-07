@@ -10,7 +10,7 @@ def test_metrics_api_cache_entries(tmp_path, monkeypatch):
     input_dir.mkdir(parents=True, exist_ok=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    cache_version = "test-metrics-cache"
+    cache_version = f"test-metrics-cache-{tmp_path.name}"
     monkeypatch.setenv("CACHE_VERSION", cache_version)
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setenv("INPUT_DIR", str(input_dir))
