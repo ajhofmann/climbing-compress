@@ -2,6 +2,8 @@ import importlib
 
 from pathlib import Path
 
+import pytest
+
 
 def test_analysis_worker_marks_success(tmp_path, monkeypatch):
     db_path = tmp_path / "analysis-worker.db"
@@ -106,3 +108,55 @@ def test_analysis_worker_marks_cancelled(tmp_path, monkeypatch):
     updated = db_module.get_job("job-analysis")
     assert updated is not None
     assert updated["status"] == "cancelled"
+
+
+def test_analysis_worker_marks_failed(tmp_path, monkeypatch):
+    db_path = tmp_path / "analysis-failed.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    video_path = input_dir / "analysis.mp4"
+    video_path.write_bytes(b"")
+    db_module.register_video(
+        video_id="video-analysis",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash="hash-analysis",
+    )
+    db_module.insert_job(
+        job_id="job-analysis",
+        video_id="video-analysis",
+        job_type="analyze",
+        status="queued",
+    )
+
+    def _run_analysis(_path, _req, _emit):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(server_module, "run_analysis", _run_analysis)
+
+    with pytest.raises(RuntimeError):
+        server_module._analysis_job_worker(
+            "job-analysis",
+            Path(video_path),
+            server_module.AnalyzeRequest(video_id="video-analysis"),
+            lambda _payload: None,
+        )
+
+    updated = db_module.get_job("job-analysis")
+    assert updated is not None
+    assert updated["status"] == "failed"
+    assert updated["message"] == "boom"
