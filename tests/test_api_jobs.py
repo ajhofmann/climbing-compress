@@ -1,4 +1,5 @@
 import importlib
+import sqlite3
 import time
 
 from fastapi.testclient import TestClient
@@ -40,6 +41,11 @@ def test_jobs_api_includes_project_and_duration(tmp_path, monkeypatch):
     )
     time.sleep(0.01)
     db_module.update_job(job_id="job-api", status="success", progress=1.0)
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE jobs SET created_at = ?, updated_at = ? WHERE id = ?", (10.0, 22.0, "job-api"))
+    conn.commit()
+    conn.close()
 
     import server as server_module
     importlib.reload(server_module)
@@ -59,7 +65,6 @@ def test_jobs_api_includes_project_and_duration(tmp_path, monkeypatch):
     assert job["status"] == "success"
     assert job["progress"] == 1.0
     assert job["message"] == "Processing"
-    assert job["duration"] is not None
-    assert job["duration"] >= 0
-    assert job["created_at"] is not None
-    assert job["updated_at"] is not None
+    assert job["duration"] == 12.0
+    assert job["created_at"] == 10.0
+    assert job["updated_at"] == 22.0
