@@ -1,4 +1,5 @@
 import importlib
+import json
 import sqlite3
 
 
@@ -65,4 +66,8 @@ def test_list_videos_filters_and_names(tmp_path, monkeypatch):
     video = db_module.get_video("video-assigned")
     assert video is not None
     assert video["filename"] == "assigned.mp4"
+    db_module.update_video_info("video-assigned", {"duration": 9.9})
+    updated = db_module.get_video("video-assigned")
+    assert updated is not None
+    assert json.loads(updated["info_json"])["duration"] == 9.9
     assert db_module.get_video("missing") is None
