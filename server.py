@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import io
+import math
 import json
 import logging
 import os
@@ -361,12 +362,18 @@ def _coerce_output_duration(value: object) -> float | None:
     if value is None:
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        value = float(value)
+        if not math.isfinite(value) or value < 0:
+            return None
+        return value
     if isinstance(value, str):
         try:
-            return float(value)
+            value = float(value)
         except ValueError:
             return None
+        if not math.isfinite(value) or value < 0:
+            return None
+        return value
     return None
 
 

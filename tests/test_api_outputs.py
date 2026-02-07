@@ -70,6 +70,16 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
         path=str(output_path_4),
         stats={"output_duration": 4.4},
     )
+    output_path_5 = output_dir / "out5.mp4"
+    output_path_5.write_bytes(b"payload-5")
+    db_module.insert_output(
+        output_id="output-negative",
+        video_id=video_id,
+        job_id="job-api-5",
+        output_type="main",
+        path=str(output_path_5),
+        stats={"output_duration": -2.0},
+    )
 
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -79,6 +89,10 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
         (json.dumps({"output_duration": "1.5"}), "output-api"),
     )
     cur.execute("UPDATE outputs SET stats_json = ? WHERE id = ?", ("[1,2]", "output-list"))
+    cur.execute(
+        "UPDATE outputs SET stats_json = ? WHERE id = ?",
+        (json.dumps({"output_duration": "-2.0"}), "output-negative"),
+    )
     conn.commit()
     conn.close()
 
@@ -89,11 +103,12 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
     response = client.get("/api/outputs")
     assert response.status_code == 200
     payload = response.json()
-    assert len(payload) == 4
+    assert len(payload) == 5
     output = next(item for item in payload if item["id"] == "output-api")
     output_missing = next(item for item in payload if item["id"] == "output-api-2")
     output_invalid = next(item for item in payload if item["id"] == "output-invalid")
     output_list = next(item for item in payload if item["id"] == "output-list")
+    output_negative = next(item for item in payload if item["id"] == "output-negative")
     assert output["project_name"] == "Project API"
     assert output["project_id"] == project_id
     assert output["video_filename"] == "demo.mp4"
@@ -111,3 +126,4 @@ def test_outputs_api_includes_duration_and_size(tmp_path, monkeypatch):
     assert output_invalid["output_duration"] is None
     assert output_invalid["size_bytes"] == len(b"payload-3")
     assert output_list["output_duration"] is None
+    assert output_negative["output_duration"] is None

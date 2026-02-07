@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import sqlite3
 import time
@@ -103,12 +104,18 @@ def _coerce_output_duration(value: Any) -> float | None:
     if value is None:
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        value = float(value)
+        if not math.isfinite(value) or value < 0:
+            return None
+        return value
     if isinstance(value, str):
         try:
-            return float(value)
+            value = float(value)
         except ValueError:
             return None
+        if not math.isfinite(value) or value < 0:
+            return None
+        return value
     return None
 
 
