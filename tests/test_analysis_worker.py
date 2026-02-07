@@ -1,4 +1,5 @@
 import importlib
+import json
 
 from pathlib import Path
 
@@ -57,6 +58,7 @@ def test_analysis_worker_marks_success(tmp_path, monkeypatch):
     assert updated["status"] == "success"
     assert updated["progress"] == 1.0
     assert updated["message"] == "Done"
+    assert json.loads(updated["result_json"])["done"] is True
 
 
 def test_analysis_worker_marks_cancelled(tmp_path, monkeypatch):
