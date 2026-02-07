@@ -74,4 +74,9 @@ def test_list_videos_filters_and_names(tmp_path, monkeypatch):
     unassigned = db_module.get_video("video-assigned")
     assert unassigned is not None
     assert unassigned["project_id"] is None
+    db_module.set_video_project("video-assigned", project_id)
+    reassigned = db_module.get_video("video-assigned")
+    assert reassigned is not None
+    assert reassigned["project_id"] == project_id
+    assert db_module.list_videos(project_id=project_id)[0]["id"] == "video-assigned"
     assert db_module.get_video("missing") is None
