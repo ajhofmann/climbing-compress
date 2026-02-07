@@ -32,6 +32,7 @@ def test_project_crud_api(tmp_path, monkeypatch):
     projects = list_response.json()
     assert len(projects) == 1
     assert projects[0]["name"] == "Project A"
+    assert projects[0]["description"] == "First"
     assert projects[0]["created_at"] is not None
 
     update_response = client.patch(
