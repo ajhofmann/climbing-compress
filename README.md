@@ -20,7 +20,6 @@ pip install climb-ramp[tracking]
 ```bash
 # Backend
 pip install -e .
-cp .env.example .env  # edit if needed
 
 # Frontend
 cd app
@@ -46,7 +45,23 @@ Open [http://localhost:3000](http://localhost:3000), drop in a climbing video, h
 
 **Action Highlight** — velocity-based scoring with per-limb weights. Big moves get slow-mo, chalk-ups get skipped. Classic climbing edit style.
 
-Both modes support **pin points** — click the timeline to override the speed at any moment, with adjustable radius of influence.
+**Hybrid** — blends progress pacing and action highlighting with a dedicated blend control.
+
+## Editing controls
+
+The timeline supports two edit modes:
+
+- **Pins** — point overrides with adjustable influence radius (scroll to resize).
+- **Keyframes** — explicit speed envelope points with direct numeric editing.
+
+The solver also returns **crux markers** (`C1`, `C2`, …) on the timeline. In keyframe mode, points can snap to nearby crux markers for fast alignment.
+
+## Output workflows
+
+- **Quick Preview** button for fast local iterations (draft render settings, no audio).
+- Full **Render** for final quality output.
+- Optional **Chapter overlays** (`START`, `CRUX`, `SEND`) on rendered output.
+- Style templates in the UI (`Cinematic`, `Coaching`, `Social Vertical`) for one-click tuning.
 
 ## Architecture
 
@@ -55,7 +70,7 @@ server.py            FastAPI backend (upload, analyze, solve, render)
 pipeline/
   pose.py            MediaPipe pose detection + sanitization
   movement.py        Movement & progress scoring
-  speed_curve.py     Speed curve solvers (action + progress modes)
+  speed_curve.py     Speed curve solvers (action/progress/hybrid + keyframes)
   render.py          FFmpeg decode/encode with stabilization + audio
   stabilize.py       Pose-anchored + feature-based stabilization
   flow.py            Optical flow / camera motion estimation
