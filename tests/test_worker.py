@@ -237,3 +237,56 @@ def test_worker_preview_job_invokes_worker(tmp_path, monkeypatch):
     assert captured["path"] == Path(video_path)
     assert captured["worker_path"] == Path(video_path)
     assert captured["req"].video_id == "video-preview"
+
+
+def test_worker_analyze_job_invokes_worker(tmp_path, monkeypatch):
+    db_path = tmp_path / "worker-analyze.db"
+    input_dir = tmp_path / "input-analyze"
+    output_dir = tmp_path / "output-analyze"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    video_path = tmp_path / "analyze.mp4"
+    video_path.write_bytes(b"")
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.register_video(
+        video_id="video-analyze",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash="hash-analyze",
+    )
+    db_module.insert_job(
+        job_id="job-analyze",
+        video_id="video-analyze",
+        job_type="analyze",
+        status="queued",
+        request={"video_id": "video-analyze", "stride": 2},
+    )
+
+    import worker as worker_module
+    importlib.reload(worker_module)
+
+    captured: dict[str, object] = {}
+
+    def _analysis_job_worker(job_id, path, req, emit):
+        captured["job_id"] = job_id
+        captured["path"] = path
+        captured["req"] = req
+
+    monkeypatch.setattr(worker_module.server, "_analysis_job_worker", _analysis_job_worker)
+
+    job = db_module.get_job("job-analyze")
+    assert job is not None
+    worker_module._handle_job(job)
+
+    assert captured["job_id"] == "job-analyze"
+    assert captured["path"] == Path(video_path)
+    assert captured["req"].video_id == "video-analyze"
+    assert captured["req"].stride == 2
