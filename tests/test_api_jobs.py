@@ -15,7 +15,7 @@ def test_jobs_api_includes_project_and_duration(tmp_path, monkeypatch):
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setenv("INPUT_DIR", str(input_dir))
     monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
-    monkeypatch.setenv("CACHE_VERSION", "test")
+    monkeypatch.setenv("CACHE_VERSION", f"test-jobs-{tmp_path.name}")
 
     import db as db_module
     importlib.reload(db_module)
