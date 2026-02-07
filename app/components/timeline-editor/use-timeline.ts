@@ -550,30 +550,64 @@ export function useTimeline(config: TimelineConfig) {
     return () => canvas.removeEventListener("wheel", handleWheel);
   }, [editMode, pins, findNear, onPinsChange]);
 
-  // Keyboard delete for hovered pin/keyframe.
+  // Keyboard shortcuts for hovered pin/keyframe.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (hoverIdx < 0 || dragging !== null) return;
 
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
 
+      // Delete hovered point.
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        if (editMode === "pins") {
+          const next = pins.filter((_, i) => i !== hoverIdx);
+          onPinsChange(next);
+        } else {
+          const next = keyframes.filter((_, i) => i !== hoverIdx);
+          onKeyframesChange(next);
+        }
+        setHoverIdx(-1);
+        return;
+      }
+
+      // Arrow keys nudge hovered point with keyboard precision.
+      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
       e.preventDefault();
+
+      const baseTimeStep = e.shiftKey ? 0.2 : e.altKey ? 0.01 : 0.05;
+      const baseSpeedStep = e.shiftKey ? 0.2 : e.altKey ? 0.01 : 0.05;
+      const timeDelta = e.key === "ArrowLeft" ? -baseTimeStep : e.key === "ArrowRight" ? baseTimeStep : 0;
+      const speedDelta = e.key === "ArrowDown" ? -baseSpeedStep : e.key === "ArrowUp" ? baseSpeedStep : 0;
+
       if (editMode === "pins") {
-        const next = pins.filter((_, i) => i !== hoverIdx);
+        const next = pins.map((pin, i) => {
+          if (i !== hoverIdx) return pin;
+          return {
+            ...pin,
+            time: Math.max(0, Math.min(duration, pin.time + timeDelta)),
+            speed: Math.max(0.1, Math.min(maxSpeed, pin.speed + speedDelta)),
+          };
+        });
         onPinsChange(next);
       } else {
-        const next = keyframes.filter((_, i) => i !== hoverIdx);
+        const next = keyframes.map((kf, i) => {
+          if (i !== hoverIdx) return kf;
+          return {
+            ...kf,
+            time: Math.max(0, Math.min(duration, kf.time + timeDelta)),
+            speed: Math.max(0.1, Math.min(maxSpeed, kf.speed + speedDelta)),
+          };
+        });
         onKeyframesChange(next);
       }
-      setHoverIdx(-1);
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [hoverIdx, dragging, editMode, pins, keyframes, onPinsChange, onKeyframesChange]);
+  }, [hoverIdx, dragging, editMode, pins, keyframes, onPinsChange, onKeyframesChange, duration, maxSpeed]);
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
