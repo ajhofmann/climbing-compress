@@ -1,4 +1,5 @@
 import importlib
+import json
 import sqlite3
 
 
@@ -162,4 +163,53 @@ def test_project_summary_invalid_stats(tmp_path, monkeypatch):
 
     summary = db_module.get_project_summary(project_id)
     assert summary["latest_output"]["id"] == "out-invalid"
+    assert summary["latest_output"]["output_duration"] is None
+
+
+def test_project_summary_non_dict_stats(tmp_path, monkeypatch):
+    db_path = tmp_path / "summary-non-dict.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+
+    import db as db_module
+    importlib.reload(db_module)
+
+    db_module.init_db()
+
+    project_id = "proj-non-dict"
+    video_id = "video-non-dict"
+    db_module.insert_project(project_id, "Non Dict Project")
+    db_module.register_video(
+        video_id=video_id,
+        filename="non-dict.mp4",
+        path="/tmp/non-dict.mp4",
+        file_hash="hash-non-dict",
+        project_id=project_id,
+    )
+    db_module.insert_output(
+        output_id="out-valid",
+        video_id=video_id,
+        job_id="job-valid",
+        output_type="main",
+        path="/tmp/valid.mp4",
+        stats={"output_duration": 2.2},
+    )
+    db_module.insert_output(
+        output_id="out-list",
+        video_id=video_id,
+        job_id="job-list",
+        output_type="preview",
+        path="/tmp/list.mp4",
+        stats={"output_duration": 4.4},
+    )
+
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("UPDATE outputs SET stats_json = ? WHERE id = ?", (json.dumps(["bad"]), "out-list"))
+    cur.execute("UPDATE outputs SET created_at = ? WHERE id = ?", (10.0, "out-valid"))
+    cur.execute("UPDATE outputs SET created_at = ? WHERE id = ?", (20.0, "out-list"))
+    conn.commit()
+    conn.close()
+
+    summary = db_module.get_project_summary(project_id)
+    assert summary["latest_output"]["id"] == "out-list"
     assert summary["latest_output"]["output_duration"] is None

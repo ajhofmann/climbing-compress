@@ -439,7 +439,8 @@ def get_project_summary(project_id: str) -> dict[str, Any]:
     if latest is not None and latest["stats_json"]:
         try:
             stats = json.loads(latest["stats_json"])
-            latest_duration = stats.get("output_duration")
+            if isinstance(stats, dict):
+                latest_duration = stats.get("output_duration")
         except json.JSONDecodeError:
             latest_duration = None
 
@@ -724,6 +725,8 @@ def get_metrics() -> dict[str, Any]:
         try:
             stats = json.loads(stats_json)
         except json.JSONDecodeError:
+            continue
+        if not isinstance(stats, dict):
             continue
         duration = stats.get("output_duration")
         if duration is None:
