@@ -92,3 +92,27 @@ def test_upload_video_reuses_existing(tmp_path, monkeypatch):
     record = db_module.get_video(video_id)
     assert record is not None
     assert record["project_id"] == "project-upload"
+
+
+def test_upload_video_missing_file_returns_error(tmp_path, monkeypatch):
+    db_path = tmp_path / "upload-missing.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-upload-missing-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    client = TestClient(server_module.app)
+    response = client.post("/api/upload", files={})
+    assert response.status_code == 422
