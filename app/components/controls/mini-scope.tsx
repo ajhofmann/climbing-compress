@@ -53,7 +53,10 @@ export function MiniScope() {
       ctx.stroke();
 
       ctx.fillStyle = "rgba(0,229,255,0.4)";
-      ctx.font = "11px 'Press Start 2P', monospace";
+      const pixelFont = getComputedStyle(document.documentElement)
+        .getPropertyValue("--font-pixel")
+        .trim();
+      ctx.font = `11px ${pixelFont || "monospace"}`;
       ctx.textAlign = "center";
       ctx.fillText("NO SIGNAL", w / 2, h / 2 + 3);
       return;

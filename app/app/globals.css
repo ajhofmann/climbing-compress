@@ -47,7 +47,7 @@
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'VT323', 'Courier New', monospace;
+  font-family: var(--font-retro), 'Courier New', monospace;
   -webkit-font-smoothing: antialiased;
   font-size: 18px;
   letter-spacing: 0.02em;
@@ -182,7 +182,7 @@ body::before {
   color: var(--text);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  font-family: 'Press Start 2P', 'VT323', monospace;
+  font-family: var(--font-pixel), var(--font-retro), monospace;
   font-size: 12px;
   transition: all 0.1s ease;
   cursor: pointer;
@@ -291,7 +291,7 @@ select {
   background: linear-gradient(180deg, #1a1a2e 0%, #12121e 100%);
   border: 2px inset #444;
   color: var(--text);
-  font-family: 'VT323', monospace;
+  font-family: var(--font-retro), monospace;
   font-size: 18px;
   padding: 4px 8px;
 }
@@ -380,7 +380,7 @@ select:focus {
 
 /* ---- LED text style ---- */
 .led-text {
-  font-family: 'VT323', monospace;
+  font-family: var(--font-retro), monospace;
   color: var(--neon-cyan);
   text-shadow: 0 0 4px var(--neon-cyan), 0 0 8px rgba(0,229,255,0.3);
   letter-spacing: 0.05em;
@@ -388,14 +388,14 @@ select:focus {
 
 /* ---- Pixel font for headers ---- */
 .pixel-font {
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-pixel), monospace;
   letter-spacing: 0.05em;
   line-height: 1.6;
 }
 
 /* ---- Rack section label (silk-screened text on hardware) ---- */
 .rack-section-label {
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-pixel), monospace;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -496,7 +496,7 @@ select:focus {
   flex-shrink: 0;
 }
 .dashboard-module-label span {
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-pixel), monospace;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.2em;
