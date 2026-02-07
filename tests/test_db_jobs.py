@@ -92,6 +92,9 @@ def test_list_jobs_filters_and_names(tmp_path, monkeypatch):
     assert db_module.list_jobs(job_type="missing") == []
     assert db_module.list_jobs(status="missing") == []
     assert db_module.list_jobs(video_id="missing") == []
+    video_jobs = db_module.list_jobs(video_id=assigned_video_id)
+    assert len(video_jobs) == 1
+    assert video_jobs[0]["id"] == "job-assigned"
     assert db_module.list_jobs(video_id=unassigned_video_id, project_id=project_id) == []
 
     failed_jobs = db_module.list_jobs(status="failed")
