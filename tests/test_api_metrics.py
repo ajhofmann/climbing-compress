@@ -16,7 +16,6 @@ def test_metrics_api_includes_storage_totals(tmp_path, monkeypatch):
     monkeypatch.setenv("INPUT_DIR", str(input_dir))
     monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
     monkeypatch.setenv("CACHE_VERSION", f"test-metrics-{tmp_path.name}")
-    monkeypatch.setenv("CACHE_VERSION", "test-metrics")
 
     import db as db_module
     importlib.reload(db_module)
