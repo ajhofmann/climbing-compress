@@ -53,6 +53,9 @@ The timeline supports two edit modes:
 
 - **Pins** — point overrides with adjustable influence radius (scroll to resize).
 - **Keyframes** — explicit speed envelope points with direct numeric editing.
+- Keyboard precision shortcuts on hovered points:
+  - `Delete` / `Backspace` remove hovered pin/keyframe
+  - Arrow keys nudge time/speed (`Shift` = larger step, `Alt` = fine step)
 
 The solver also returns **crux markers** (`C1`, `C2`, …) on the timeline. In keyframe mode, points can snap to nearby crux markers for fast alignment.
 
