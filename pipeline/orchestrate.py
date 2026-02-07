@@ -12,6 +12,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import cv2
 import numpy as np
 
 from pipeline.pose import extract_poses, interpolate_missing_poses
@@ -264,6 +265,83 @@ def detect_crux_points(
 
     selected.sort(key=lambda x: x[0])
     return selected
+
+
+def build_chapter_markers(
+    scores: np.ndarray,
+    fps: float,
+    n_frames: int,
+) -> list[tuple[int, str]]:
+    """Create chapter marker labels for render overlays."""
+    if n_frames <= 0 or fps <= 0:
+        return []
+
+    markers: list[tuple[int, str]] = [(0, "START")]
+    crux = detect_crux_points(scores, fps, top_k=2, min_distance_s=1.8)
+    for i, (fi, _) in enumerate(crux, start=1):
+        markers.append((int(fi), f"CRUX {i}"))
+    markers.append((n_frames - 1, "SEND"))
+
+    markers = sorted(markers, key=lambda m: m[0])
+
+    # Deduplicate very close markers while preserving START/SEND.
+    min_gap = max(1, int(0.8 * fps))
+    deduped: list[tuple[int, str]] = []
+    for fi, label in markers:
+        if not deduped:
+            deduped.append((fi, label))
+            continue
+        prev_fi, prev_label = deduped[-1]
+        if label in ("START", "SEND") or prev_label in ("START", "SEND") or abs(fi - prev_fi) >= min_gap:
+            deduped.append((fi, label))
+    return deduped
+
+
+def _draw_chapter_label(frame: np.ndarray, label: str, alpha: float) -> None:
+    """Draw one chapter label card at the top-center."""
+    h, w = frame.shape[:2]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    fs = max(0.5, h / 900)
+    thick = max(1, int(h / 480))
+    tw, th = cv2.getTextSize(label, font, fs, thick)[0]
+    pad_x, pad_y = 10, 7
+    x1 = max(6, (w - tw) // 2 - pad_x)
+    y1 = 12
+    x2 = min(w - 6, (w + tw) // 2 + pad_x)
+    y2 = y1 + th + pad_y * 2
+
+    overlay = frame.copy()
+    bg_alpha = 0.35 + 0.35 * alpha
+    cv2.rectangle(overlay, (x1, y1), (x2, y2), (24, 18, 36), -1)
+    cv2.rectangle(overlay, (x1, y1), (x2, y2), (180, 120, 230), 1)
+    cv2.addWeighted(overlay, bg_alpha, frame, 1.0 - bg_alpha, 0, frame)
+
+    text_color = (245, 220, 255)
+    cv2.putText(frame, label, (x1 + pad_x, y2 - pad_y), font, fs, text_color, thick, cv2.LINE_AA)
+
+
+def wrap_overlay_with_chapters(
+    base_overlay: Callable[[np.ndarray, int, float], np.ndarray],
+    chapters: list[tuple[int, str]],
+    fps: float,
+) -> Callable[[np.ndarray, int, float], np.ndarray]:
+    """Compose chapter card overlays on top of an existing overlay."""
+    if not chapters or fps <= 0:
+        return base_overlay
+
+    window = max(1, int(0.75 * fps))
+
+    def overlay(frame: np.ndarray, src_idx: int, speed: float) -> np.ndarray:
+        out = base_overlay(frame, src_idx, speed)
+        for fi, label in chapters:
+            d = abs(src_idx - fi)
+            if d <= window:
+                alpha = 1.0 - (d / window)
+                _draw_chapter_label(out, label, alpha)
+                break
+        return out
+
+    return overlay
 
 
 # ---------------------------------------------------------------------------
@@ -595,6 +673,10 @@ def run_render(
         )
     else:
         overlay_fn = make_speed_badge_fn(curve)
+
+    if getattr(req, "render_chapters", False):
+        chapters = build_chapter_markers(scores, fps, len(trimmed))
+        overlay_fn = wrap_overlay_with_chapters(overlay_fn, chapters, fps)
 
     output_id = uuid.uuid4().hex[:10]
     output_path = str(output_dir / f"{output_id}.mp4")

@@ -156,6 +156,7 @@ export async function renderVideo(
       use_feature_stabilize: settings.useFeatureStabilize,
       feature_stabilize_weight: settings.featureStabilizeWeight,
       render_comparison: settings.renderComparison,
+      render_chapters: settings.renderChapters,
     }),
   });
 

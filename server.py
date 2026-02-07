@@ -115,6 +115,8 @@ class RenderRequest(SolveRequest):
     feature_stabilize_weight: float = 0.5
     # Comparison: also render a uniform-speed version
     render_comparison: bool = False
+    # Chapter card overlays
+    render_chapters: bool = False
 
 class AnalyzeRequest(BaseModel):
     video_id: str

@@ -24,6 +24,55 @@ function Module({ area, label, children }: { area: string; label: string; childr
   );
 }
 
+const STYLE_TEMPLATES: Array<{
+  label: string;
+  tip: string;
+  overrides: Partial<Settings>;
+}> = [
+  {
+    label: "Cinematic",
+    tip: "Smooth, dramatic pacing for aesthetic edits.",
+    overrides: {
+      mode: "progress",
+      targetDuration: 24,
+      minSpeed: 0.18,
+      maxSpeed: 8,
+      smoothing: 0.7,
+      outputFps: 24,
+      debugOverlay: false,
+      renderComparison: false,
+      renderChapters: false,
+      includeAudio: true,
+    },
+  },
+  {
+    label: "Coaching",
+    tip: "Analysis-focused style with chapters and diagnostics.",
+    overrides: {
+      mode: "hybrid",
+      progressActionBlend: 0.55,
+      targetDuration: 20,
+      debugOverlay: true,
+      includeAudio: false,
+      renderComparison: true,
+      renderChapters: true,
+    },
+  },
+  {
+    label: "Social Vertical",
+    tip: "Punchy pacing for short-form clips.",
+    overrides: {
+      mode: "action",
+      targetDuration: 12,
+      minSpeed: 0.35,
+      maxSpeed: 16,
+      outputFps: 30,
+      scale: 0.7,
+      renderChapters: true,
+    },
+  },
+];
+
 export function SettingsPanel() {
   const store = useStore();
   const { settings, updateSettings, stats, analysis } = store;
@@ -253,10 +302,25 @@ export function SettingsPanel() {
           <span>Options</span>
         </div>
         <div className="dashboard-module-body">
+          <div className="flex items-center gap-2 flex-wrap mb-3">
+            <span className="rack-section-label">TEMPLATES</span>
+            {STYLE_TEMPLATES.map((tpl) => (
+              <Tooltip key={tpl.label} text={tpl.tip}>
+                <button
+                  onClick={() => updateSettings(tpl.overrides)}
+                  className="retro-btn px-2 py-1 text-[10px] font-pixel uppercase tracking-wide"
+                >
+                  {tpl.label}
+                </button>
+              </Tooltip>
+            ))}
+          </div>
+
           <div className="flex items-start gap-4 flex-wrap">
             <ToggleSwitch label="AUD" checked={s.includeAudio} onChange={(v) => u("includeAudio", v)} title="Include time-stretched audio from source" />
             <ToggleSwitch label="OVL" checked={s.debugOverlay} onChange={(v) => u("debugOverlay", v)} color="#76ff03" title="Show skeleton + speed badge overlay on video" />
             <ToggleSwitch label="A/B" checked={s.renderComparison} onChange={(v) => u("renderComparison", v)} color="#e040fb" title="Also render a uniform-speed version for comparison" />
+            <ToggleSwitch label="CHPT" checked={s.renderChapters} onChange={(v) => u("renderChapters", v)} color="#e040fb" title="Overlay auto chapters (START / CRUX / SEND)" />
             <ToggleSwitch label="STAB" checked={s.stabilize} onChange={(v) => u("stabilize", v)} color="#ff6e40" title="Enable pose-anchored video stabilization" />
             {s.stabilize && (
               <>

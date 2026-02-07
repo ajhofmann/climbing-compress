@@ -81,6 +81,34 @@ export default function Home() {
     }
   }, [videoId, settings, pins, keyframes]);
 
+  const handleQuickRender = useCallback(async () => {
+    if (!videoId) return;
+    store.setRendering(true);
+    store.setProgress(0, "Starting quick preview render...");
+    try {
+      const draftSettings = {
+        ...settings,
+        scale: Math.min(settings.scale, 0.35),
+        outputFps: Math.min(settings.outputFps, 24),
+        crf: Math.max(settings.crf, 30),
+        includeAudio: false,
+        debugOverlay: false,
+        renderComparison: false,
+      };
+      const result = await renderVideo(videoId, draftSettings, pins, keyframes, (p, msg) => { store.setProgress(p, `[preview] ${msg}`); });
+      if (result?.output_id) {
+        store.setOutputId(result.output_id);
+        store.setComparisonId(null);
+        store.setProgress(0, "Quick preview ready");
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      store.setProgress(0, `Error: ${msg}`);
+    } finally {
+      store.setRendering(false);
+    }
+  }, [videoId, settings, pins, keyframes]);
+
   const hasAnalysis = !!analysis;
 
   return (
@@ -118,6 +146,18 @@ export default function Home() {
               </div>
               {/* Video info inline */}
               <VideoUpload />
+              <Tooltip text={"Fast local preview render.\nUses lower resolution + higher CRF + no audio\nfor rapid iteration while tuning curve edits."}>
+                <button
+                  onClick={handleQuickRender}
+                  disabled={!videoId || !hasAnalysis || store.isRendering}
+                  className={`px-4 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
+                    hasAnalysis ? "retro-btn" : "retro-btn"
+                  } disabled:opacity-30 disabled:cursor-not-allowed`}
+                  style={hasAnalysis ? { borderColor: "var(--neon-magenta)", color: "var(--neon-magenta)", textShadow: "0 0 8px rgba(224,64,251,0.35)" } : {}}
+                >
+                  QUICK PREVIEW
+                </button>
+              </Tooltip>
               <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel."}>
                 <button
                   onClick={handleRender}

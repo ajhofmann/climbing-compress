@@ -97,6 +97,8 @@ export interface Settings {
   includeAudio: boolean;
   // Comparison
   renderComparison: boolean;
+  // Chapter overlays
+  renderChapters: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -134,6 +136,7 @@ export const DEFAULT_SETTINGS: Settings = {
   featureStabilizeWeight: 0.5,
   includeAudio: true,
   renderComparison: false,
+  renderChapters: false,
 };
 
 export interface Preset {
