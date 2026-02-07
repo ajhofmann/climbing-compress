@@ -257,6 +257,27 @@ export default function Home() {
 
   const hasAnalysis = !!analysis;
 
+  const handleTransportShortcuts = useCallback((e: KeyboardEvent) => {
+    if (!videoId || !hasAnalysis || isAnalyzing || isRendering) return;
+    if (!(e.ctrlKey || e.metaKey) || e.key !== "Enter") return;
+
+    const target = e.target as HTMLElement | null;
+    const tag = target?.tagName;
+    if (target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") return;
+
+    e.preventDefault();
+    if (e.shiftKey) {
+      handleRender();
+    } else {
+      handleQuickRender();
+    }
+  }, [videoId, hasAnalysis, isAnalyzing, isRendering, handleRender, handleQuickRender]);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleTransportShortcuts);
+    return () => window.removeEventListener("keydown", handleTransportShortcuts);
+  }, [handleTransportShortcuts]);
+
   return (
     <main className="max-w-[1400px] mx-auto px-8 py-6 flex flex-col gap-4">
       {/* Header */}
@@ -297,7 +318,7 @@ export default function Home() {
               </div>
               {/* Video info inline */}
               <VideoUpload />
-              <Tooltip text={"Fast local preview render.\nUses lower resolution + higher CRF + no audio\nfor rapid iteration while tuning curve edits."}>
+              <Tooltip text={"Fast local preview render.\nUses lower resolution + higher CRF + no audio\nfor rapid iteration while tuning curve edits.\nShortcut: Ctrl/Cmd + Enter"}>
                 <button
                   onClick={handleQuickRender}
                   disabled={!videoId || !hasAnalysis || isRendering}
@@ -309,7 +330,7 @@ export default function Home() {
                   QUICK PREVIEW
                 </button>
               </Tooltip>
-              <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel."}>
+              <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel.\nShortcut: Ctrl/Cmd + Shift + Enter"}>
                 <button
                   onClick={handleRender}
                   disabled={!videoId || !hasAnalysis || isRendering}

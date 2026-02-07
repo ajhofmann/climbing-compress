@@ -64,6 +64,9 @@ The solver also returns **crux markers** (`C1`, `C2`, …) on the timeline. In k
 - **Quick Preview** button for fast local iterations (draft render settings, no audio).
 - Full **Render** for final quality output.
 - You can cancel an active render from the transport bar (or press `Esc` while rendering).
+- Keyboard transport shortcuts:
+  - `Ctrl/Cmd + Enter` → Quick Preview
+  - `Ctrl/Cmd + Shift + Enter` → Full Render
 - Optional **Chapter overlays** (`START`, `CRUX`, `SEND`) on rendered output.
 - Style templates in the UI (`Cinematic`, `Coaching`, `Social Vertical`) for one-click tuning.
 - Output **aspect control** (`original`, `9:16`, `1:1`) plus optional **auto-reframe** to follow the climber when cropping vertical/square exports.
