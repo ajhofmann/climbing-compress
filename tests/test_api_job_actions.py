@@ -165,6 +165,42 @@ def test_cancel_job_endpoint_noop_for_success(tmp_path, monkeypatch):
     assert status_response.json()["status"] == "success"
 
 
+def test_cancel_job_endpoint_noop_for_cancelled(tmp_path, monkeypatch):
+    db_path = tmp_path / "cancelled.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.register_video(
+        video_id="video-cancelled",
+        filename="cancelled.mp4",
+        path="/tmp/cancelled.mp4",
+        file_hash="hash-cancelled",
+    )
+    db_module.insert_job(
+        job_id="job-cancelled",
+        video_id="video-cancelled",
+        job_type="analysis",
+        status="cancelled",
+    )
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    client = TestClient(server_module.app)
+    response = client.post("/api/jobs/job-cancelled/cancel")
+    assert response.status_code == 200
+    assert response.json()["status"] == "cancelled"
+
+
 def test_retry_job_endpoint_noop_for_success(tmp_path, monkeypatch):
     db_path = tmp_path / "retry-success.db"
     input_dir = tmp_path / "input"
