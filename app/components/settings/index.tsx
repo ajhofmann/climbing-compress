@@ -305,7 +305,13 @@ export function SettingsPanel() {
                 { value: "vertical", label: "9:16" },
                 { value: "square", label: "1:1" },
               ]}
-              onChange={(v) => u("outputAspect", v)}
+              onChange={(v) => {
+                if (v === "original") {
+                  updateSettings({ outputAspect: v, autoReframe: false });
+                } else {
+                  u("outputAspect", v);
+                }
+              }}
               title="Output aspect ratio: original frame, vertical social (9:16), or square (1:1)"
             />
           </div>
@@ -338,7 +344,14 @@ export function SettingsPanel() {
             <ToggleSwitch label="OVL" checked={s.debugOverlay} onChange={(v) => u("debugOverlay", v)} color="#76ff03" title="Show skeleton + speed badge overlay on video" />
             <ToggleSwitch label="A/B" checked={s.renderComparison} onChange={(v) => u("renderComparison", v)} color="#e040fb" title="Also render a uniform-speed version for comparison" />
             <ToggleSwitch label="CHPT" checked={s.renderChapters} onChange={(v) => u("renderChapters", v)} color="#e040fb" title="Overlay auto chapters (START / CRUX / SEND)" />
-            <ToggleSwitch label="REFR" checked={s.autoReframe} onChange={(v) => u("autoReframe", v)} color="#00e5ff" title="For vertical/square exports, follow the climber center while cropping" />
+            <ToggleSwitch
+              label="REFR"
+              checked={s.outputAspect === "original" ? false : s.autoReframe}
+              onChange={(v) => u("autoReframe", v)}
+              color="#00e5ff"
+              disabled={s.outputAspect === "original"}
+              title="For vertical/square exports, follow the climber center while cropping"
+            />
             <ToggleSwitch label="STAB" checked={s.stabilize} onChange={(v) => u("stabilize", v)} color="#ff6e40" title="Enable pose-anchored video stabilization" />
             {s.stabilize && (
               <>
