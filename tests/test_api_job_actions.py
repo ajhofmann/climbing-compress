@@ -93,6 +93,8 @@ def test_retry_job_endpoint_requeues(tmp_path, monkeypatch):
     assert jobs_response.status_code == 200
     job_ids = {job["id"] for job in jobs_response.json()}
     assert job_ids == {"job-retry", new_job_id}
+    old_job = next(job for job in jobs_response.json() if job["id"] == "job-retry")
+    assert old_job["status"] == "failed"
 
 
 def test_retry_job_endpoint_requires_request(tmp_path, monkeypatch):
