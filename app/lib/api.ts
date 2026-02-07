@@ -64,11 +64,6 @@ export async function uploadVideo(file: File) {
   return res.json();
 }
 
-export async function listVideos() {
-  const res = await fetch(`${API}/api/videos`);
-  return res.json();
-}
-
 export async function analyzeVideo(
   videoId: string,
   stride: number,
