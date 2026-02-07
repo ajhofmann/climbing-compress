@@ -70,6 +70,10 @@ def test_list_videos_filters_and_names(tmp_path, monkeypatch):
     updated = db_module.get_video("video-assigned")
     assert updated is not None
     assert json.loads(updated["info_json"])["duration"] == 9.9
+    db_module.update_video_info("video-assigned", {"duration": 5.5})
+    updated_twice = db_module.get_video("video-assigned")
+    assert updated_twice is not None
+    assert json.loads(updated_twice["info_json"])["duration"] == 5.5
     db_module.update_video_file(
         "video-assigned",
         filename="assigned-new.mp4",
