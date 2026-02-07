@@ -26,6 +26,9 @@ def _handle_job(job: dict) -> None:
     except json.JSONDecodeError as exc:
         update_job(job_id, status="failed", message=f"Invalid request payload: {exc}")
         return
+    if not isinstance(payload, dict):
+        update_job(job_id, status="failed", message="Invalid request payload: expected object")
+        return
 
     try:
         if job_type == "analyze":
