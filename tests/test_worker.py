@@ -135,3 +135,44 @@ def test_worker_marks_handler_exception_failed(tmp_path, monkeypatch):
     assert updated is not None
     assert updated["status"] == "failed"
     assert updated["message"] == "boom"
+
+
+def test_worker_marks_missing_video_failed(tmp_path, monkeypatch):
+    db_path = tmp_path / "worker-missing.db"
+    input_dir = tmp_path / "input-missing"
+    output_dir = tmp_path / "output-missing"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.register_video(
+        video_id="video-worker-missing",
+        filename="missing.mp4",
+        path="/tmp/missing.mp4",
+        file_hash="hash-worker-missing",
+    )
+    db_module.insert_job(
+        job_id="job-missing",
+        video_id="video-worker-missing",
+        job_type="analyze",
+        status="queued",
+        request={"video_id": "video-worker-missing"},
+    )
+
+    import worker as worker_module
+    importlib.reload(worker_module)
+
+    job = db_module.get_job("job-missing")
+    assert job is not None
+    worker_module._handle_job(job)
+
+    updated = db_module.get_job("job-missing")
+    assert updated is not None
+    assert updated["status"] == "failed"
+    assert "Video 'video-worker-missing' not found" in updated["message"]
