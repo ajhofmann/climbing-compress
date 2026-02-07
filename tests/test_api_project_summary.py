@@ -28,6 +28,12 @@ def test_project_summary_api_includes_output_duration(tmp_path, monkeypatch):
         file_hash="hash-summary",
         project_id=project_id,
     )
+    db_module.insert_job(
+        job_id="job-summary",
+        video_id="video-summary",
+        job_type="analysis",
+        status="success",
+    )
     db_module.insert_output(
         output_id="output-summary",
         video_id="video-summary",
@@ -52,6 +58,12 @@ def test_project_summary_api_includes_output_duration(tmp_path, monkeypatch):
         file_hash="hash-unassigned",
         project_id=None,
     )
+    db_module.insert_job(
+        job_id="job-unassigned",
+        video_id="video-unassigned",
+        job_type="analysis",
+        status="success",
+    )
     db_module.insert_output(
         output_id="output-unassigned",
         video_id="video-unassigned",
@@ -70,7 +82,7 @@ def test_project_summary_api_includes_output_duration(tmp_path, monkeypatch):
     summary = response.json()
     assert summary["videos"] == 1
     assert summary["outputs"] == 2
-    assert summary["jobs"] == 0
+    assert summary["jobs"] == 1
     assert summary["latest_output"]["output_duration"] == 6.1
 
     response = client.get("/api/projects/unassigned/summary")
@@ -78,7 +90,7 @@ def test_project_summary_api_includes_output_duration(tmp_path, monkeypatch):
     unassigned = response.json()
     assert unassigned["videos"] == 1
     assert unassigned["outputs"] == 1
-    assert unassigned["jobs"] == 0
+    assert unassigned["jobs"] == 1
     assert unassigned["latest_output"]["output_duration"] == 2.5
 
 

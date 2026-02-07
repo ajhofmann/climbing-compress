@@ -22,6 +22,12 @@ def test_project_summary_includes_output_duration(tmp_path, monkeypatch):
         file_hash="hash-demo",
         project_id=project_id,
     )
+    db_module.insert_job(
+        job_id="job-summary",
+        video_id=video_id,
+        job_type="analysis",
+        status="success",
+    )
     db_module.insert_output(
         output_id="out-test",
         video_id=video_id,
@@ -42,7 +48,7 @@ def test_project_summary_includes_output_duration(tmp_path, monkeypatch):
     summary = db_module.get_project_summary(project_id)
     assert summary["videos"] == 1
     assert summary["outputs"] == 2
-    assert summary["jobs"] == 0
+    assert summary["jobs"] == 1
     assert summary["latest_output"]["output_duration"] == 4.4
 
 
@@ -63,6 +69,12 @@ def test_unassigned_summary_includes_output_duration(tmp_path, monkeypatch):
         file_hash="hash-demo-unassigned",
         project_id=None,
     )
+    db_module.insert_job(
+        job_id="job-unassigned",
+        video_id=video_id,
+        job_type="analysis",
+        status="success",
+    )
     db_module.insert_output(
         output_id="out-unassigned",
         video_id=video_id,
@@ -75,7 +87,7 @@ def test_unassigned_summary_includes_output_duration(tmp_path, monkeypatch):
     summary = db_module.get_project_summary("unassigned")
     assert summary["videos"] == 1
     assert summary["outputs"] == 1
-    assert summary["jobs"] == 0
+    assert summary["jobs"] == 1
     assert summary["latest_output"]["output_duration"] == 4.5
 
 
