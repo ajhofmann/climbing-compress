@@ -21,17 +21,19 @@ def test_sync_input_dir_registers_and_dedup(tmp_path, monkeypatch):
     input_dir.mkdir()
     file_one = input_dir / "video1.mp4"
     file_two = input_dir / "video2.mp4"
+    file_three = input_dir / "video3.mp4"
     tmp_file = input_dir / "_tmp_ignore.mp4"
     other_file = input_dir / "notes.txt"
     file_one.write_bytes(b"payload")
     file_two.write_bytes(b"payload")
+    file_three.write_bytes(b"unique-payload")
     tmp_file.write_bytes(b"ignore-me")
     other_file.write_bytes(b"ignore-me")
 
     db_module.sync_input_dir(input_dir)
     videos = db_module.list_videos()
-    assert len(videos) == 1
-    assert videos[0]["id"] == "video1"
+    assert len(videos) == 2
+    assert {video["id"] for video in videos} == {"video1", "video3"}
 
     file_one.write_bytes(b"payload-updated")
     db_module.sync_input_dir(input_dir)
