@@ -98,18 +98,25 @@ export function VideoPlayer() {
 
   if (!hasComparison) {
     return (
-      <div className="neon-video-frame overflow-hidden">
-        <video
-          ref={singleRef}
-          key={outputId}
-          src={videoUrl(outputId)}
-          controls
-          autoPlay
-          loop
-          playsInline
-          onTimeUpdate={onTimeUpdate}
-          className="w-full max-h-[70vh] object-contain"
-        />
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-end">
+          <span className="text-[10px] font-pixel uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+            J / K / L
+          </span>
+        </div>
+        <div className="neon-video-frame overflow-hidden">
+          <video
+            ref={singleRef}
+            key={outputId}
+            src={videoUrl(outputId)}
+            controls
+            autoPlay
+            loop
+            playsInline
+            onTimeUpdate={onTimeUpdate}
+            className="w-full max-h-[70vh] object-contain"
+          />
+        </div>
       </div>
     );
   }
@@ -117,7 +124,10 @@ export function VideoPlayer() {
   return (
     <div className="flex flex-col sm:flex-row gap-3">
       <div className="flex flex-col gap-1 flex-1 min-w-0">
-        <span className="text-[10px] font-pixel text-center uppercase tracking-[0.2em]" style={{ color: "var(--neon-cyan)", textShadow: "0 0 6px rgba(0,229,255,0.4)" }}>smart ramp</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-pixel text-center uppercase tracking-[0.2em]" style={{ color: "var(--neon-cyan)", textShadow: "0 0 6px rgba(0,229,255,0.4)" }}>smart ramp</span>
+          <span className="text-[10px] font-pixel uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>J / K / L</span>
+        </div>
         <div className="neon-video-frame overflow-hidden">
           <video
             ref={smartRef}
