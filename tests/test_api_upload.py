@@ -363,6 +363,60 @@ def test_upload_reuse_without_project_keeps_assignment(tmp_path, monkeypatch):
     assert record["project_id"] == "project-keep"
 
 
+def test_upload_reuse_updates_project(tmp_path, monkeypatch):
+    db_path = tmp_path / "upload-update-project.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-upload-update-project-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.insert_project("project-old", "Project Old")
+    db_module.insert_project("project-new", "Project New")
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    monkeypatch.setattr(
+        server_module,
+        "get_video_info",
+        lambda _path: {"fps": 24, "width": 1280, "height": 720, "frame_count": 240, "duration": 8.0},
+    )
+    monkeypatch.setattr(server_module, "generate_thumbnails", lambda *_args, **_kwargs: [])
+
+    video_path = input_dir / "video-update.mp4"
+    video_path.write_bytes(b"update-bytes")
+    file_hash = content_hash(str(video_path))
+    db_module.register_video(
+        video_id="video-update",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash=file_hash,
+        project_id="project-old",
+    )
+
+    client = TestClient(server_module.app)
+    response = client.post(
+        "/api/upload?project_id=project-new",
+        files={"file": ("upload.mp4", b"update-bytes", "video/mp4")},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["reused"] is True
+    assert payload["video_id"] == "video-update"
+
+    record = db_module.get_video("video-update")
+    assert record is not None
+    assert record["project_id"] == "project-new"
+
+
 def test_upload_reuse_updates_missing_info(tmp_path, monkeypatch):
     db_path = tmp_path / "upload-info.db"
     input_dir = tmp_path / "input"
