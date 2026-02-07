@@ -639,6 +639,7 @@ def claim_next_job() -> dict[str, Any] | None:
         "SELECT * FROM jobs WHERE status = 'queued' ORDER BY created_at LIMIT 1"
     )
     row = cur.fetchone()
+    row_dict = _row_to_dict(cur, row) if row is not None else None
     if row:
         cur.execute(
             "UPDATE jobs SET status = ?, updated_at = ? WHERE id = ?",
@@ -646,9 +647,9 @@ def claim_next_job() -> dict[str, Any] | None:
         )
     conn.commit()
     conn.close()
-    if row is None:
+    if row_dict is None:
         return None
-    return _row_to_dict(cur, row)
+    return row_dict
 
 
 def get_metrics() -> dict[str, Any]:
