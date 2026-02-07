@@ -204,7 +204,9 @@ def _build_preview_request(req: PreviewRequest, path: Path) -> RenderRequest:
     preview_len = max(0.5, req.preview_duration)
     end = start + preview_len
     if duration > 0:
-        end = min(end, duration)
+        if start > duration:
+            start = max(0.0, duration - preview_len)
+        end = min(start + preview_len, duration)
 
     payload = _model_dump(req)
     for key in [
