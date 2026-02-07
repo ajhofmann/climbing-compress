@@ -102,4 +102,15 @@ def test_list_videos_filters_and_names(tmp_path, monkeypatch):
     reassigned_after_update = db_module.get_video("video-assigned")
     assert reassigned_after_update is not None
     assert reassigned_after_update["project_id"] == project_id
+    db_module.update_video_file(
+        "video-assigned",
+        filename="assigned-null.mp4",
+        path="/tmp/assigned-null.mp4",
+        file_hash="hash-assigned-null",
+        info=None,
+    )
+    reassigned_null = db_module.get_video("video-assigned")
+    assert reassigned_null is not None
+    assert reassigned_null["file_hash"] == "hash-assigned-null"
+    assert reassigned_null["info_json"] is None
     assert db_module.get_video("missing") is None
