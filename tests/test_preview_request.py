@@ -57,7 +57,7 @@ def test_build_preview_request_min_duration(tmp_path, monkeypatch):
 
     req = server_module.PreviewRequest(
         video_id="video-preview",
-        preview_start=0.0,
+        preview_start=-2.0,
         preview_duration=0.1,
     )
 
