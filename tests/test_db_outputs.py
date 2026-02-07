@@ -78,6 +78,10 @@ def test_list_outputs_includes_project_name(tmp_path, monkeypatch):
     assert db_module.list_outputs(video_id="missing") == []
     assert db_module.list_outputs(video_id=unassigned_video_id, project_id=project_id) == []
 
+    video_outputs = db_module.list_outputs(video_id=video_id)
+    assert len(video_outputs) == 1
+    assert video_outputs[0]["id"] == "output-assigned"
+
     output = db_module.get_output("output-assigned")
     assert output is not None
     assert output["id"] == "output-assigned"
