@@ -206,6 +206,7 @@ def test_upload_replaces_missing_file(tmp_path, monkeypatch):
     assert record is not None
     assert record["project_id"] == "project-replace"
     assert record["path"] == str(input_dir / "video-replace.mp4")
+    assert record["file_hash"] == file_hash
     assert (input_dir / "video-replace.mp4").exists()
 
 
