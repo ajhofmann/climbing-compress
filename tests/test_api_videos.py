@@ -75,3 +75,52 @@ def test_videos_api_includes_project_and_size(tmp_path, monkeypatch):
     assert video_zero["size_bytes"] == 0
     assert video["created_at"] is not None
     assert video_zero["created_at"] is not None
+
+
+def test_videos_api_updates_missing_info(tmp_path, monkeypatch):
+    db_path = tmp_path / "videos-info.db"
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+    monkeypatch.setenv("CACHE_VERSION", f"test-info-{tmp_path.name}")
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+
+    db_module.register_video(
+        video_id="video-info",
+        filename="info.mp4",
+        path=str(input_dir / "info.mp4"),
+        file_hash="hash-info",
+    )
+
+    import server as server_module
+    importlib.reload(server_module)
+
+    info = {
+        "fps": 24,
+        "width": 1280,
+        "height": 720,
+        "frame_count": 24,
+        "duration": 1.0,
+    }
+    monkeypatch.setattr(server_module, "get_video_info", lambda _path: info)
+
+    info_path = input_dir / "info.mp4"
+    info_path.write_bytes(b"info-bytes")
+
+    client = TestClient(server_module.app)
+    response = client.get("/api/videos")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload[0]["info"]["duration"] == 1.0
+
+    record = db_module.get_video("video-info")
+    assert record is not None
+    assert record["info_json"] is not None
