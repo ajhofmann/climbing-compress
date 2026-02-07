@@ -322,6 +322,7 @@ export default function Home() {
                 <button
                   onClick={handleQuickRender}
                   disabled={!videoId || !hasAnalysis || isRendering}
+                  aria-keyshortcuts="Control+Enter Meta+Enter"
                   className={`px-4 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
                     hasAnalysis ? "retro-btn" : "retro-btn"
                   } disabled:opacity-30 disabled:cursor-not-allowed`}
@@ -334,6 +335,7 @@ export default function Home() {
                 <button
                   onClick={handleRender}
                   disabled={!videoId || !hasAnalysis || isRendering}
+                  aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"
                   className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
                     isRendering ? "retro-btn opacity-70" : hasAnalysis ? "retro-btn-primary" : "retro-btn"
                   } disabled:opacity-30 disabled:cursor-not-allowed`}
@@ -353,6 +355,7 @@ export default function Home() {
                     handleCancelRender();
                   }}
                   onClick={handleCancelRender}
+                  aria-keyshortcuts="Escape"
                   className="px-4 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap retro-btn min-w-[11rem]"
                   style={{ borderColor: "var(--danger)", color: "var(--danger)", textShadow: "0 0 8px rgba(255,23,68,0.45)" }}
                   title="Cancel the active render request (Esc also works)"
