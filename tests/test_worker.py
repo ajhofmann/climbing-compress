@@ -1,4 +1,5 @@
 import importlib
+from pathlib import Path
 
 
 def test_worker_marks_unknown_job_failed(tmp_path, monkeypatch):
@@ -176,3 +177,63 @@ def test_worker_marks_missing_video_failed(tmp_path, monkeypatch):
     assert updated is not None
     assert updated["status"] == "failed"
     assert "Video 'video-worker-missing' not found" in updated["message"]
+
+
+def test_worker_preview_job_invokes_worker(tmp_path, monkeypatch):
+    db_path = tmp_path / "worker-preview.db"
+    input_dir = tmp_path / "input-preview"
+    output_dir = tmp_path / "output-preview"
+    input_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    video_path = tmp_path / "preview.mp4"
+    video_path.write_bytes(b"")
+
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("INPUT_DIR", str(input_dir))
+    monkeypatch.setenv("OUTPUT_DIR", str(output_dir))
+
+    import db as db_module
+    importlib.reload(db_module)
+    db_module.init_db()
+    db_module.register_video(
+        video_id="video-preview",
+        filename=video_path.name,
+        path=str(video_path),
+        file_hash="hash-preview",
+    )
+    db_module.insert_job(
+        job_id="job-preview",
+        video_id="video-preview",
+        job_type="preview",
+        status="queued",
+        request={"video_id": "video-preview", "preview_duration": 2.5},
+    )
+
+    import worker as worker_module
+    importlib.reload(worker_module)
+
+    captured: dict[str, object] = {}
+
+    def _build_preview_request(req, path):
+        captured["req"] = req
+        captured["path"] = path
+        return {"sentinel": True}
+
+    def _preview_job_worker(job_id, path, preview_req, emit):
+        captured["job_id"] = job_id
+        captured["worker_path"] = path
+        captured["preview_req"] = preview_req
+
+    monkeypatch.setattr(worker_module.server, "_build_preview_request", _build_preview_request)
+    monkeypatch.setattr(worker_module.server, "_preview_job_worker", _preview_job_worker)
+
+    job = db_module.get_job("job-preview")
+    assert job is not None
+    worker_module._handle_job(job)
+
+    assert captured["job_id"] == "job-preview"
+    assert captured["preview_req"] == {"sentinel": True}
+    assert captured["path"] == Path(video_path)
+    assert captured["worker_path"] == Path(video_path)
+    assert captured["req"].video_id == "video-preview"
