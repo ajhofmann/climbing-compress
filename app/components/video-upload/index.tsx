@@ -329,6 +329,34 @@ export function VideoUpload() {
     }
   };
 
+  const handleClearOutputsForExisting = async (item: VideoListItem) => {
+    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    const confirmed = window.confirm(`Remove rendered outputs for ${item.filename} only?`);
+    if (!confirmed) return;
+    setClearingOutputs(true);
+    try {
+      const result = await deleteOutputsForVideo(item.video_id);
+      const outputs = result.deleted_outputs ?? 0;
+      if (videoId === item.video_id) setClipOutputCount(0);
+      setOutputCount((prev) => {
+        if (prev == null) return null;
+        return Math.max(0, prev - outputs);
+      });
+      if (outputs <= 0) {
+        setProgress(0, `No rendered outputs found for ${item.filename}.`);
+      } else if (outputs === 1) {
+        setProgress(0, `Cleared 1 rendered output for ${item.filename}.`);
+      } else {
+        setProgress(0, `Cleared ${outputs} rendered outputs for ${item.filename}.`);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Clear outputs failed";
+      setProgress(0, `Clear outputs failed: ${msg}`);
+    } finally {
+      setClearingOutputs(false);
+    }
+  };
+
   const handleClearLibrary = async () => {
     if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
     const confirmed = window.confirm("Remove all local clips from this library?");
@@ -625,6 +653,15 @@ export function VideoUpload() {
                       aria-label={`Rename ${item.filename}`}
                     >
                       ✎
+                    </button>
+                    <button
+                      onClick={() => void handleClearOutputsForExisting(item)}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || outputCount === 0}
+                      className="text-[10px] font-pixel px-1 py-0.5 border rounded border-amber-400/40 text-amber-200 hover:text-white hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={`Clear rendered outputs for ${item.filename}`}
+                      aria-label={`Clear rendered outputs for ${item.filename}`}
+                    >
+                      ◍
                     </button>
                     <button
                       onClick={() => void handleDeleteExisting(item)}
