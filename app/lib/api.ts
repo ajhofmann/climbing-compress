@@ -14,6 +14,7 @@ interface UploadResult {
   info: VideoInfo;
   thumbnails: string[];
   cached: boolean;
+  output_count: number;
   reused: boolean;
 }
 
@@ -179,6 +180,7 @@ interface VideoMetaResult {
   info: VideoInfo;
   thumbnails: string[];
   cached: boolean;
+  output_count: number;
 }
 
 interface RenameVideoResult {

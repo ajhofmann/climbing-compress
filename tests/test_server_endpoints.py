@@ -98,6 +98,9 @@ def test_upload_rejects_unsupported_extension(monkeypatch, tmp_path: Path):
 
 def test_upload_accepts_uppercase_video_extension(monkeypatch, tmp_path: Path):
     _isolate_upload_store(monkeypatch, tmp_path)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
     monkeypatch.setattr(server, "content_hash", lambda _path: "upper-hash")
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
     monkeypatch.setattr(server, "generate_thumbnails", lambda _path, n=8: [])
@@ -112,13 +115,18 @@ def test_upload_accepts_uppercase_video_extension(monkeypatch, tmp_path: Path):
     assert resp.status_code == 200
     body = resp.json()
     assert body["filename"] == "clip.MP4"
+    assert body["output_count"] == 0
 
 
 def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
     existing = tmp_path / "existing.mp4"
     existing.write_bytes(b"existing")
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    (out_dir / "existing.mp4").write_bytes(b"render")
 
     monkeypatch.setattr(server, "INPUT_DIR", tmp_path)
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
     monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
     monkeypatch.setattr(server, "_videos", {"existing": existing})
     monkeypatch.setattr(server, "_file_hashes", {"same-hash": "existing"})
@@ -144,6 +152,7 @@ def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
     assert body["reused"] is True
     assert body["cached"] is True
     assert body["filename"] == "new.mp4"
+    assert body["output_count"] == 1
     assert server._video_names["existing"] == "new.mp4"
 
 
@@ -210,6 +219,9 @@ def test_list_videos_output_count_ignores_non_video_files(monkeypatch, tmp_path:
 def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    (out_dir / "source.mp4").write_bytes(b"render")
 
     monkeypatch.setattr(server, "_videos", {"source": source})
     monkeypatch.setattr(server, "_video_hashes", {"source": "hash-source"})
@@ -217,6 +229,7 @@ def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(server, "_video_names", {"source": "session_send.mp4"})
     monkeypatch.setattr(server, "_video_info_errors", {})
     monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 2.0, "fps": 30.0, "width": 20, "height": 10, "frame_count": 60})
     monkeypatch.setattr(server, "generate_thumbnails", lambda _path, n=8: ["raw-thumb"])
     monkeypatch.setattr(server, "_encode_thumbnails", lambda thumbs: ["thumb-url"])
@@ -231,6 +244,7 @@ def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
     assert body["filename"] == "session_send.mp4"
     assert body["thumbnails"] == ["thumb-url"]
     assert body["cached"] is True
+    assert body["output_count"] == 1
 
 
 def test_video_meta_missing_video_returns_404(monkeypatch):

@@ -248,7 +248,7 @@ export function VideoUpload() {
     try {
       const data = await uploadVideo(file);
       setVideo(data.video_id, data.info, data.thumbnails, data.filename);
-      setClipOutputCount(0);
+      setClipOutputCount(data.output_count ?? 0);
       const cacheHint = data.cached ? " (analysis cached)" : "";
       const label = data.filename || file.name;
       const status = data.reused ? `Loaded existing clip ${label}` : `Uploaded ${label}`;
@@ -265,7 +265,7 @@ export function VideoUpload() {
     try {
       const meta = await getVideoMeta(item.video_id);
       setVideo(meta.video_id, meta.info, meta.thumbnails, meta.filename);
-      setClipOutputCount(item.output_count);
+      setClipOutputCount(meta.output_count ?? item.output_count);
       setProgress(0, `Loaded ${meta.filename}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Load failed";

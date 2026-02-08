@@ -418,6 +418,7 @@ async def upload_video(file: UploadFile = File(...)):
                     "info": info,
                     "thumbnails": thumbs,
                     "cached": _has_cached_analysis(existing_id, dest),
+                    "output_count": _count_output_videos_for_source(existing_id),
                     "reused": True,
                 }
 
@@ -443,6 +444,7 @@ async def upload_video(file: UploadFile = File(...)):
             "info": info,
             "thumbnails": thumbs,
             "cached": _has_cached_analysis(video_id, dest),
+            "output_count": _count_output_videos_for_source(video_id),
             "reused": False,
         }
     except (OSError, ValueError) as exc:
@@ -511,6 +513,7 @@ async def video_meta(video_id: str):
         "info": info,
         "thumbnails": thumbs,
         "cached": _has_cached_analysis(video_id, path),
+        "output_count": _count_output_videos_for_source(video_id),
     }
 
 
