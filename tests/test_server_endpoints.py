@@ -527,6 +527,42 @@ def test_delete_video_missing_returns_404(monkeypatch):
     assert resp.status_code == 404
 
 
+def test_delete_all_videos_clears_library_and_indexes(monkeypatch, tmp_path: Path):
+    source_a = tmp_path / "a.mp4"
+    source_b = tmp_path / "b.mp4"
+    source_a.write_bytes(b"a")
+    source_b.write_bytes(b"b")
+
+    monkeypatch.setattr(server, "_videos", {"a": source_a, "b": source_b})
+    monkeypatch.setattr(server, "_file_hashes", {"hash-a": "a", "hash-b": "b"})
+    monkeypatch.setattr(server, "_video_hashes", {"a": "hash-a", "b": "hash-b"})
+    monkeypatch.setattr(server, "_video_meta_cache", {"a": {}, "b": {}})
+    monkeypatch.setattr(server, "_video_names", {"a": "a.mp4", "b": "b.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {"a": 1.0, "b": 1.0})
+    monkeypatch.setattr(server, "_unreadable_warned", {"a": 1.0, "b": 1.0})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+    cleared_hashes: list[str] = []
+    monkeypatch.setattr(server, "clear_cache_by_hash", lambda h: cleared_hashes.append(h))
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/videos")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["deleted"] == 2
+    assert set(body["video_ids"]) == {"a", "b"}
+    assert not source_a.exists()
+    assert not source_b.exists()
+    assert server._videos == {}
+    assert server._file_hashes == {}
+    assert server._video_hashes == {}
+    assert server._video_meta_cache == {}
+    assert server._video_names == {}
+    assert server._video_info_errors == {}
+    assert server._unreadable_warned == {}
+    assert set(cleared_hashes) == {"hash-a", "hash-b"}
+
+
 def test_rename_video_updates_display_name(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")

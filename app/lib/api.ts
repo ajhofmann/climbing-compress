@@ -258,6 +258,12 @@ export async function deleteVideo(videoId: string): Promise<void> {
   if (!res.ok) throw new Error(await readErrorMessage(res));
 }
 
+export async function deleteAllVideos(): Promise<{ deleted: number; video_ids: string[] }> {
+  const res = await fetch(`${API}/api/videos`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
 export async function renameVideo(videoId: string, filename: string): Promise<RenameVideoResult> {
   const res = await fetch(`${API}/api/videos/${videoId}`, {
     method: "PATCH",

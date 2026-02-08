@@ -487,6 +487,47 @@ async def rename_video(video_id: str, req: RenameVideoRequest):
     }
 
 
+@app.delete("/api/videos")
+async def delete_all_videos():
+    """Delete all local source videos and clear related cached state."""
+    removed_ids: list[str] = []
+
+    for video_id, path in list(_videos.items()):
+        hash_keys = []
+        if video_id in _video_hashes:
+            hash_keys.append(_video_hashes[video_id])
+        for h, vid in list(_file_hashes.items()):
+            if vid == video_id and h not in hash_keys:
+                hash_keys.append(h)
+
+        if hash_keys:
+            for cache_key in hash_keys:
+                try:
+                    clear_cache_by_hash(cache_key)
+                except OSError as exc:
+                    logger.warning("Failed to clear cache hash %s for %s: %s", cache_key, video_id, exc)
+        elif path.exists():
+            try:
+                clear_cache(str(path))
+            except OSError as exc:
+                logger.warning("Failed to clear cache for %s: %s", video_id, exc)
+
+        if path.exists():
+            try:
+                path.unlink()
+            except OSError as exc:
+                raise HTTPException(500, f"Failed to delete video: {exc}") from exc
+
+        _drop_video_state(video_id, remove_name=False)
+        removed_ids.append(video_id)
+
+    if _video_names:
+        _video_names.clear()
+        _persist_video_names()
+
+    return {"deleted": len(removed_ids), "video_ids": removed_ids}
+
+
 @app.post("/api/analyze")
 async def analyze_video(req: AnalyzeRequest):
     path = _get_video_path(req.video_id)

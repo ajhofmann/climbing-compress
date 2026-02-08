@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { deleteVideo, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
+import { deleteAllVideos, deleteVideo, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
 
 const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
@@ -23,6 +23,7 @@ export function VideoUpload() {
   const [renamingVideoId, setRenamingVideoId] = useState<string | null>(null);
   const [recentFetchDone, setRecentFetchDone] = useState(false);
   const [refreshingRecent, setRefreshingRecent] = useState(false);
+  const [clearingLibrary, setClearingLibrary] = useState(false);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -89,7 +90,7 @@ export function VideoUpload() {
   };
 
   const handleLoadExisting = async (item: VideoListItem) => {
-    if (deletingVideoId || renamingVideoId) return;
+    if (deletingVideoId || renamingVideoId || clearingLibrary) return;
     setProgress(0.05, `Loading ${item.filename}...`);
     try {
       const meta = await getVideoMeta(item.video_id);
@@ -137,12 +138,12 @@ export function VideoUpload() {
   };
 
   const handleRenameExisting = async (item: VideoListItem) => {
-    if (deletingVideoId || renamingVideoId) return;
+    if (deletingVideoId || renamingVideoId || clearingLibrary) return;
     await runRename(item.video_id, item.filename);
   };
 
   const handleDeleteExisting = async (item: VideoListItem) => {
-    if (deletingVideoId || renamingVideoId) return;
+    if (deletingVideoId || renamingVideoId || clearingLibrary) return;
     const confirmed = window.confirm(`Remove ${item.filename} from your local library?`);
     if (!confirmed) return;
     setDeletingVideoId(item.video_id);
@@ -155,6 +156,25 @@ export function VideoUpload() {
       setProgress(0, `Delete failed: ${msg}`);
     } finally {
       setDeletingVideoId(null);
+    }
+  };
+
+  const handleClearLibrary = async () => {
+    if (deletingVideoId || renamingVideoId || clearingLibrary) return;
+    const confirmed = window.confirm("Remove all local clips from this library?");
+    if (!confirmed) return;
+    setClearingLibrary(true);
+    try {
+      const result = await deleteAllVideos();
+      setRecentVideos([]);
+      setRecentFetchDone(true);
+      const count = result.deleted ?? 0;
+      setProgress(0, count > 0 ? `Removed ${count} local clips.` : "Local library already empty.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Clear failed";
+      setProgress(0, `Clear failed: ${msg}`);
+    } finally {
+      setClearingLibrary(false);
     }
   };
 
@@ -176,7 +196,7 @@ export function VideoUpload() {
   };
 
   const handleDeleteCurrent = async () => {
-    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId) return;
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary) return;
     const label = videoName || "current clip";
     const confirmed = window.confirm(`Remove ${label} from your local library?`);
     if (!confirmed) return;
@@ -195,7 +215,7 @@ export function VideoUpload() {
   };
 
   const handleRenameCurrent = async () => {
-    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId) return;
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary) return;
     await runRename(videoId, videoName || "clip.mp4");
   };
 
@@ -256,10 +276,17 @@ export function VideoUpload() {
               <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">Recent</span>
               <button
                 onClick={() => void refreshRecent()}
-                disabled={deletingVideoId !== null || renamingVideoId !== null || refreshingRecent}
+                disabled={deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {refreshingRecent ? "[refreshing...]" : "[refresh]"}
+              </button>
+              <button
+                onClick={() => void handleClearLibrary()}
+                disabled={deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
+                className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {clearingLibrary ? "[clearing...]" : "[clear all]"}
               </button>
             </div>
             {recentVideos.length > 0 ? (
@@ -268,7 +295,7 @@ export function VideoUpload() {
                   <div key={item.video_id} className="flex items-center gap-0.5">
                     <button
                       onClick={() => void handleLoadExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary}
                       className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed"
                       title={`${item.filename} · ${item.info.duration.toFixed(1)}s${item.cached ? " · cached analysis" : ""}`}
                     >
@@ -277,7 +304,7 @@ export function VideoUpload() {
                     </button>
                     <button
                       onClick={() => void handleRenameExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary}
                       className="text-[10px] font-pixel px-1 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       title={`Rename ${item.filename}`}
                       aria-label={`Rename ${item.filename}`}
@@ -286,7 +313,7 @@ export function VideoUpload() {
                     </button>
                     <button
                       onClick={() => void handleDeleteExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary}
                       className="text-[10px] font-pixel px-1 py-0.5 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       title={`Remove ${item.filename}`}
                       aria-label={`Remove ${item.filename} from local library`}
@@ -335,7 +362,7 @@ export function VideoUpload() {
       <Tooltip text="Delete this clip from local library and clear the current session">
         <button
           onClick={() => void handleDeleteCurrent()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary}
           className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           [DELETE]
@@ -344,7 +371,7 @@ export function VideoUpload() {
       <Tooltip text="Rename current clip label in local library">
         <button
           onClick={() => void handleRenameCurrent()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary}
           className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           [RENAME]
