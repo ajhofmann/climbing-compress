@@ -9,7 +9,7 @@ const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
-const RECENT_FILTER_TAG_TEMPLATES = ["#dur>5", "#dur<5"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#dur>5", "#dur<5", "#dur>90s", "#dur>1m30s"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 type DurationComparatorOperator = "<" | "<=" | ">" | ">=" | "=";
 
