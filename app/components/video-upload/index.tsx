@@ -235,6 +235,10 @@ export function VideoUpload() {
     }
     return out;
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const hasUnknownDurationTagTerm = useMemo(
+    () => unknownRecentTagTerms.some((term) => term.startsWith("#dur")),
+    [unknownRecentTagTerms],
+  );
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
     const durationComparator = parseDurationComparatorTerm(term);
     if (durationComparator) {
@@ -1664,8 +1668,15 @@ export function VideoUpload() {
               </div>
             )}
             {unknownRecentTagTerms.length > 0 && (
-              <div className="text-[8px] font-pixel text-rose-300/85 text-center">
-                unknown tag{unknownRecentTagTerms.length === 1 ? "" : "s"}: {unknownRecentTagTerms.join(", ")}
+              <div className="flex flex-col items-center gap-0.5">
+                <div className="text-[8px] font-pixel text-rose-300/85 text-center">
+                  unknown tag{unknownRecentTagTerms.length === 1 ? "" : "s"}: {unknownRecentTagTerms.join(", ")}
+                </div>
+                {hasUnknownDurationTagTerm && (
+                  <div className="text-[8px] font-pixel text-rose-200/80 text-center">
+                    duration examples: #dur&gt;5 · #dur&gt;90s · #dur&gt;1m30s
+                  </div>
+                )}
               </div>
             )}
             {showShortcutHelp && (
