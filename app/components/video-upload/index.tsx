@@ -18,7 +18,14 @@ export function VideoUpload() {
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
-    return `${name.slice(0, 6)}...${name.slice(-4)}`;
+    const dot = name.lastIndexOf(".");
+    if (dot <= 0 || dot === name.length - 1) {
+      return `${name.slice(0, 8)}…${name.slice(-4)}`;
+    }
+    const stem = name.slice(0, dot);
+    const ext = name.slice(dot);
+    if (stem.length <= 8) return name;
+    return `${stem.slice(0, 6)}…${ext}`;
   };
 
   useEffect(() => {

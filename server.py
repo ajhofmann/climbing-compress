@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import logging
 import os
 import shutil
@@ -38,6 +39,7 @@ INPUT_DIR = Path(os.environ.get("INPUT_DIR", "data/input"))
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "data/output"))
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+VIDEO_NAME_INDEX = INPUT_DIR / "_video_names.json"
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "512"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 ALLOWED_VIDEO_EXTS = (".mov", ".mp4", ".avi", ".mkv")
@@ -60,14 +62,50 @@ _file_hashes: dict[str, str] = {}
 # Video metadata cache (info + thumbnails) for fast local reloads
 _video_meta_cache: dict[str, dict[str, object]] = {}
 
+
+def _load_video_names() -> dict[str, str]:
+    if not VIDEO_NAME_INDEX.exists():
+        return {}
+    try:
+        raw = json.loads(VIDEO_NAME_INDEX.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("Failed to load %s: %s", VIDEO_NAME_INDEX, exc)
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    names: dict[str, str] = {}
+    for key, value in raw.items():
+        if isinstance(key, str) and isinstance(value, str):
+            names[key] = value
+    return names
+
+
+def _persist_video_names() -> None:
+    try:
+        VIDEO_NAME_INDEX.parent.mkdir(parents=True, exist_ok=True)
+        tmp = VIDEO_NAME_INDEX.with_suffix(".tmp")
+        tmp.write_text(json.dumps(_video_names, indent=2, sort_keys=True), encoding="utf-8")
+        tmp.replace(VIDEO_NAME_INDEX)
+    except OSError as exc:
+        logger.warning("Failed to persist %s: %s", VIDEO_NAME_INDEX, exc)
+
+
+_video_names: dict[str, str] = _load_video_names()
+
 # Scan existing input videos on startup
+_video_names_dirty = False
 for _f in INPUT_DIR.iterdir():
     if _f.suffix.lower() in ALLOWED_VIDEO_EXTS and not _f.name.startswith("_tmp_"):
         _videos[_f.stem] = _f
+        if _f.stem not in _video_names:
+            _video_names[_f.stem] = _f.name
+            _video_names_dirty = True
         try:
             _file_hashes[content_hash(str(_f))] = _f.stem
         except (OSError, ValueError) as exc:
             logger.warning("Failed to hash %s: %s", _f, exc)
+if _video_names_dirty:
+    _persist_video_names()
 
 
 # ---- Models ----
@@ -177,11 +215,16 @@ def _get_thumbnails_cached(video_id: str, path: Path, n: int = 8) -> list[str]:
     return thumbs
 
 
+def _display_filename(video_id: str, fallback: Path) -> str:
+    return _video_names.get(video_id, fallback.name)
+
+
 # ---- Endpoints ----
 
 @app.post("/api/upload")
 async def upload_video(file: UploadFile = File(...)):
     filename = file.filename or ""
+    display_name = Path(filename).name if filename else ""
     ext = Path(filename).suffix.lower() or ".mov"
     if ext not in ALLOWED_VIDEO_EXTS:
         allowed = ", ".join(ALLOWED_VIDEO_EXTS)
@@ -205,6 +248,9 @@ async def upload_video(file: UploadFile = File(...)):
             if existing_id in _videos and _videos[existing_id].exists():
                 tmp.unlink()
                 dest = _videos[existing_id]
+                if display_name and _video_names.get(existing_id, dest.name) == dest.name:
+                    _video_names[existing_id] = display_name
+                    _persist_video_names()
                 info = _get_video_info_cached(existing_id, dest)
                 thumbs = _get_thumbnails_cached(existing_id, dest, n=8)
                 return {
@@ -222,6 +268,8 @@ async def upload_video(file: UploadFile = File(...)):
 
         _videos[video_id] = dest
         _file_hashes[ch] = video_id
+        _video_names[video_id] = display_name or dest.name
+        _persist_video_names()
         info = get_video_info(str(dest))
         thumbs = _encode_thumbnails(generate_thumbnails(str(dest), n=8))
         _video_meta_cache[video_id] = {"info": info, "thumbnails": thumbs}
@@ -260,7 +308,7 @@ async def list_videos():
             continue
         result.append({
             "video_id": vid,
-            "filename": path.name,
+            "filename": _display_filename(vid, path),
             "info": info,
             "cached": has_cache(str(path)),
         })

@@ -8,9 +8,11 @@ import server
 
 def _isolate_upload_store(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(server, "INPUT_DIR", tmp_path)
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
     monkeypatch.setattr(server, "_videos", {})
     monkeypatch.setattr(server, "_file_hashes", {})
     monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
 
 
 def test_solve_requires_prior_analysis(monkeypatch, tmp_path: Path):
@@ -18,6 +20,7 @@ def test_solve_requires_prior_analysis(monkeypatch, tmp_path: Path):
     video_path.write_bytes(b"fake-video")
 
     monkeypatch.setattr(server, "_videos", {"vid": video_path})
+    monkeypatch.setattr(server, "_video_names", {})
     monkeypatch.setattr(server, "load_analysis", lambda _path: None)
 
     client = TestClient(server.app)
@@ -29,6 +32,7 @@ def test_solve_requires_prior_analysis(monkeypatch, tmp_path: Path):
 
 def test_render_missing_video_returns_404(monkeypatch):
     monkeypatch.setattr(server, "_videos", {})
+    monkeypatch.setattr(server, "_video_names", {})
 
     client = TestClient(server.app)
     resp = client.post("/api/render", json={"video_id": "missing"})
@@ -104,9 +108,11 @@ def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
     existing.write_bytes(b"existing")
 
     monkeypatch.setattr(server, "INPUT_DIR", tmp_path)
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
     monkeypatch.setattr(server, "_videos", {"existing": existing})
     monkeypatch.setattr(server, "_file_hashes", {"same-hash": "existing"})
     monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
     monkeypatch.setattr(server, "content_hash", lambda _path: "same-hash")
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
     monkeypatch.setattr(server, "generate_thumbnails", lambda _path, n=8: [])
@@ -135,6 +141,7 @@ def test_list_videos_returns_recent_first(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(server, "_videos", {"b": b_path, "a": a_path})
     monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
     monkeypatch.setattr(server, "has_cache", lambda path: path.endswith("a.mp4"))
 
@@ -153,6 +160,7 @@ def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(server, "_videos", {"source": source})
     monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 2.0, "fps": 30.0, "width": 20, "height": 10, "frame_count": 60})
     monkeypatch.setattr(server, "generate_thumbnails", lambda _path, n=8: ["raw-thumb"])
     monkeypatch.setattr(server, "_encode_thumbnails", lambda thumbs: ["thumb-url"])
@@ -170,6 +178,7 @@ def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
 
 def test_video_meta_missing_video_returns_404(monkeypatch):
     monkeypatch.setattr(server, "_videos", {})
+    monkeypatch.setattr(server, "_video_names", {})
 
     client = TestClient(server.app)
     resp = client.get("/api/video-meta/missing")
@@ -185,6 +194,7 @@ def test_list_videos_skips_unreadable_files(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(server, "_videos", {"good": good_path, "bad": bad_path})
     monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
     monkeypatch.setattr(
         server,
         "get_video_info",
@@ -206,6 +216,7 @@ def test_video_meta_caches_thumbnails_after_first_request(monkeypatch, tmp_path:
 
     monkeypatch.setattr(server, "_videos", {"source": source})
     monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 2.0, "fps": 30.0, "width": 20, "height": 10, "frame_count": 60})
     calls = {"thumbs": 0}
 
@@ -232,6 +243,7 @@ def test_list_videos_reuses_cached_info_between_calls(monkeypatch, tmp_path: Pat
 
     monkeypatch.setattr(server, "_videos", {"source": source})
     monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
     calls = {"info": 0}
 
     def _info(_path: str):
@@ -248,3 +260,46 @@ def test_list_videos_reuses_cached_info_between_calls(monkeypatch, tmp_path: Pat
     assert r1.status_code == 200
     assert r2.status_code == 200
     assert calls["info"] == 1
+
+
+def test_list_videos_prefers_saved_display_name(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"source": "board_session.mov"})
+    monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 2.0, "fps": 30.0, "width": 20, "height": 10, "frame_count": 60})
+    monkeypatch.setattr(server, "has_cache", lambda _path: False)
+
+    client = TestClient(server.app)
+    resp = client.get("/api/videos")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body[0]["filename"] == "board_session.mov"
+
+
+def test_upload_reused_hash_populates_display_name_if_missing(monkeypatch, tmp_path: Path):
+    existing = tmp_path / "existing.mp4"
+    existing.write_bytes(b"existing")
+
+    monkeypatch.setattr(server, "INPUT_DIR", tmp_path)
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+    monkeypatch.setattr(server, "_videos", {"existing": existing})
+    monkeypatch.setattr(server, "_file_hashes", {"same-hash": "existing"})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
+    monkeypatch.setattr(server, "content_hash", lambda _path: "same-hash")
+    monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
+    monkeypatch.setattr(server, "generate_thumbnails", lambda _path, n=8: [])
+    monkeypatch.setattr(server, "has_cache", lambda _path: True)
+
+    client = TestClient(server.app)
+    resp = client.post(
+        "/api/upload",
+        files={"file": ("moonboard_send.mp4", b"new", "video/mp4")},
+    )
+
+    assert resp.status_code == 200
+    assert server._video_names["existing"] == "moonboard_send.mp4"
