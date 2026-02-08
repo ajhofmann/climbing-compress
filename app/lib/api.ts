@@ -1,4 +1,4 @@
-import { AnalysisData, Keyframe, Pin, Settings, SolveResult } from "./types";
+import { AnalysisData, Keyframe, Pin, Settings, SolveResult, VideoInfo } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -156,6 +156,20 @@ interface RenderResult {
   };
 }
 
+export interface VideoListItem {
+  video_id: string;
+  filename: string;
+  info: VideoInfo;
+  cached: boolean;
+}
+
+interface VideoMetaResult {
+  video_id: string;
+  info: VideoInfo;
+  thumbnails: string[];
+  cached: boolean;
+}
+
 export async function renderVideo(
   videoId: string,
   settings: Settings,
@@ -210,6 +224,18 @@ export async function renderVideo(
 
   if (!res.ok) throw new Error(await readErrorMessage(res));
   return consumeSseJson<RenderResult>(res, onProgress);
+}
+
+export async function listVideos(): Promise<VideoListItem[]> {
+  const res = await fetch(`${API}/api/videos`);
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
+export async function getVideoMeta(videoId: string): Promise<VideoMetaResult> {
+  const res = await fetch(`${API}/api/video-meta/${videoId}`);
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
 }
 
 export function videoUrl(id: string) {

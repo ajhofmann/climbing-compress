@@ -220,7 +220,11 @@ async def list_videos():
     """List available input videos."""
     result = []
     for vid, path in sorted(_videos.items(), key=lambda item: item[0]):
-        info = get_video_info(str(path))
+        try:
+            info = get_video_info(str(path))
+        except (OSError, ValueError) as exc:
+            logger.warning("Skipping unreadable video %s: %s", path, exc)
+            continue
         result.append({
             "video_id": vid,
             "filename": path.name,
@@ -228,6 +232,20 @@ async def list_videos():
             "cached": has_cache(str(path)),
         })
     return result
+
+
+@app.get("/api/video-meta/{video_id}")
+async def video_meta(video_id: str):
+    """Fetch info + thumbnails for an already-uploaded source video."""
+    path = _get_video_path(video_id)
+    info = get_video_info(str(path))
+    thumbs = generate_thumbnails(str(path), n=8)
+    return {
+        "video_id": video_id,
+        "info": info,
+        "thumbnails": _encode_thumbnails(thumbs),
+        "cached": has_cache(str(path)),
+    }
 
 
 @app.post("/api/analyze")

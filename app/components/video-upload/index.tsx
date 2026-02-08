@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { uploadVideo } from "@/lib/api";
+import { getVideoMeta, listVideos, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
 
 export function VideoUpload() {
@@ -11,6 +11,26 @@ export function VideoUpload() {
   const setVideo = useStore((state) => state.setVideo);
   const setProgress = useStore((state) => state.setProgress);
   const [isDragging, setIsDragging] = useState(false);
+  const [recentVideos, setRecentVideos] = useState<VideoListItem[]>([]);
+  const fetchedRecentRef = useRef(false);
+
+  useEffect(() => {
+    if (videoId || fetchedRecentRef.current) return;
+    fetchedRecentRef.current = true;
+    let cancelled = false;
+    void listVideos()
+      .then((items) => {
+        if (cancelled) return;
+        setRecentVideos([...items].reverse().slice(0, 6));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRecentVideos([]);
+      })
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId]);
 
   const handleFile = async (file: File) => {
     setProgress(0.05, "Uploading video...");
@@ -21,6 +41,18 @@ export function VideoUpload() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Upload failed";
       setProgress(0, `Upload failed: ${msg}`);
+    }
+  };
+
+  const handleLoadExisting = async (item: VideoListItem) => {
+    setProgress(0.05, `Loading ${item.filename}...`);
+    try {
+      const meta = await getVideoMeta(item.video_id);
+      setVideo(meta.video_id, meta.info, meta.thumbnails);
+      setProgress(0, `Loaded ${item.filename}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Load failed";
+      setProgress(0, `Load failed: ${msg}`);
     }
   };
 
@@ -43,6 +75,7 @@ export function VideoUpload() {
         onDragLeave={() => setIsDragging(false)}
         onClick={openPicker}
         onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             openPicker();
@@ -81,6 +114,27 @@ export function VideoUpload() {
           {">> DROP VIDEO OR CLICK TO START <<"}
         </span>
         <span className="text-sm font-retro text-text-muted">[ or click to browse ]</span>
+        {recentVideos.length > 0 && (
+          <div
+            className="w-full px-4 pt-1 flex flex-col gap-1"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">Recent</span>
+            <div className="flex flex-wrap justify-center gap-1">
+              {recentVideos.map((item) => (
+                <button
+                  key={item.video_id}
+                  onClick={() => void handleLoadExisting(item)}
+                  className="retro-btn px-2 py-0.5 text-[10px] font-pixel uppercase tracking-wide max-w-[180px] truncate"
+                  title={`${item.filename} · ${item.info.duration.toFixed(1)}s`}
+                >
+                  {item.filename}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

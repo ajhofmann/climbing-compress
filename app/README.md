@@ -23,6 +23,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
 Upload constraints are enforced by the backend:
 - accepted extensions: `.mov`, `.mp4`, `.avi`, `.mkv`
 - default max file size: `512 MB` (via backend `MAX_UPLOAD_MB`)
+- the no-video dropzone also shows a **Recent** list for one-click reload of local clips
 
 ## Common scripts
 
