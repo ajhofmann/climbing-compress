@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { deleteAllOutputs, deleteAllVideos, deleteVideo, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
+import { deleteAllOutputs, deleteAllVideos, deleteVideo, getLibraryStats, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
 
 const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
@@ -28,6 +28,7 @@ export function VideoUpload() {
   const [refreshingRecent, setRefreshingRecent] = useState(false);
   const [clearingLibrary, setClearingLibrary] = useState(false);
   const [clearingOutputs, setClearingOutputs] = useState(false);
+  const [outputCount, setOutputCount] = useState<number | null>(null);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
   const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration">("recent");
@@ -144,15 +145,19 @@ export function VideoUpload() {
   useEffect(() => {
     if (videoId) return;
     let cancelled = false;
-    void listVideos()
-      .then((items) => {
+    void Promise.allSettled([listVideos(), getLibraryStats()])
+      .then(([videosRes, statsRes]) => {
         if (cancelled) return;
-        applyRecent(items);
-        setRecentFetchDone(true);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        applyRecent([]);
+        if (videosRes.status === "fulfilled") {
+          applyRecent(videosRes.value);
+        } else {
+          applyRecent([]);
+        }
+        if (statsRes.status === "fulfilled") {
+          setOutputCount(statsRes.value.outputs);
+        } else {
+          setOutputCount(null);
+        }
         setRecentFetchDone(true);
       })
     return () => {
@@ -163,10 +168,20 @@ export function VideoUpload() {
   const refreshRecent = async () => {
     setRefreshingRecent(true);
     try {
-      const items = await listVideos();
-      applyRecent(items);
+      const [videosRes, statsRes] = await Promise.allSettled([listVideos(), getLibraryStats()]);
+      if (videosRes.status === "fulfilled") {
+        applyRecent(videosRes.value);
+      } else {
+        applyRecent([]);
+      }
+      if (statsRes.status === "fulfilled") {
+        setOutputCount(statsRes.value.outputs);
+      } else {
+        setOutputCount(null);
+      }
     } catch {
       applyRecent([]);
+      setOutputCount(null);
     } finally {
       setRecentFetchDone(true);
       setRefreshingRecent(false);
@@ -255,6 +270,9 @@ export function VideoUpload() {
       const result = await deleteVideo(item.video_id);
       await refreshRecent();
       const outputs = result.deleted_outputs ?? 0;
+      if (outputs > 0) {
+        setOutputCount((prev) => (prev == null ? null : Math.max(0, prev - outputs)));
+      }
       const outputPart = outputs <= 0
         ? ""
         : outputs === 1
@@ -280,6 +298,7 @@ export function VideoUpload() {
       setRecentVideos([]);
       setShowAllRecent(false);
       setRecentFetchDone(true);
+      setOutputCount(0);
       if (shouldClearCurrent) clearVideo();
       const count = result.deleted ?? 0;
       const outputs = result.deleted_outputs ?? 0;
@@ -310,6 +329,7 @@ export function VideoUpload() {
     try {
       const result = await deleteAllOutputs();
       const outputs = result.deleted_outputs ?? 0;
+      setOutputCount(0);
       if (outputs <= 0) {
         setProgress(0, "No rendered outputs to clear.");
       } else if (outputs === 1) {
@@ -353,6 +373,9 @@ export function VideoUpload() {
       await refreshRecent();
       clearVideo();
       const outputs = result.deleted_outputs ?? 0;
+      if (outputs > 0) {
+        setOutputCount((prev) => (prev == null ? null : Math.max(0, prev - outputs)));
+      }
       const outputPart = outputs <= 0
         ? ""
         : outputs === 1
@@ -432,6 +455,9 @@ export function VideoUpload() {
                   ? `Recent (${filteredRecent.length}/${recentVideos.length} · ${formatDuration(filteredRecentDuration)}/${formatDuration(totalRecentDuration)})`
                   : `Recent (${recentVideos.length} · ${formatDuration(totalRecentDuration)})`}
               </span>
+              <span className="text-[9px] font-pixel text-text-muted/70 text-center">
+                out:{outputCount ?? "?"}
+              </span>
               <button
                 onClick={() => void refreshRecent()}
                 disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
@@ -450,7 +476,7 @@ export function VideoUpload() {
               </button>
               <button
                 onClick={() => void handleClearOutputs()}
-                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || outputCount === 0}
                 className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label="Clear all rendered outputs"
               >
@@ -625,7 +651,7 @@ export function VideoUpload() {
       <Tooltip text="Delete all rendered outputs while keeping source clips">
         <button
           onClick={() => void handleClearOutputs()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || outputCount === 0}
           className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           {clearingOutputs ? "[CLEARING OUT]" : "[CLEAR OUT]"}

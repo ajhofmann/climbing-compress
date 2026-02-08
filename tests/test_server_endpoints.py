@@ -574,6 +574,60 @@ def test_delete_all_outputs_when_empty(monkeypatch, tmp_path: Path):
     assert resp.json() == {"deleted_outputs": 0}
 
 
+def test_library_stats_counts_existing_clips_and_outputs(monkeypatch, tmp_path: Path):
+    existing = tmp_path / "existing.mp4"
+    existing.write_bytes(b"video")
+    missing = tmp_path / "missing.mp4"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    (out_dir / "a.mp4").write_bytes(b"a")
+    (out_dir / "b.mov").write_bytes(b"b")
+    (out_dir / "note.txt").write_text("keep", encoding="utf-8")
+
+    monkeypatch.setattr(server, "_videos", {"existing": existing, "missing": missing})
+    monkeypatch.setattr(server, "_file_hashes", {"hash-existing": "existing", "hash-missing": "missing"})
+    monkeypatch.setattr(server, "_video_hashes", {"existing": "hash-existing", "missing": "hash-missing"})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"existing": "existing.mp4", "missing": "missing.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+    persist_calls = {"count": 0}
+    monkeypatch.setattr(server, "_persist_video_names", lambda: persist_calls.__setitem__("count", persist_calls["count"] + 1))
+
+    client = TestClient(server.app)
+    resp = client.get("/api/library-stats")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"clips": 1, "outputs": 2}
+    assert "missing" not in server._videos
+    assert "hash-missing" not in server._file_hashes
+    assert "missing" not in server._video_hashes
+    assert "missing" not in server._video_names
+    assert persist_calls["count"] == 1
+
+
+def test_library_stats_handles_missing_output_dir(monkeypatch, tmp_path: Path):
+    existing = tmp_path / "existing.mp4"
+    existing.write_bytes(b"video")
+    out_dir = tmp_path / "out-missing"
+
+    monkeypatch.setattr(server, "_videos", {"existing": existing})
+    monkeypatch.setattr(server, "_file_hashes", {})
+    monkeypatch.setattr(server, "_video_hashes", {})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"existing": "existing.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+
+    client = TestClient(server.app)
+    resp = client.get("/api/library-stats")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"clips": 1, "outputs": 0}
+
+
 def test_delete_video_keeps_unrelated_outputs(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")

@@ -251,6 +251,34 @@ def _clear_output_videos_for_source(video_id: str) -> int:
     return deleted
 
 
+def _count_output_videos() -> int:
+    if not OUTPUT_DIR.exists():
+        return 0
+    total = 0
+    for path in OUTPUT_DIR.iterdir():
+        if path.is_file() and path.suffix.lower() in ALLOWED_VIDEO_EXTS:
+            total += 1
+    return total
+
+
+def _count_existing_clips() -> int:
+    total = 0
+    stale: list[str] = []
+    for vid, path in list(_videos.items()):
+        if path.exists():
+            total += 1
+        else:
+            stale.append(vid)
+    if stale:
+        name_changed = False
+        for vid in stale:
+            if _drop_video_state(vid, remove_name=True, persist_name_update=False):
+                name_changed = True
+        if name_changed:
+            _persist_video_names()
+    return total
+
+
 def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
     """Encode thumbnail arrays as base64 data URLs."""
     from PIL import Image
@@ -497,6 +525,15 @@ async def delete_all_outputs():
     """Delete all rendered output videos while keeping source clips."""
     deleted_outputs = _clear_output_videos()
     return {"deleted_outputs": deleted_outputs}
+
+
+@app.get("/api/library-stats")
+async def library_stats():
+    """Small fast counters for local clip/output housekeeping UI."""
+    return {
+        "clips": _count_existing_clips(),
+        "outputs": _count_output_videos(),
+    }
 
 
 @app.patch("/api/videos/{video_id}")
