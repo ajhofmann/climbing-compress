@@ -75,6 +75,7 @@ Upload constraints are enforced by the backend:
 - keyboard `V` (or `[reset view]`) resets name/output/cache subset filters back to default all-state
 - keyboard `Shift+V` (or `[reset all]`) restores full Recent defaults (sort/reverse/filter/expansion/keys-help)
 - keyboard `A` toggles recent preview expansion between `[show all]` and `[show less]` when overflow exists
+- keyboard `Z` toggles zero-match quick tag visibility (`[+N zero]` / `[hide 0s]`)
 - number keys `1-0` in dropzone load corresponding visible recent clip slots (`0` loads slot 10)
 - `?` (Shift + `/`) or `[keys:on/off]` toggles inline dropzone shortcut help text
 - `[keys:on/off]` help visibility state persists across reloads with Recent preferences

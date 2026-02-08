@@ -869,6 +869,12 @@ export function VideoUpload() {
         setShowAllRecent((prev) => !prev);
         return;
       }
+      if (e.key.toLowerCase() === "z" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (zeroQuickTagCount <= 0) return;
+        e.preventDefault();
+        setShowZeroQuickTags((prev) => !prev);
+        return;
+      }
       if (e.key !== "/") return;
       e.preventDefault();
       recentFilterInputRef.current?.focus();
@@ -892,6 +898,7 @@ export function VideoUpload() {
     recentCacheScope,
     recentVideos.length,
     filteredRecent.length,
+    zeroQuickTagCount,
     visibleRecent,
     cycleRecentSort,
     resetRecentView,
@@ -1539,7 +1546,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / Shift+/ O C S D R V Shift+V A 1 2 3 4 5 6 7 8 9 0 Control+Alt+O Meta+Alt+O"
+        aria-keyshortcuts="Enter Space / Shift+/ O C S D R V Shift+V A Z 1 2 3 4 5 6 7 8 9 0 Control+Alt+O Meta+Alt+O"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -1864,6 +1871,7 @@ export function VideoUpload() {
                     onClick={() => setShowZeroQuickTags((prev) => !prev)}
                     className="px-1.5 py-0.5 rounded border border-cyan-500/20 text-cyan-300/75 hover:text-white hover:border-cyan-400/80"
                     aria-label={showZeroQuickTags ? "Hide zero-match quick tags" : `Show ${zeroQuickTagCount} zero-match quick tags`}
+                    aria-keyshortcuts="Z"
                   >
                     {showZeroQuickTags ? "[hide 0s]" : `[+${zeroQuickTagCount} zero]`}
                   </button>
@@ -1968,7 +1976,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · ↑↓ select · #tag + Tab/Enter complete (↑↓ picks suggestion) · Alt+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · ↑↓ select · #tag + Tab/Enter complete (↑↓ picks suggestion) · Alt+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (
