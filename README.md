@@ -51,6 +51,7 @@ Upload notes:
 - Loaded clip bar surfaces the active clip filename for easier confirmation before delete/swap actions.
 - Loaded clip bar includes **RENAME** for quick relabeling of local clips.
 - Loaded clip bar includes **CLEAR LIB** to wipe the entire local library without ejecting first.
+- Loaded clip bar includes **CLEAR OUT** to purge rendered outputs without removing the loaded source clip.
 - Loaded **SWAP** action is disabled while analyze/render/library-mutation jobs are active to prevent conflicting state changes.
 - Recent entries include **✎** (rename) and **X** (delete) actions to manage local library entries in-place.
 - Rename keeps supported video extensions (`.mov/.mp4/.avi/.mkv`) and auto-appends the current extension if omitted.
@@ -59,6 +60,7 @@ Upload notes:
 - Recent section now remains visible when empty (`no local clips`) and includes a manual `[refresh]` control.
 - Recent section includes `[clear all]` to wipe the local library in one step.
 - `[clear all]` / `CLEAR LIB` now also remove rendered output files and report both counts in status feedback.
+- Recent section now includes `[clear outputs]` for output-only cleanup while keeping local source clips.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
