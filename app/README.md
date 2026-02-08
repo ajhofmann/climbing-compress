@@ -33,6 +33,7 @@ Upload constraints are enforced by the backend:
 - each recent pill has `✎` (rename) and `X` (delete) actions for local library cleanup
 - rename actions preserve allowed video extensions and auto-append current extension when omitted
 - rename actions are prevalidated client-side (length + extension) before API submission
+- no-op renames are skipped when normalized target equals current filename
 - recent module shows explicit empty state (`no local clips`) and a `[refresh]` action to rescan local library
 - stale/missing source files are automatically dropped from Recent on refresh
 - refresh action shows temporary loading label while list rescan is in progress
