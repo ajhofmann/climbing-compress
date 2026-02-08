@@ -121,6 +121,7 @@ def test_list_videos_returns_stable_sorted_order(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(server, "_videos", {"b": b_path, "a": a_path})
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
+    monkeypatch.setattr(server, "has_cache", lambda path: path.endswith("a.mp4"))
 
     client = TestClient(server.app)
     resp = client.get("/api/videos")
@@ -128,3 +129,4 @@ def test_list_videos_returns_stable_sorted_order(monkeypatch, tmp_path: Path):
     assert resp.status_code == 200
     body = resp.json()
     assert [item["video_id"] for item in body] == ["a", "b"]
+    assert [item["cached"] for item in body] == [True, False]

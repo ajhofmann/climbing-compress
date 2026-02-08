@@ -221,7 +221,12 @@ async def list_videos():
     result = []
     for vid, path in sorted(_videos.items(), key=lambda item: item[0]):
         info = get_video_info(str(path))
-        result.append({"video_id": vid, "filename": path.name, "info": info})
+        result.append({
+            "video_id": vid,
+            "filename": path.name,
+            "info": info,
+            "cached": has_cache(str(path)),
+        })
     return result
 
 
