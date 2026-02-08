@@ -542,7 +542,9 @@ def test_delete_all_videos_clears_library_and_indexes(monkeypatch, tmp_path: Pat
     monkeypatch.setattr(server, "_unreadable_warned", {"a": 1.0, "b": 1.0})
     monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
     cleared_hashes: list[str] = []
+    persist_calls = {"count": 0}
     monkeypatch.setattr(server, "clear_cache_by_hash", lambda h: cleared_hashes.append(h))
+    monkeypatch.setattr(server, "_persist_video_names", lambda: persist_calls.__setitem__("count", persist_calls["count"] + 1))
 
     client = TestClient(server.app)
     resp = client.delete("/api/videos")
@@ -561,6 +563,7 @@ def test_delete_all_videos_clears_library_and_indexes(monkeypatch, tmp_path: Pat
     assert server._video_info_errors == {}
     assert server._unreadable_warned == {}
     assert set(cleared_hashes) == {"hash-a", "hash-b"}
+    assert persist_calls["count"] == 1
 
 
 def test_delete_all_videos_handles_missing_sources(monkeypatch, tmp_path: Path):
