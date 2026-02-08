@@ -28,6 +28,7 @@ export function VideoUpload() {
   const [clearingLibrary, setClearingLibrary] = useState(false);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
+  const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration">("recent");
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -60,10 +61,16 @@ export function VideoUpload() {
   const filteredRecent = normalizedRecentFilter
     ? recentVideos.filter((item) => item.filename.toLowerCase().includes(normalizedRecentFilter))
     : recentVideos;
-  const visibleRecent = showAllRecent
+  const sortedRecent = recentSort === "recent"
     ? filteredRecent
-    : filteredRecent.slice(0, RECENT_PREVIEW_LIMIT);
-  const hiddenRecentCount = Math.max(0, filteredRecent.length - visibleRecent.length);
+    : [...filteredRecent].sort((a, b) => {
+      if (recentSort === "name") return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+      return b.info.duration - a.info.duration;
+    });
+  const visibleRecent = showAllRecent
+    ? sortedRecent
+    : sortedRecent.slice(0, RECENT_PREVIEW_LIMIT);
+  const hiddenRecentCount = Math.max(0, sortedRecent.length - visibleRecent.length);
   const totalRecentDuration = recentVideos.reduce((sum, item) => sum + item.info.duration, 0);
 
   useEffect(() => {
@@ -340,6 +347,20 @@ export function VideoUpload() {
                   {showAllRecent ? "[show less]" : "[show all]"}
                 </button>
               )}
+              <button
+                onClick={() => {
+                  setRecentSort((prev) => {
+                    if (prev === "recent") return "name";
+                    if (prev === "name") return "duration";
+                    return "recent";
+                  });
+                }}
+                disabled={recentVideos.length <= 1 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`Sort recent clips (currently ${recentSort})`}
+              >
+                [sort:{recentSort}]
+              </button>
             </div>
             {recentVideos.length > 0 && (
               <div className="flex items-center justify-center gap-1">
