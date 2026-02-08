@@ -518,7 +518,11 @@ export function VideoUpload() {
         </button>
       </Tooltip>
       <Tooltip text="Replace the current video with a new one">
-        <button onClick={openPicker} className="text-[11px] font-pixel text-neon-magenta hover:text-white retro-glow-magenta shrink-0 uppercase">
+        <button
+          onClick={openPicker}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary}
+          className="text-[11px] font-pixel text-neon-magenta hover:text-white retro-glow-magenta shrink-0 uppercase disabled:opacity-40 disabled:cursor-not-allowed"
+        >
           [SWAP]
         </button>
       </Tooltip>
