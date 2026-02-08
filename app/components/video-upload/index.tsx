@@ -958,6 +958,36 @@ export function VideoUpload() {
     }
   };
 
+  const handleLoadAdjacent = async (direction: -1 | 1) => {
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    let source = recentVideos;
+    if (source.length <= 1) {
+      try {
+        const fresh = await listVideos();
+        source = fresh;
+        applyRecent(fresh);
+      } catch {
+        // best effort: continue with in-memory list when refresh fails
+      }
+    }
+    if (source.length <= 1) {
+      setProgress(0, source.length === 0 ? "No recent clips available." : "Only one clip available in Recent.");
+      return;
+    }
+    let currentIndex = source.findIndex((item) => item.video_id === videoId);
+    if (currentIndex < 0 && videoName) {
+      currentIndex = source.findIndex((item) => item.filename === videoName);
+    }
+    const baseIndex = currentIndex >= 0
+      ? currentIndex
+      : direction > 0
+        ? -1
+        : 0;
+    const nextIndex = ((baseIndex + direction) % source.length + source.length) % source.length;
+    const next = source[nextIndex];
+    await handleLoadExisting(next);
+  };
+
   const handleRenameCurrent = async () => {
     if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     await runRename(videoId, videoName || "clip.mp4");
@@ -1324,6 +1354,24 @@ export function VideoUpload() {
           className="text-[11px] font-pixel text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           [EJECT]
+        </button>
+      </Tooltip>
+      <Tooltip text="Load previous recent clip">
+        <button
+          onClick={() => void handleLoadAdjacent(-1)}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+          className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase px-1 py-0.5 border border-cyan-400/35 rounded"
+        >
+          [PREV]
+        </button>
+      </Tooltip>
+      <Tooltip text="Load next recent clip">
+        <button
+          onClick={() => void handleLoadAdjacent(1)}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+          className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase px-1 py-0.5 border border-cyan-400/35 rounded"
+        >
+          [NEXT]
         </button>
       </Tooltip>
       <Tooltip text="Replace the current video with a new one">

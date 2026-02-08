@@ -52,6 +52,7 @@ Upload notes:
 - Loaded clip bar includes **RENAME** for quick relabeling of local clips.
 - Loaded clip bar includes **CLEAR LIB** to wipe the entire local library without ejecting first.
 - Loaded clip bar includes **CLEAR OUT** to purge rendered outputs for the loaded clip only.
+- Loaded clip bar includes **PREV/NEXT** to cycle recent clips in-place (wrap-around) without ejecting.
 - Loaded clip bar now shows `out:clip/total` (`out:C/T`) near clip metadata for per-clip vs global output visibility.
 - Loaded clip bar now also shows source storage footprint (`src:clip/total`) for current-clip vs library-size context.
 - Loaded clip bar also shows output storage footprint (`mb:clip/total`) for quick disk-usage checks.

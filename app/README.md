@@ -33,6 +33,7 @@ Upload constraints are enforced by the backend:
 - loaded clip toolbar includes `[RENAME]` to relabel the active clip
 - loaded clip toolbar includes `[CLEAR LIB]` to wipe all local clips immediately
 - loaded clip toolbar includes `[CLEAR OUT]` to purge rendered outputs for the loaded clip only
+- loaded clip toolbar includes `[PREV]` / `[NEXT]` to cycle through recent clips in-place (wrap-around)
 - loaded clip toolbar shows `out:C/T` (clip/global output counts) near clip metadata for quick housekeeping visibility
 - loaded clip toolbar shows `src:C/T` (current clip bytes / total library bytes) for local-storage context
 - loaded clip toolbar also shows `mb:C/T` (clip/global output bytes) for local disk-usage awareness
