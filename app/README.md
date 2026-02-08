@@ -33,6 +33,7 @@ Upload constraints are enforced by the backend:
 - loaded clip toolbar includes `[RENAME]` to relabel the active clip
 - loaded clip toolbar includes `[CLEAR LIB]` to wipe all local clips immediately
 - loaded clip toolbar includes `[CLEAR OUT]` to purge rendered outputs without unloading source clip
+- loaded clip toolbar shows `out:N` output count near clip metadata for quick housekeeping visibility
 - loaded `[SWAP]` is guarded/disabled during analyze, render, and library mutation operations
 - each recent pill has `✎` (rename) and `X` (delete) actions for local library cleanup
 - rename actions preserve allowed video extensions and auto-append current extension when omitted
