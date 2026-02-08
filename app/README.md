@@ -26,6 +26,7 @@ Upload constraints are enforced by the backend:
 - the no-video dropzone also shows a **Recent** list for one-click reload of local clips
 - recent items preserve human-readable upload names and load faster on repeat (server-side metadata cache)
 - loaded clip toolbar includes `[EJECT]` for returning to the dropzone + Recent list without reloading
+- loaded clip toolbar includes `[DELETE]` to remove the active clip from local library
 - each recent pill has `X` removal action (confirm prompt) for local library cleanup
 
 ## Common scripts

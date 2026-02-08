@@ -45,6 +45,7 @@ Upload notes:
 - Upload panel includes a **Recent** row so you can reload local clips without reopening the file picker.
 - Recent entries now keep a friendly upload filename (instead of only hash IDs), and backend video metadata is cached for faster repeat loads.
 - Loaded clip bar now includes an **EJECT** action to jump back to the dropzone/recent picker without refreshing the page.
+- Loaded clip bar also includes **DELETE** to remove the currently loaded clip from local library in one step.
 - Recent entries include an **X** action to remove clips from your local library (with confirmation) and clear their cached analysis.
 
 ## Speed-ramp modes
