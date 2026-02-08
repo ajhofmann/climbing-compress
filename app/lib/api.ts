@@ -262,6 +262,7 @@ export interface DeleteVideoResult {
 export interface LibraryStats {
   clips: number;
   outputs: number;
+  clip_outputs?: number;
 }
 
 export async function deleteVideo(videoId: string): Promise<DeleteVideoResult> {
@@ -288,8 +289,11 @@ export async function deleteOutputsForVideo(videoId: string): Promise<{ video_id
   return res.json();
 }
 
-export async function getLibraryStats(): Promise<LibraryStats> {
-  const res = await fetch(`${API}/api/library-stats`, { cache: "no-store" });
+export async function getLibraryStats(videoId?: string): Promise<LibraryStats> {
+  const url = videoId
+    ? `${API}/api/library-stats?video_id=${encodeURIComponent(videoId)}`
+    : `${API}/api/library-stats`;
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();
 }

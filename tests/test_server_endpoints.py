@@ -665,6 +665,55 @@ def test_library_stats_handles_missing_output_dir(monkeypatch, tmp_path: Path):
     assert resp.json() == {"clips": 1, "outputs": 0}
 
 
+def test_library_stats_includes_clip_outputs_when_video_id_provided(monkeypatch, tmp_path: Path):
+    existing = tmp_path / "existing.mp4"
+    existing.write_bytes(b"video")
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    (out_dir / "existing.mp4").write_bytes(b"a")
+    (out_dir / "existing.mov").write_bytes(b"b")
+    (out_dir / "other.mp4").write_bytes(b"c")
+    (out_dir / "existing.txt").write_text("keep", encoding="utf-8")
+
+    monkeypatch.setattr(server, "_videos", {"existing": existing})
+    monkeypatch.setattr(server, "_file_hashes", {})
+    monkeypatch.setattr(server, "_video_hashes", {})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"existing": "existing.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+
+    client = TestClient(server.app)
+    resp = client.get("/api/library-stats", params={"video_id": "existing"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"clips": 1, "outputs": 3, "clip_outputs": 2}
+
+
+def test_library_stats_includes_zero_clip_outputs_when_video_id_missing_matches(monkeypatch, tmp_path: Path):
+    existing = tmp_path / "existing.mp4"
+    existing.write_bytes(b"video")
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    (out_dir / "other.mp4").write_bytes(b"c")
+
+    monkeypatch.setattr(server, "_videos", {"existing": existing})
+    monkeypatch.setattr(server, "_file_hashes", {})
+    monkeypatch.setattr(server, "_video_hashes", {})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"existing": "existing.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+
+    client = TestClient(server.app)
+    resp = client.get("/api/library-stats", params={"video_id": "existing"})
+
+    assert resp.status_code == 200
+    assert resp.json() == {"clips": 1, "outputs": 1, "clip_outputs": 0}
+
+
 def test_delete_video_keeps_unrelated_outputs(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")

@@ -261,6 +261,21 @@ def _count_output_videos() -> int:
     return total
 
 
+def _count_output_videos_for_source(video_id: str) -> int:
+    if not OUTPUT_DIR.exists():
+        return 0
+    total = 0
+    for path in OUTPUT_DIR.iterdir():
+        if not path.is_file():
+            continue
+        if path.stem != video_id:
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        total += 1
+    return total
+
+
 def _count_existing_clips() -> int:
     total = 0
     stale: list[str] = []
@@ -535,12 +550,15 @@ async def delete_outputs_for_video(video_id: str):
 
 
 @app.get("/api/library-stats")
-async def library_stats():
+async def library_stats(video_id: str | None = None):
     """Small fast counters for local clip/output housekeeping UI."""
-    return {
+    stats: dict[str, int] = {
         "clips": _count_existing_clips(),
         "outputs": _count_output_videos(),
     }
+    if video_id:
+        stats["clip_outputs"] = _count_output_videos_for_source(video_id)
+    return stats
 
 
 @app.patch("/api/videos/{video_id}")

@@ -30,6 +30,7 @@ export function VideoUpload() {
   const [clearingLibrary, setClearingLibrary] = useState(false);
   const [clearingOutputs, setClearingOutputs] = useState(false);
   const [outputCount, setOutputCount] = useState<number | null>(null);
+  const [clipOutputCount, setClipOutputCount] = useState<number | null>(null);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
   const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration">("recent");
@@ -159,6 +160,7 @@ export function VideoUpload() {
         } else {
           setOutputCount(null);
         }
+        setClipOutputCount(null);
         setRecentFetchDone(true);
       })
     return () => {
@@ -167,12 +169,36 @@ export function VideoUpload() {
   }, [videoId]);
 
   useEffect(() => {
-    if (!outputId) return;
+    if (!videoId) {
+      setClipOutputCount(null);
+      return;
+    }
     let cancelled = false;
-    void getLibraryStats()
+    void getLibraryStats(videoId)
       .then((stats) => {
         if (cancelled) return;
         setOutputCount(stats.outputs);
+        setClipOutputCount(typeof stats.clip_outputs === "number" ? stats.clip_outputs : null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setClipOutputCount(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!outputId) return;
+    let cancelled = false;
+    void getLibraryStats(videoId ?? undefined)
+      .then((stats) => {
+        if (cancelled) return;
+        setOutputCount(stats.outputs);
+        if (videoId) {
+          setClipOutputCount(typeof stats.clip_outputs === "number" ? stats.clip_outputs : null);
+        }
       })
       .catch(() => {
         // best-effort refresh only
@@ -180,7 +206,7 @@ export function VideoUpload() {
     return () => {
       cancelled = true;
     };
-  }, [outputId]);
+  }, [outputId, videoId]);
 
   const refreshRecent = async () => {
     setRefreshingRecent(true);
@@ -196,9 +222,11 @@ export function VideoUpload() {
       } else {
         setOutputCount(null);
       }
+      setClipOutputCount(null);
     } catch {
       applyRecent([]);
       setOutputCount(null);
+      setClipOutputCount(null);
     } finally {
       setRecentFetchDone(true);
       setRefreshingRecent(false);
@@ -313,6 +341,7 @@ export function VideoUpload() {
       setShowAllRecent(false);
       setRecentFetchDone(true);
       setOutputCount(0);
+      setClipOutputCount(0);
       if (shouldClearCurrent) clearVideo();
       const count = result.deleted ?? 0;
       const outputs = result.deleted_outputs ?? 0;
@@ -344,6 +373,7 @@ export function VideoUpload() {
       const result = await deleteAllOutputs();
       const outputs = result.deleted_outputs ?? 0;
       setOutputCount(0);
+      if (videoId) setClipOutputCount(0);
       if (outputs <= 0) {
         setProgress(0, "No rendered outputs to clear.");
       } else if (outputs === 1) {
@@ -360,13 +390,14 @@ export function VideoUpload() {
   };
 
   const handleClearCurrentOutputs = async () => {
-    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (!videoId || !clipOutputCount || clipOutputCount <= 0 || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
     const confirmed = window.confirm("Remove rendered outputs for this clip only?");
     if (!confirmed) return;
     setClearingOutputs(true);
     try {
       const result = await deleteOutputsForVideo(videoId);
       const outputs = result.deleted_outputs ?? 0;
+      setClipOutputCount(0);
       setOutputCount((prev) => {
         if (prev == null) return null;
         return Math.max(0, prev - outputs);
@@ -642,7 +673,7 @@ export function VideoUpload() {
         {videoInfo && `${videoInfo.duration.toFixed(0)}s / ${videoInfo.width}x${videoInfo.height} / ${videoInfo.fps.toFixed(0)}fps`}
       </span>
       <span className="text-[10px] font-pixel text-text-muted/70 whitespace-nowrap">
-        out:{outputCount ?? "?"}
+        out:{clipOutputCount ?? "?"}/{outputCount ?? "?"}
       </span>
       <Tooltip text="Clear current clip and return to upload/recent selector">
         <button
@@ -692,7 +723,7 @@ export function VideoUpload() {
       <Tooltip text="Delete rendered outputs for current clip only">
         <button
           onClick={() => void handleClearCurrentOutputs()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || outputCount === 0}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || !clipOutputCount || clipOutputCount <= 0}
           className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           {clearingOutputs ? "[CLEARING OUT]" : "[CLEAR OUT]"}
