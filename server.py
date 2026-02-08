@@ -38,6 +38,8 @@ INPUT_DIR = Path(os.environ.get("INPUT_DIR", "data/input"))
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "data/output"))
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "512"))
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 _cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
 
@@ -161,6 +163,10 @@ async def upload_video(file: UploadFile = File(...)):
     try:
         with open(tmp, "wb") as f:
             shutil.copyfileobj(file.file, f)
+
+        if MAX_UPLOAD_BYTES > 0 and tmp.stat().st_size > MAX_UPLOAD_BYTES:
+            tmp.unlink()
+            raise HTTPException(413, f"Upload too large (limit {MAX_UPLOAD_MB} MB)")
 
         ch = content_hash(str(tmp))
 

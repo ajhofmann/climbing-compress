@@ -46,3 +46,17 @@ def test_video_endpoint_reads_output_before_input(monkeypatch, tmp_path: Path):
 
     assert resp.status_code == 200
     assert resp.content == b"output"
+
+
+def test_upload_rejects_oversized_files(monkeypatch):
+    monkeypatch.setattr(server, "MAX_UPLOAD_BYTES", 1)
+    monkeypatch.setattr(server, "MAX_UPLOAD_MB", 0)
+
+    client = TestClient(server.app)
+    resp = client.post(
+        "/api/upload",
+        files={"file": ("clip.mp4", b"too-big", "video/mp4")},
+    )
+
+    assert resp.status_code == 413
+    assert "upload too large" in resp.text.lower()
