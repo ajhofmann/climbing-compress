@@ -92,6 +92,7 @@ Upload notes:
 - Unknown `#tag` tokens are highlighted in warning style and listed as `unknown tag:*` until corrected/removed.
 - Unknown `#dur...` comparator tags now also surface inline duration-format examples (seconds/minutes syntax).
 - Duration-format examples are clickable to replace malformed `#dur` tokens instantly.
+- If the malformed token is exclude-form (`-#dur...`), clickable replacements preserve the exclude prefix.
 - Recent filter now renders active term chips (`+term` includes, `-term` excludes) to clarify parsed query semantics.
 - Click a filter term chip to remove that specific term from the query instantly.
 - Typing partial tag tokens (for example `#c`, `-#o`) shows tag suggestions; press `Tab` to autocomplete.

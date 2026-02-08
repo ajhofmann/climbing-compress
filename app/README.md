@@ -88,6 +88,7 @@ Upload constraints are enforced by the backend:
 - unknown `#tag` tokens are rendered as warning chips with an inline `unknown tag:*` message
 - malformed `#dur...` comparator tags also show inline duration-format examples (`#dur>90s`, `#dur>1m30s`)
 - duration-format example tags are clickable to replace malformed `#dur` tokens immediately
+- malformed exclude tokens (`-#dur...`) keep the `-` prefix when applying a duration example button
 - active filter chips are shown for parsed terms (`+term` includes, `-term` excludes)
 - clicking a filter chip removes that term from the query immediately
 - partial tag input (like `#c` / `-#o`) shows suggestions, and `Tab` autocompletes the first suggestion

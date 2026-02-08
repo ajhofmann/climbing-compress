@@ -245,6 +245,16 @@ export function VideoUpload() {
     () => unknownRecentTagTerms.some((term) => term.startsWith("#dur")),
     [unknownRecentTagTerms],
   );
+  const unknownDurationHintTags = useMemo(() => {
+    const unknownDurationTerms = parsedRecentFilterTerms.filter(
+      (item) => item.term.startsWith("#dur") && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownDurationTerms.length <= 0) return [...RECENT_DURATION_HINT_TAGS] as string[];
+    const useExcludePrefix = unknownDurationTerms[unknownDurationTerms.length - 1].isExclude;
+    return useExcludePrefix
+      ? RECENT_DURATION_HINT_TAGS.map((tag) => `-${tag}`)
+      : [...RECENT_DURATION_HINT_TAGS];
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
     const durationComparator = parseDurationComparatorTerm(term);
     if (durationComparator) {
@@ -1681,7 +1691,7 @@ export function VideoUpload() {
                 {hasUnknownDurationTagTerm && (
                   <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
                     <span>duration examples:</span>
-                    {RECENT_DURATION_HINT_TAGS.map((tag) => (
+                    {unknownDurationHintTags.map((tag) => (
                       <button
                         key={`dur-hint-${tag}`}
                         onMouseDown={(e) => e.preventDefault()}
