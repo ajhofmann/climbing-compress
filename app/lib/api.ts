@@ -8,6 +8,14 @@ type SseProgress = {
   done?: boolean;
 };
 
+interface UploadResult {
+  video_id: string;
+  info: VideoInfo;
+  thumbnails: string[];
+  cached: boolean;
+  reused: boolean;
+}
+
 async function readErrorMessage(res: Response): Promise<string> {
   const text = await res.text();
   if (!text) return `${res.status} ${res.statusText}`;
@@ -69,7 +77,7 @@ async function consumeSseJson<T>(
   return result;
 }
 
-export async function uploadVideo(file: File) {
+export async function uploadVideo(file: File): Promise<UploadResult> {
   const form = new FormData();
   form.append("file", file);
   const res = await fetch(`${API}/api/upload`, { method: "POST", body: form });
