@@ -34,18 +34,22 @@ export function VideoUpload() {
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
   const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration" | "outputs">("recent");
+  const [recentOutputScope, setRecentOutputScope] = useState<"all" | "with" | "none">("all");
   const recentFilterInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean };
+      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; outputScope?: string };
       if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration" || parsed.sort === "outputs") {
         setRecentSort(parsed.sort);
       }
       if (typeof parsed.showAll === "boolean") {
         setShowAllRecent(parsed.showAll);
+      }
+      if (parsed.outputScope === "all" || parsed.outputScope === "with" || parsed.outputScope === "none") {
+        setRecentOutputScope(parsed.outputScope);
       }
     } catch {
       // ignore malformed local preferences
@@ -57,11 +61,12 @@ export function VideoUpload() {
       window.localStorage.setItem(RECENT_PREF_KEY, JSON.stringify({
         sort: recentSort,
         showAll: showAllRecent,
+        outputScope: recentOutputScope,
       }));
     } catch {
       // ignore storage write failures
     }
-  }, [recentSort, showAllRecent]);
+  }, [recentSort, showAllRecent, recentOutputScope]);
 
   useEffect(() => {
     if (videoId || !recentFetchDone) return;
@@ -112,11 +117,17 @@ export function VideoUpload() {
   };
 
   const normalizedRecentFilter = recentFilter.trim().toLowerCase();
-  const filteredRecent = useMemo(() => (
+  const nameFilteredRecent = useMemo(() => (
     normalizedRecentFilter
       ? recentVideos.filter((item) => item.filename.toLowerCase().includes(normalizedRecentFilter))
       : recentVideos
   ), [recentVideos, normalizedRecentFilter]);
+
+  const filteredRecent = useMemo(() => {
+    if (recentOutputScope === "all") return nameFilteredRecent;
+    if (recentOutputScope === "with") return nameFilteredRecent.filter((item) => item.output_count > 0);
+    return nameFilteredRecent.filter((item) => item.output_count <= 0);
+  }, [nameFilteredRecent, recentOutputScope]);
 
   const sortedRecent = useMemo(() => (
     recentSort === "recent"
@@ -661,6 +672,20 @@ export function VideoUpload() {
                 aria-label={`Sort recent clips (currently ${recentSort})`}
               >
                 [sort:{recentSort}]
+              </button>
+              <button
+                onClick={() => {
+                  setRecentOutputScope((prev) => {
+                    if (prev === "all") return "with";
+                    if (prev === "with") return "none";
+                    return "all";
+                  });
+                }}
+                disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`Filter recent clips by output count (currently ${recentOutputScope})`}
+              >
+                [out:{recentOutputScope}]
               </button>
             </div>
             {recentVideos.length > 0 && (
