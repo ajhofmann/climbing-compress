@@ -57,6 +57,8 @@ _videos: dict[str, Path] = {}
 
 # Content-hash index for upload dedup (hash -> video_id)
 _file_hashes: dict[str, str] = {}
+# Video metadata cache (info + thumbnails) for fast local reloads
+_video_meta_cache: dict[str, dict[str, object]] = {}
 
 # Scan existing input videos on startup
 for _f in INPUT_DIR.iterdir():
@@ -153,6 +155,28 @@ def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
     return urls
 
 
+def _get_video_info_cached(video_id: str, path: Path) -> dict:
+    entry = _video_meta_cache.get(video_id)
+    if entry:
+        info = entry.get("info")
+        if isinstance(info, dict):
+            return info
+    info = get_video_info(str(path))
+    _video_meta_cache.setdefault(video_id, {})["info"] = info
+    return info
+
+
+def _get_thumbnails_cached(video_id: str, path: Path, n: int = 8) -> list[str]:
+    entry = _video_meta_cache.get(video_id)
+    if entry:
+        thumbs = entry.get("thumbnails")
+        if isinstance(thumbs, list):
+            return thumbs
+    thumbs = _encode_thumbnails(generate_thumbnails(str(path), n=n))
+    _video_meta_cache.setdefault(video_id, {})["thumbnails"] = thumbs
+    return thumbs
+
+
 # ---- Endpoints ----
 
 @app.post("/api/upload")
@@ -181,12 +205,12 @@ async def upload_video(file: UploadFile = File(...)):
             if existing_id in _videos and _videos[existing_id].exists():
                 tmp.unlink()
                 dest = _videos[existing_id]
-                info = get_video_info(str(dest))
-                thumbs = generate_thumbnails(str(dest), n=8)
+                info = _get_video_info_cached(existing_id, dest)
+                thumbs = _get_thumbnails_cached(existing_id, dest, n=8)
                 return {
                     "video_id": existing_id,
                     "info": info,
-                    "thumbnails": _encode_thumbnails(thumbs),
+                    "thumbnails": thumbs,
                     "cached": has_cache(str(dest)),
                     "reused": True,
                 }
@@ -199,12 +223,13 @@ async def upload_video(file: UploadFile = File(...)):
         _videos[video_id] = dest
         _file_hashes[ch] = video_id
         info = get_video_info(str(dest))
-        thumbs = generate_thumbnails(str(dest), n=8)
+        thumbs = _encode_thumbnails(generate_thumbnails(str(dest), n=8))
+        _video_meta_cache[video_id] = {"info": info, "thumbnails": thumbs}
 
         return {
             "video_id": video_id,
             "info": info,
-            "thumbnails": _encode_thumbnails(thumbs),
+            "thumbnails": thumbs,
             "cached": has_cache(str(dest)),
             "reused": False,
         }
@@ -229,7 +254,7 @@ async def list_videos():
     result = []
     for vid, path in sorted(_videos.items(), key=_sort_key):
         try:
-            info = get_video_info(str(path))
+            info = _get_video_info_cached(vid, path)
         except (OSError, ValueError) as exc:
             logger.warning("Skipping unreadable video %s: %s", path, exc)
             continue
@@ -246,12 +271,12 @@ async def list_videos():
 async def video_meta(video_id: str):
     """Fetch info + thumbnails for an already-uploaded source video."""
     path = _get_video_path(video_id)
-    info = get_video_info(str(path))
-    thumbs = generate_thumbnails(str(path), n=8)
+    info = _get_video_info_cached(video_id, path)
+    thumbs = _get_thumbnails_cached(video_id, path, n=8)
     return {
         "video_id": video_id,
         "info": info,
-        "thumbnails": _encode_thumbnails(thumbs),
+        "thumbnails": thumbs,
         "cached": has_cache(str(path)),
     }
 
