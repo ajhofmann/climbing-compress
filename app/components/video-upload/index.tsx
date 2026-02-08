@@ -115,6 +115,24 @@ export function VideoUpload() {
     setProgress(0, "Clip cleared. Pick another video or use Recent.");
   };
 
+  const handleDeleteCurrent = async () => {
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId) return;
+    const confirmed = window.confirm("Remove the current clip from your local library?");
+    if (!confirmed) return;
+    setDeletingVideoId(videoId);
+    try {
+      await deleteVideo(videoId);
+      setRecentVideos((prev) => prev.filter((item) => item.video_id !== videoId));
+      clearVideo();
+      setProgress(0, "Removed current clip from local library.");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Delete failed";
+      setProgress(0, `Delete failed: ${msg}`);
+    } finally {
+      setDeletingVideoId(null);
+    }
+  };
+
   if (!videoId) {
     return (
       <div
@@ -216,6 +234,15 @@ export function VideoUpload() {
       <Tooltip text="Replace the current video with a new one">
         <button onClick={openPicker} className="text-[11px] font-pixel text-neon-magenta hover:text-white retro-glow-magenta shrink-0 uppercase">
           [SWAP]
+        </button>
+      </Tooltip>
+      <Tooltip text="Delete this clip from local library and clear the current session">
+        <button
+          onClick={() => void handleDeleteCurrent()}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null}
+          className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
+        >
+          [DELETE]
         </button>
       </Tooltip>
     </div>
