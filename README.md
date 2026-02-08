@@ -91,6 +91,7 @@ The timeline supports two edit modes:
 - Keyboard precision shortcuts on hovered points:
   - `Delete` / `Backspace` remove hovered pin/keyframe
   - Arrow keys nudge time/speed (`Shift` = larger step, `Alt` = fine step)
+  - `[` / `]` resize hovered pin radius (`Shift` = larger step, `Alt` = fine step)
 
 The solver also returns **crux markers** (`C1`, `C2`, …) on the timeline. In keyframe mode, points can snap to nearby crux markers for fast alignment.
 

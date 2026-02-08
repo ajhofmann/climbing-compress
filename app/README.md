@@ -68,7 +68,7 @@ npm run build
 ## Current UX highlights
 
 - Hybrid / progress / action mode controls
-- Pin + keyframe timeline editing (with keyboard nudging + delete shortcuts + numeric pin/keyframe values)
+- Pin + keyframe timeline editing (keyboard nudging + delete shortcuts + bracket radius nudging + numeric pin/keyframe values)
 - `from crux` quick-fill actions for both pins and keyframes
 - timeline mode conversion actions (`from pins`, `from keyframes`) preserve edits across modes
 - timeline ordering tools (`sort pins`, `sort keyframes`) for quick re-normalization
