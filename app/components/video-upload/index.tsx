@@ -15,6 +15,7 @@ export function VideoUpload() {
   const setVideoName = useStore((state) => state.setVideoName);
   const clearVideo = useStore((state) => state.clearVideo);
   const setProgress = useStore((state) => state.setProgress);
+  const progressMessage = useStore((state) => state.progressMessage);
   const isAnalyzing = useStore((state) => state.isAnalyzing);
   const isRendering = useStore((state) => state.isRendering);
   const [isDragging, setIsDragging] = useState(false);
@@ -169,7 +170,13 @@ export function VideoUpload() {
       setRecentVideos([]);
       setRecentFetchDone(true);
       const count = result.deleted ?? 0;
-      setProgress(0, count > 0 ? `Removed ${count} local clips.` : "Local library already empty.");
+      if (count <= 0) {
+        setProgress(0, "Local library already empty.");
+      } else if (count === 1) {
+        setProgress(0, "Removed 1 local clip.");
+      } else {
+        setProgress(0, `Removed ${count} local clips.`);
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Clear failed";
       setProgress(0, `Clear failed: ${msg}`);
@@ -327,6 +334,11 @@ export function VideoUpload() {
               <span className="text-[10px] font-pixel text-text-muted/70 text-center">no local clips</span>
             )}
           </div>
+        )}
+        {progressMessage && (
+          <span className="text-[10px] font-pixel text-cyan-300/70 text-center mt-1 block max-w-full truncate px-2">
+            {progressMessage}
+          </span>
         )}
       </div>
     );
