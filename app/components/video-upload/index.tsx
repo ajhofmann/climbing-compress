@@ -61,6 +61,7 @@ export function VideoUpload() {
   const [recentFilter, setRecentFilter] = useState("");
   const [recentFilterFocused, setRecentFilterFocused] = useState(false);
   const [recentCursorIdx, setRecentCursorIdx] = useState(-1);
+  const [recentTagCursorIdx, setRecentTagCursorIdx] = useState(-1);
   const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration" | "outputs" | "size">("recent");
   const [recentSortReversed, setRecentSortReversed] = useState(false);
   const [recentOutputScope, setRecentOutputScope] = useState<"all" | "with" | "none">("all");
@@ -212,6 +213,7 @@ export function VideoUpload() {
     sourceTerms.splice(termIndex, 1);
     setRecentFilter(sourceTerms.join(" "));
     setRecentCursorIdx(-1);
+    setRecentTagCursorIdx(-1);
     recentFilterInputRef.current?.focus();
   }, [recentFilter]);
   const popRecentFilterTerm = useCallback(() => {
@@ -220,6 +222,7 @@ export function VideoUpload() {
     sourceTerms.pop();
     setRecentFilter(sourceTerms.join(" "));
     setRecentCursorIdx(-1);
+    setRecentTagCursorIdx(-1);
     recentFilterInputRef.current?.focus();
   }, [recentFilter]);
   const recentTagSuggestions = useMemo(() => {
@@ -233,6 +236,21 @@ export function VideoUpload() {
     const base = RECENT_FILTER_TAGS.filter((tag) => tag.startsWith(normalizedTail));
     return isExcludeTag ? base.map((tag) => `-${tag}`) : [...base];
   }, [recentFilter, recentFilterFocused]);
+  useEffect(() => {
+    if (recentTagSuggestions.length <= 0) {
+      setRecentTagCursorIdx(-1);
+      return;
+    }
+    setRecentTagCursorIdx((prev) => {
+      if (prev < 0) return 0;
+      return Math.min(prev, recentTagSuggestions.length - 1);
+    });
+  }, [recentTagSuggestions.length]);
+  const activeRecentTagSuggestion = recentTagSuggestions.length <= 0
+    ? null
+    : recentTagCursorIdx >= 0 && recentTagCursorIdx < recentTagSuggestions.length
+      ? recentTagSuggestions[recentTagCursorIdx]
+      : recentTagSuggestions[0];
   const applyRecentTagSuggestion = useCallback((suggestion: string) => {
     const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
     const hasTagTail = sourceTerms.length > 0 && /^-?#/.test(sourceTerms[sourceTerms.length - 1]);
@@ -241,8 +259,16 @@ export function VideoUpload() {
     } else {
       sourceTerms.push(suggestion);
     }
-    setRecentFilter(`${sourceTerms.join(" ")} `);
+    const dedupedTerms: string[] = [];
+    for (const token of sourceTerms) {
+      const lower = token.toLowerCase();
+      const isTagToken = lower.startsWith("#") || lower.startsWith("-#");
+      if (isTagToken && dedupedTerms.some((entry) => entry.toLowerCase() === lower)) continue;
+      dedupedTerms.push(token);
+    }
+    setRecentFilter(`${dedupedTerms.join(" ")} `);
     setRecentCursorIdx(-1);
+    setRecentTagCursorIdx(-1);
     recentFilterInputRef.current?.focus();
   }, [recentFilter]);
 
@@ -1423,9 +1449,23 @@ export function VideoUpload() {
                   onFocus={() => setRecentFilterFocused(true)}
                   onBlur={() => setRecentFilterFocused(false)}
                   onKeyDown={(e) => {
+                    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && recentTagSuggestions.length > 0) {
+                      e.preventDefault();
+                      setRecentTagCursorIdx((prev) => {
+                        if (e.key === "ArrowDown") {
+                          if (prev < 0) return 0;
+                          if (prev >= recentTagSuggestions.length - 1) return 0;
+                          return prev + 1;
+                        }
+                        if (prev < 0) return recentTagSuggestions.length - 1;
+                        if (prev <= 0) return recentTagSuggestions.length - 1;
+                        return prev - 1;
+                      });
+                      return;
+                    }
                     if (e.key === "Tab" && !e.shiftKey && recentTagSuggestions.length > 0) {
                       e.preventDefault();
-                      applyRecentTagSuggestion(recentTagSuggestions[0]);
+                      applyRecentTagSuggestion(activeRecentTagSuggestion ?? recentTagSuggestions[0]);
                       return;
                     }
                     if (e.key === "Backspace" && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
@@ -1456,7 +1496,7 @@ export function VideoUpload() {
                     if (e.key === "Enter") {
                       e.preventDefault();
                       if (recentTagSuggestions.length > 0 && !recentFilter.endsWith(" ")) {
-                        applyRecentTagSuggestion(recentTagSuggestions[0]);
+                        applyRecentTagSuggestion(activeRecentTagSuggestion ?? recentTagSuggestions[0]);
                         return;
                       }
                       if (visibleRecent.length <= 0) {
@@ -1473,6 +1513,7 @@ export function VideoUpload() {
                       e.preventDefault();
                       setRecentFilter("");
                       setRecentCursorIdx(-1);
+                      setRecentTagCursorIdx(-1);
                       e.currentTarget.blur();
                     }
                   }}
@@ -1483,7 +1524,10 @@ export function VideoUpload() {
                 />
                 {recentFilter && (
                   <button
-                    onClick={() => setRecentFilter("")}
+                    onClick={() => {
+                      setRecentFilter("");
+                      setRecentTagCursorIdx(-1);
+                    }}
                     className="text-[9px] font-pixel text-text-muted hover:text-white"
                     aria-label="Clear recent clip filter"
                   >
@@ -1494,14 +1538,20 @@ export function VideoUpload() {
             )}
             {recentTagSuggestions.length > 0 && (
               <div className="flex flex-wrap justify-center items-center gap-1 text-[9px] font-pixel">
-                {recentTagSuggestions.map((suggestion) => (
+                {recentTagSuggestions.map((suggestion, idx) => (
                   <button
                     key={`sugg-${suggestion}`}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => applyRecentTagSuggestion(suggestion)}
-                    className="px-1.5 py-0.5 rounded border border-cyan-500/30 text-cyan-200/90 hover:text-white hover:border-cyan-400/80"
+                    className={`px-1.5 py-0.5 rounded border hover:text-white ${
+                      idx === recentTagCursorIdx
+                        ? "border-cyan-300/90 text-white shadow-[0_0_6px_rgba(0,229,255,0.45)]"
+                        : "border-cyan-500/30 text-cyan-200/90 hover:border-cyan-400/80"
+                    }`}
                     aria-label={`Apply tag suggestion ${suggestion}`}
+                    aria-current={idx === recentTagCursorIdx ? "true" : undefined}
                   >
+                    {idx === recentTagCursorIdx ? "▶ " : ""}
                     {suggestion}
                   </button>
                 ))}
@@ -1544,7 +1594,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · ↑↓ select · #tag + Tab complete · Alt+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · ↑↓ select · #tag + Tab/Enter complete (↑↓ picks suggestion) · Alt+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (

@@ -92,6 +92,7 @@ Upload notes:
 - Click a filter term chip to remove that specific term from the query instantly.
 - Typing partial tag tokens (for example `#c`, `-#o`) shows tag suggestions; press `Tab` to autocomplete.
 - While tag suggestions are visible, `Enter` first autocompletes the top suggestion; pressing `Enter` again loads the filtered clip.
+- While tag suggestions are visible, `↑` / `↓` cycles suggestion selection before `Enter`/`Tab` apply.
 - Focusing an empty filter input shows quick tag buttons (`#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`) for one-click insertion.
 - Recent section includes output-scope filtering (`[out:all]` / `[out:with]` / `[out:none]`) for output-housekeeping workflows.
 - Output-scope toggle now shows scope counts inline (`[out:all:N]`, `[out:with:N]`, `[out:none:N]`) for quick triage.
@@ -112,7 +113,7 @@ Upload notes:
 - Press `Alt + Backspace` in the recent filter input to pop the last query term quickly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
 - Press `Enter` in the recent filter input to load the first matching clip instantly.
-- Press `↑` / `↓` in the recent filter input to choose a clip (wraps at list ends), then `Enter` to load the highlighted selection.
+- Press `↑` / `↓` in the recent filter input to choose a clip (wraps at list ends) when no tag suggestion is open, then `Enter` to load the highlighted selection.
 - Selected keyboard target is shown with a `▶` prefix in the recent clip row.
 - Recent clip row now shows `1-0` slot markers for quick keyboard loading (`0` marker = slot 10).
 - Recent filter text now persists across reloads (alongside sort/show/scope preferences).
