@@ -603,6 +603,9 @@ export function VideoUpload() {
       <span className="text-[11px] font-retro led-text whitespace-nowrap">
         {videoInfo && `${videoInfo.duration.toFixed(0)}s / ${videoInfo.width}x${videoInfo.height} / ${videoInfo.fps.toFixed(0)}fps`}
       </span>
+      <span className="text-[10px] font-pixel text-text-muted/70 whitespace-nowrap">
+        out:{outputCount ?? "?"}
+      </span>
       <Tooltip text="Clear current clip and return to upload/recent selector">
         <button
           onClick={handleClearVideo}
