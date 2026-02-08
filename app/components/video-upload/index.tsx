@@ -51,16 +51,16 @@ function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator
 }
 
 function parseByteLiteral(raw: string): number | null {
-  const match = raw.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)(b|k|m|g)?$/);
+  const match = raw.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)(?:\s*)(kb|mb|gb|b|k|m|g)?$/);
   if (!match) return null;
   const amount = Number(match[1]);
   if (!Number.isFinite(amount)) return null;
   const unit = match[2] ?? "b";
-  const multiplier = unit === "k"
+  const multiplier = unit === "k" || unit === "kb"
     ? 1024
-    : unit === "m"
+    : unit === "m" || unit === "mb"
       ? 1024 * 1024
-      : unit === "g"
+      : unit === "g" || unit === "gb"
         ? 1024 * 1024 * 1024
         : 1;
   return amount * multiplier;
