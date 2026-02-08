@@ -80,6 +80,7 @@ The timeline supports two edit modes:
 - **Pins (numeric panel)** — direct `time / speed / radius` inputs for precision tweaks.
 - **Keyframes** — explicit speed envelope points with direct numeric editing.
 - **Crux quick-fill** — in both pins and keyframes mode, `from crux` auto-seeds edits from detected crux markers.
+- **Mode conversion** — `from pins` and `from keyframes` let you switch editing style without rebuilding curves.
 - Keyboard precision shortcuts on hovered points:
   - `Delete` / `Backspace` remove hovered pin/keyframe
   - Arrow keys nudge time/speed (`Shift` = larger step, `Alt` = fine step)

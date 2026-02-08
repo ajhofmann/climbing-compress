@@ -64,6 +64,7 @@ npm run build
 - Hybrid / progress / action mode controls
 - Pin + keyframe timeline editing (with keyboard nudging + delete shortcuts + numeric pin/keyframe values)
 - `from crux` quick-fill actions for both pins and keyframes
+- timeline mode conversion actions (`from pins`, `from keyframes`) preserve edits across modes
 - Quick Preview and full Render actions
 - Keyboard transport shortcuts (`Ctrl/Cmd+Shift+A` = Analyze/Cancel, `Ctrl/Cmd+Enter` = Quick Preview, `Ctrl/Cmd+Shift+Enter` = Full Render)
 - Player shortcuts (`K`/`Space` = play-pause, `J`/`L` = seek -/+ 1 second, `,`/`.` = frame step)
