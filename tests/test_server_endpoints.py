@@ -73,6 +73,21 @@ def test_upload_rejects_unsupported_extension():
     assert "unsupported video format" in resp.text.lower()
 
 
+def test_upload_accepts_uppercase_video_extension(monkeypatch):
+    monkeypatch.setattr(server, "content_hash", lambda _path: "upper-hash")
+    monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
+    monkeypatch.setattr(server, "generate_thumbnails", lambda _path, n=8: [])
+    monkeypatch.setattr(server, "has_cache", lambda _path: False)
+
+    client = TestClient(server.app)
+    resp = client.post(
+        "/api/upload",
+        files={"file": ("clip.MP4", b"video", "video/mp4")},
+    )
+
+    assert resp.status_code == 200
+
+
 def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
     existing = tmp_path / "existing.mp4"
     existing.write_bytes(b"existing")
