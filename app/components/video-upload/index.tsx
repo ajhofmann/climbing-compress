@@ -653,7 +653,7 @@ export function VideoUpload() {
                       onClick={() => void handleLoadExisting(item)}
                       disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs}
                       className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={`${item.filename} · ${item.info.duration.toFixed(1)}s${item.cached ? " · cached analysis" : ""}`}
+                      title={`${item.filename} · ${item.info.duration.toFixed(1)}s${item.cached ? " · cached analysis" : ""} · ${item.output_count} output${item.output_count === 1 ? "" : "s"}`}
                     >
                       {item.cached ? "⚡ " : ""}
                       {shortName(item.filename)}
@@ -678,7 +678,7 @@ export function VideoUpload() {
                         ? `Clear rendered outputs for ${item.filename}`
                         : `No rendered outputs for ${item.filename}`}
                     >
-                      ◍
+                      {`◍${item.output_count > 0 ? item.output_count : ""}`}
                     </button>
                     <button
                       onClick={() => void handleDeleteExisting(item)}
