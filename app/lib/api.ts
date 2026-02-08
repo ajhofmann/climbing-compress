@@ -238,6 +238,11 @@ export async function getVideoMeta(videoId: string): Promise<VideoMetaResult> {
   return res.json();
 }
 
+export async function deleteVideo(videoId: string): Promise<void> {
+  const res = await fetch(`${API}/api/videos/${videoId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+}
+
 export function videoUrl(id: string) {
   return `${API}/api/video/${id}`;
 }

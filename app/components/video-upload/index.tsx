@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { getVideoMeta, listVideos, uploadVideo, VideoListItem } from "@/lib/api";
+import { deleteVideo, getVideoMeta, listVideos, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
 
 const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
@@ -17,6 +17,7 @@ export function VideoUpload() {
   const isRendering = useStore((state) => state.isRendering);
   const [isDragging, setIsDragging] = useState(false);
   const [recentVideos, setRecentVideos] = useState<VideoListItem[]>([]);
+  const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -65,6 +66,7 @@ export function VideoUpload() {
   };
 
   const handleLoadExisting = async (item: VideoListItem) => {
+    if (deletingVideoId) return;
     setProgress(0.05, `Loading ${item.filename}...`);
     try {
       const meta = await getVideoMeta(item.video_id);
@@ -73,6 +75,23 @@ export function VideoUpload() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Load failed";
       setProgress(0, `Load failed: ${msg}`);
+    }
+  };
+
+  const handleDeleteExisting = async (item: VideoListItem) => {
+    if (deletingVideoId) return;
+    const confirmed = window.confirm(`Remove ${item.filename} from your local library?`);
+    if (!confirmed) return;
+    setDeletingVideoId(item.video_id);
+    try {
+      await deleteVideo(item.video_id);
+      setRecentVideos((prev) => prev.filter((v) => v.video_id !== item.video_id));
+      setProgress(0, `Removed ${item.filename}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Delete failed";
+      setProgress(0, `Delete failed: ${msg}`);
+    } finally {
+      setDeletingVideoId(null);
     }
   };
 
@@ -149,15 +168,26 @@ export function VideoUpload() {
             <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">Recent</span>
             <div className="flex flex-wrap justify-center gap-1">
               {recentVideos.map((item) => (
-                <button
-                  key={item.video_id}
-                  onClick={() => void handleLoadExisting(item)}
-                  className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate"
-                  title={`${item.filename} · ${item.info.duration.toFixed(1)}s${item.cached ? " · cached analysis" : ""}`}
-                >
-                  {item.cached ? "⚡ " : ""}
-                  {shortName(item.filename)}
-                </button>
+                <div key={item.video_id} className="flex items-center gap-0.5">
+                  <button
+                    onClick={() => void handleLoadExisting(item)}
+                    disabled={deletingVideoId !== null}
+                    className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={`${item.filename} · ${item.info.duration.toFixed(1)}s${item.cached ? " · cached analysis" : ""}`}
+                  >
+                    {item.cached ? "⚡ " : ""}
+                    {shortName(item.filename)}
+                  </button>
+                  <button
+                    onClick={() => void handleDeleteExisting(item)}
+                    disabled={deletingVideoId !== null}
+                    className="text-[10px] font-pixel px-1 py-0.5 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={`Remove ${item.filename}`}
+                    aria-label={`Remove ${item.filename} from local library`}
+                  >
+                    X
+                  </button>
+                </div>
               ))}
             </div>
           </div>
