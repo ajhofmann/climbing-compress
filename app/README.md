@@ -38,6 +38,7 @@ Upload constraints are enforced by the backend:
 - recent module includes `[clear all]` action for one-click local library wipe
 - stale/missing source files are automatically dropped from Recent on refresh
 - refresh action shows temporary loading label while list rescan is in progress
+- dropzone now shows inline feedback text for local library actions (rename/delete/clear results)
 
 ## Common scripts
 
