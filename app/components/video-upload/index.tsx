@@ -9,11 +9,11 @@ const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
-const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#src>10m", "#mb>10m", "#dur>5", "#dur<5", "#dur>90s", "#dur>1m30s"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#src>10m", "#mb>10m", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>10m", "#mb>10m"] as const;
-const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur>90s", "#dur>1m30s"] as const;
+const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 
 function parseDurationLiteralSeconds(raw: string): number | null {
