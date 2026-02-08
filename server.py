@@ -492,6 +492,13 @@ async def delete_video(video_id: str):
     return {"video_id": video_id, "deleted": True, "deleted_outputs": deleted_outputs}
 
 
+@app.delete("/api/outputs")
+async def delete_all_outputs():
+    """Delete all rendered output videos while keeping source clips."""
+    deleted_outputs = _clear_output_videos()
+    return {"deleted_outputs": deleted_outputs}
+
+
 @app.patch("/api/videos/{video_id}")
 async def rename_video(video_id: str, req: RenameVideoRequest):
     path = _get_video_path(video_id)

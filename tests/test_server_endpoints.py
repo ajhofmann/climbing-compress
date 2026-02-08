@@ -541,6 +541,39 @@ def test_delete_video_missing_returns_404(monkeypatch):
     assert resp.status_code == 404
 
 
+def test_delete_all_outputs_removes_only_render_videos(monkeypatch, tmp_path: Path):
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    (out_dir / "render_a.mp4").write_bytes(b"a")
+    (out_dir / "render_b.mov").write_bytes(b"b")
+    keep = out_dir / "notes.txt"
+    keep.write_text("keep", encoding="utf-8")
+
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/outputs")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"deleted_outputs": 2}
+    assert keep.exists()
+    assert not (out_dir / "render_a.mp4").exists()
+    assert not (out_dir / "render_b.mov").exists()
+
+
+def test_delete_all_outputs_when_empty(monkeypatch, tmp_path: Path):
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/outputs")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"deleted_outputs": 0}
+
+
 def test_delete_video_keeps_unrelated_outputs(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
