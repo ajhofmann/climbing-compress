@@ -35,6 +35,7 @@ Upload constraints are enforced by the backend:
 - rename actions are prevalidated client-side (length + extension) before API submission
 - recent module shows explicit empty state (`no local clips`) and a `[refresh]` action to rescan local library
 - stale/missing source files are automatically dropped from Recent on refresh
+- refresh action shows temporary loading label while list rescan is in progress
 
 ## Common scripts
 

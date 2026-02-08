@@ -54,6 +54,7 @@ Upload notes:
 - Rename inputs are validated client-side before request (empty/too-long/unsupported names are rejected immediately).
 - Recent section now remains visible when empty (`no local clips`) and includes a manual `[refresh]` control.
 - Missing/deleted source files are auto-pruned from Recent/library indexes during list refreshes.
+- Refresh control now shows a temporary loading state while rescanning local clips.
 
 ## Speed-ramp modes
 
