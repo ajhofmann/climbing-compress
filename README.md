@@ -64,6 +64,7 @@ Upload notes:
 - Refresh control now shows a temporary loading state while rescanning local clips.
 - Recent header now includes a live clip count (`Recent (N)`).
 - Recent header now also shows aggregated local duration (`Recent (N · M:SS)`).
+- While filtering, Recent header switches to filtered/total metrics (`Recent (n/N · m:ss/M:SS)`).
 - Dropzone now surfaces local-library action feedback inline (rename/delete/clear outcomes).
 - Recent row now supports sort cycling (`[sort:recent]`, `[sort:name]`, `[sort:duration]`).
 - Recent sort/expansion preferences persist across page reloads for faster local iteration.
