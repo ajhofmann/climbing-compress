@@ -95,11 +95,13 @@ Upload notes:
 - Press `S` in dropzone mode to cycle Recent sort modes (`recent -> name -> duration -> outputs -> size`).
 - Press `R` in dropzone mode to refresh Recent clips + output counters without clicking `[refresh]`.
 - Press `V` in dropzone mode (or click `[reset view]`) to clear name/output/cache subset filters back to all.
+- Press `1-9` in dropzone mode to load matching visible recent clip slots instantly.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
 - Press `Enter` in the recent filter input to load the first matching clip instantly.
 - Press `↑` / `↓` in the recent filter input to choose a clip (wraps at list ends), then `Enter` to load the highlighted selection.
 - Selected keyboard target is shown with a `▶` prefix in the recent clip row.
+- Recent clip row now shows `1-9` slot markers for quick keyboard loading.
 - Recent filter text now persists across reloads (alongside sort/show/scope preferences).
 - Missing/deleted source files are auto-pruned from Recent/library indexes during list refreshes.
 - Refresh control now shows a temporary loading state while rescanning local clips.

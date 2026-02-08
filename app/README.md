@@ -71,6 +71,7 @@ Upload constraints are enforced by the backend:
 - keyboard `S` cycles recent sort modes in dropzone (`recent -> name -> duration -> outputs -> size`)
 - keyboard `R` refreshes recent clips + output counts in dropzone mode without clicking `[refresh]`
 - keyboard `V` (or `[reset view]`) resets name/output/cache subset filters back to default all-state
+- number keys `1-9` in dropzone load the corresponding visible recent clip slot instantly
 - keyboard shortcut `Ctrl/Cmd + Shift + O` clears outputs contextually (global in dropzone, clip-only in loaded toolbar)
 - keyboard shortcut `Ctrl/Cmd + Alt + O` clears outputs for the active filtered subset in dropzone
 - keyboard shortcuts `Alt+P` / `Alt+N` cycle previous/next recent clip while a clip is loaded
@@ -81,6 +82,7 @@ Upload constraints are enforced by the backend:
 - pressing `Enter` in recent filter input loads the first matching clip immediately
 - `ArrowUp` / `ArrowDown` in recent filter input moves a visible-clip cursor with wrap-around; `Enter` loads that highlighted clip
 - selected keyboard target is rendered with a `▶` prefix in the recent row
+- recent row displays `1-9` slot markers for quick keyboard load targeting
 - recent filter text is persisted across reloads with other recent-view preferences
 - stale/missing source files are automatically dropped from Recent on refresh
 - refresh action shows temporary loading label while list rescan is in progress
