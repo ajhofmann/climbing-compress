@@ -518,6 +518,46 @@ def test_rename_video_rejects_empty_name(monkeypatch, tmp_path: Path):
     assert resp.status_code == 400
 
 
+def test_rename_video_appends_source_extension_when_missing(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source.mov"
+    source.write_bytes(b"video")
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_file_hashes", {})
+    monkeypatch.setattr(server, "_video_hashes", {})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"source": "old_name.mov"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+
+    client = TestClient(server.app)
+    resp = client.patch("/api/videos/source", json={"filename": "renamed_clip"})
+
+    assert resp.status_code == 200
+    assert resp.json()["filename"] == "renamed_clip.mov"
+    assert server._video_names["source"] == "renamed_clip.mov"
+
+
+def test_rename_video_rejects_unsupported_extension(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_file_hashes", {})
+    monkeypatch.setattr(server, "_video_hashes", {})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"source": "old_name.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+
+    client = TestClient(server.app)
+    resp = client.patch("/api/videos/source", json={"filename": "renamed_clip.txt"})
+
+    assert resp.status_code == 400
+
+
 def test_rename_video_missing_source_returns_404_and_cleans_state(monkeypatch, tmp_path: Path):
     missing_path = tmp_path / "missing.mp4"
 

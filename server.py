@@ -440,10 +440,16 @@ async def delete_video(video_id: str):
 
 @app.patch("/api/videos/{video_id}")
 async def rename_video(video_id: str, req: RenameVideoRequest):
-    _get_video_path(video_id)
+    path = _get_video_path(video_id)
     filename = Path(req.filename.strip()).name
     if not filename:
         raise HTTPException(400, "Filename cannot be empty")
+    if Path(filename).suffix == "" and path.suffix:
+        filename = f"{filename}{path.suffix.lower()}"
+    ext = Path(filename).suffix.lower()
+    if ext and ext not in ALLOWED_VIDEO_EXTS:
+        allowed = ", ".join(ALLOWED_VIDEO_EXTS)
+        raise HTTPException(400, f"Unsupported rename extension. Allowed: {allowed}")
     if len(filename) > 120:
         raise HTTPException(400, "Filename too long (max 120 characters)")
 
