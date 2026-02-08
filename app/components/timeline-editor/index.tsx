@@ -8,6 +8,8 @@ import { Tooltip } from "@/components/tooltip";
 
 const THUMB_W = 160;
 const THUMB_H = 90;
+const MIN_PIN_RADIUS = 0.2;
+const MAX_PIN_RADIUS = 10.0;
 
 export function TimelineEditor() {
   const videoId = useStore((state) => state.videoId);
@@ -290,6 +292,70 @@ export function TimelineEditor() {
                 />
                 <button
                   onClick={() => removeKeyframe(idx)}
+                  className="text-danger hover:underline ml-auto"
+                >
+                  delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {settings.editMode === "pins" && pins.length > 0 && (
+        <div className="rounded border border-border p-2 flex flex-col gap-1">
+          <div className="text-[10px] font-pixel uppercase tracking-wider text-text-muted">pin values</div>
+          <div className="grid gap-1">
+            {pins.map((pin, idx) => (
+              <div key={`${idx}-${pin.time.toFixed(3)}-${pin.speed.toFixed(3)}-${(pin.radius ?? 2).toFixed(3)}`} className="flex items-center gap-2 text-[10px]">
+                <span className="text-text-muted w-8">#{idx + 1}</span>
+                <label className="text-text-muted">t</label>
+                <input
+                  type="number"
+                  value={Number(pin.time.toFixed(2))}
+                  min={0}
+                  max={analysis.duration}
+                  step={0.1}
+                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
+                  onChange={(e) => {
+                    const t = Math.max(0, Math.min(analysis.duration, Number(e.target.value)));
+                    const next = [...pins];
+                    next[idx] = { ...next[idx], time: Number.isFinite(t) ? t : next[idx].time };
+                    setPins(next);
+                  }}
+                />
+                <label className="text-text-muted">spd</label>
+                <input
+                  type="number"
+                  value={Number(pin.speed.toFixed(2))}
+                  min={settings.minSpeed}
+                  max={settings.maxSpeed}
+                  step={0.05}
+                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
+                  onChange={(e) => {
+                    const s = Math.max(settings.minSpeed, Math.min(settings.maxSpeed, Number(e.target.value)));
+                    const next = [...pins];
+                    next[idx] = { ...next[idx], speed: Number.isFinite(s) ? s : next[idx].speed };
+                    setPins(next);
+                  }}
+                />
+                <label className="text-text-muted">r</label>
+                <input
+                  type="number"
+                  value={Number((pin.radius ?? 2).toFixed(2))}
+                  min={MIN_PIN_RADIUS}
+                  max={MAX_PIN_RADIUS}
+                  step={0.1}
+                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
+                  onChange={(e) => {
+                    const r = Math.max(MIN_PIN_RADIUS, Math.min(MAX_PIN_RADIUS, Number(e.target.value)));
+                    const next = [...pins];
+                    next[idx] = { ...next[idx], radius: Number.isFinite(r) ? r : (next[idx].radius ?? 2) };
+                    setPins(next);
+                  }}
+                />
+                <button
+                  onClick={() => setPins(pins.filter((_, i) => i !== idx))}
                   className="text-danger hover:underline ml-auto"
                 >
                   delete
