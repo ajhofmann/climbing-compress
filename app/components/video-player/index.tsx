@@ -7,6 +7,7 @@ import { videoUrl } from "@/lib/api";
 export function VideoPlayer() {
   const outputId = useStore((state) => state.outputId);
   const comparisonId = useStore((state) => state.comparisonId);
+  const outputFps = useStore((state) => state.settings.outputFps);
   const setPlaybackTime = useStore((state) => state.setPlaybackTime);
   const smartRef = useRef<HTMLVideoElement>(null);
   const compRef = useRef<HTMLVideoElement>(null);
@@ -66,6 +67,11 @@ export function VideoPlayer() {
     }
   }, []);
 
+  const stepFrame = useCallback((direction: -1 | 1, frames: number = 1) => {
+    const fps = Math.max(1, outputFps);
+    seekBy((direction * frames) / fps);
+  }, [outputFps, seekBy]);
+
   useEffect(() => {
     if (!outputId) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -88,11 +94,21 @@ export function VideoPlayer() {
       if (key === "l") {
         e.preventDefault();
         seekBy(1);
+        return;
+      }
+      if (e.key === ",") {
+        e.preventDefault();
+        stepFrame(-1, e.shiftKey ? 5 : 1);
+        return;
+      }
+      if (e.key === ".") {
+        e.preventDefault();
+        stepFrame(1, e.shiftKey ? 5 : 1);
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [outputId, togglePlayback, seekBy]);
+  }, [outputId, togglePlayback, seekBy, stepFrame]);
 
   if (!outputId) return null;
 
@@ -101,7 +117,7 @@ export function VideoPlayer() {
       <div className="flex flex-col gap-1">
         <div className="flex justify-end">
           <span className="text-[10px] font-pixel uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
-            J / K / L
+            J / K / L / , / .
           </span>
         </div>
         <div className="neon-video-frame overflow-hidden">
@@ -113,8 +129,8 @@ export function VideoPlayer() {
             autoPlay
             loop
             playsInline
-          aria-label="Rendered climb video (keyboard: J/K/L, Space)"
-          aria-keyshortcuts="J K L Space"
+          aria-label="Rendered climb video (keyboard: J/K/L, comma/period frame step, Space)"
+          aria-keyshortcuts="J K L Comma Period Space"
             onTimeUpdate={onTimeUpdate}
             className="w-full max-h-[70vh] object-contain"
           />
@@ -128,7 +144,7 @@ export function VideoPlayer() {
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <span className="text-[10px] font-pixel text-center uppercase tracking-[0.2em]" style={{ color: "var(--neon-cyan)", textShadow: "0 0 6px rgba(0,229,255,0.4)" }}>smart ramp</span>
-          <span className="text-[10px] font-pixel uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>J / K / L</span>
+          <span className="text-[10px] font-pixel uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>J / K / L / , / .</span>
         </div>
         <div className="neon-video-frame overflow-hidden">
           <video
@@ -139,8 +155,8 @@ export function VideoPlayer() {
             autoPlay
             loop
             playsInline
-            aria-label="Rendered climb video smart ramp comparison (keyboard: J/K/L, Space)"
-            aria-keyshortcuts="J K L Space"
+            aria-label="Rendered climb video smart ramp comparison (keyboard: J/K/L, comma/period frame step, Space)"
+            aria-keyshortcuts="J K L Comma Period Space"
             className="w-full max-h-[70vh] object-contain"
             onPlay={syncPlay}
             onPause={syncPause}
