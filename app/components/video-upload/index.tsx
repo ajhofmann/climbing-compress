@@ -952,12 +952,19 @@ export function VideoUpload() {
     input.click();
   };
 
-  const handleClearVideo = () => {
-    if (isAnalyzing || isRendering) return;
+  const handleClearVideo = useCallback(() => {
+    if (isAnalyzing || isRendering || clearingOutputs || pruningFiltered) return;
     setCurrentSourceBytes(null);
     clearVideo();
     setProgress(0, "Clip cleared. Pick another video or use Recent.");
-  };
+  }, [
+    isAnalyzing,
+    isRendering,
+    clearingOutputs,
+    pruningFiltered,
+    clearVideo,
+    setProgress,
+  ]);
 
   const handleDeleteCurrent = async () => {
     if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
@@ -1053,11 +1060,16 @@ export function VideoUpload() {
       if (key === "n") {
         e.preventDefault();
         void handleLoadAdjacent(1);
+        return;
+      }
+      if (key === "e") {
+        e.preventDefault();
+        handleClearVideo();
       }
     };
     window.addEventListener("keydown", onAdjacentShortcut, true);
     return () => window.removeEventListener("keydown", onAdjacentShortcut, true);
-  }, [videoId, handleLoadAdjacent]);
+  }, [videoId, handleLoadAdjacent, handleClearVideo]);
 
   useEffect(() => {
     const onOutputShortcut = (e: KeyboardEvent) => {
@@ -1335,7 +1347,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-9 quick load · O out · C cache · S sort · R refresh · A expand · V reset
+                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-9 quick load · O out · C cache · S sort · R refresh · A expand · V reset · loaded: Alt+P/N cycle, Alt+E eject
               </div>
             )}
             {visibleRecent.length > 0 ? (
@@ -1439,6 +1451,7 @@ export function VideoUpload() {
           onClick={handleClearVideo}
           disabled={isAnalyzing || isRendering || clearingOutputs || pruningFiltered}
           className="text-[11px] font-pixel text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
+          aria-keyshortcuts="Alt+E"
         >
           [EJECT]
         </button>
