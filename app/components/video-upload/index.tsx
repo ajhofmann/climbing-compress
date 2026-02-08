@@ -121,7 +121,7 @@ export function VideoUpload() {
           : item
       )));
       if (videoId === targetId) setVideoName(renamed.filename);
-      setProgress(0, `Renamed to ${renamed.filename}`);
+      setProgress(0, `Renamed ${currentName} → ${renamed.filename}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Rename failed";
       setProgress(0, `Rename failed: ${msg}`);
