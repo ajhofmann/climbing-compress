@@ -152,6 +152,11 @@ def test_list_videos_returns_recent_first(monkeypatch, tmp_path: Path):
     b_path = tmp_path / "b.mp4"
     a_path.write_bytes(b"a")
     b_path.write_bytes(b"b")
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    (out_dir / "a.mp4").write_bytes(b"oa")
+    (out_dir / "a.mov").write_bytes(b"ob")
+    (out_dir / "b.mp4").write_bytes(b"oc")
     os.utime(a_path, (1000, 1000))
     os.utime(b_path, (2000, 2000))
 
@@ -161,6 +166,7 @@ def test_list_videos_returns_recent_first(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(server, "_video_names", {})
     monkeypatch.setattr(server, "_video_info_errors", {})
     monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
     monkeypatch.setattr(server, "has_cache_by_hash", lambda key: key == "hash-a")
 
@@ -171,6 +177,34 @@ def test_list_videos_returns_recent_first(monkeypatch, tmp_path: Path):
     body = resp.json()
     assert [item["video_id"] for item in body] == ["b", "a"]
     assert [item["cached"] for item in body] == [False, True]
+    assert [item["output_count"] for item in body] == [1, 2]
+
+
+def test_list_videos_output_count_ignores_non_video_files(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    (out_dir / "source.mp4").write_bytes(b"video")
+    (out_dir / "source.txt").write_text("ignore", encoding="utf-8")
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_video_hashes", {"source": "hash-source"})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"source": "source.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+    monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
+    monkeypatch.setattr(server, "has_cache_by_hash", lambda _key: False)
+
+    client = TestClient(server.app)
+    resp = client.get("/api/videos")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body[0]["video_id"] == "source"
+    assert body[0]["output_count"] == 1
 
 
 def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):

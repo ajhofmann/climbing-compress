@@ -243,6 +243,7 @@ export function VideoUpload() {
     try {
       const data = await uploadVideo(file);
       setVideo(data.video_id, data.info, data.thumbnails, data.filename);
+      setClipOutputCount(0);
       const cacheHint = data.cached ? " (analysis cached)" : "";
       const label = data.filename || file.name;
       const status = data.reused ? `Loaded existing clip ${label}` : `Uploaded ${label}`;
@@ -259,6 +260,7 @@ export function VideoUpload() {
     try {
       const meta = await getVideoMeta(item.video_id);
       setVideo(meta.video_id, meta.info, meta.thumbnails, meta.filename);
+      setClipOutputCount(item.output_count);
       setProgress(0, `Loaded ${meta.filename}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Load failed";
@@ -330,7 +332,7 @@ export function VideoUpload() {
   };
 
   const handleClearOutputsForExisting = async (item: VideoListItem) => {
-    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (item.output_count <= 0 || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
     const confirmed = window.confirm(`Remove rendered outputs for ${item.filename} only?`);
     if (!confirmed) return;
     setClearingOutputs(true);
@@ -338,6 +340,11 @@ export function VideoUpload() {
       const result = await deleteOutputsForVideo(item.video_id);
       const outputs = result.deleted_outputs ?? 0;
       if (videoId === item.video_id) setClipOutputCount(0);
+      setRecentVideos((prev) => prev.map((row) => (
+        row.video_id === item.video_id
+          ? { ...row, output_count: 0 }
+          : row
+      )));
       setOutputCount((prev) => {
         if (prev == null) return null;
         return Math.max(0, prev - outputs);
@@ -402,6 +409,7 @@ export function VideoUpload() {
       const outputs = result.deleted_outputs ?? 0;
       setOutputCount(0);
       if (videoId) setClipOutputCount(0);
+      setRecentVideos((prev) => prev.map((item) => ({ ...item, output_count: 0 })));
       if (outputs <= 0) {
         setProgress(0, "No rendered outputs to clear.");
       } else if (outputs === 1) {
@@ -426,6 +434,11 @@ export function VideoUpload() {
       const result = await deleteOutputsForVideo(videoId);
       const outputs = result.deleted_outputs ?? 0;
       setClipOutputCount(0);
+      setRecentVideos((prev) => prev.map((item) => (
+        item.video_id === videoId
+          ? { ...item, output_count: 0 }
+          : item
+      )));
       setOutputCount((prev) => {
         if (prev == null) return null;
         return Math.max(0, prev - outputs);
@@ -656,10 +669,14 @@ export function VideoUpload() {
                     </button>
                     <button
                       onClick={() => void handleClearOutputsForExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || outputCount === 0}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || item.output_count <= 0}
                       className="text-[10px] font-pixel px-1 py-0.5 border rounded border-amber-400/40 text-amber-200 hover:text-white hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={`Clear rendered outputs for ${item.filename}`}
-                      aria-label={`Clear rendered outputs for ${item.filename}`}
+                      title={item.output_count > 0
+                        ? `Clear ${item.output_count} rendered output${item.output_count === 1 ? "" : "s"} for ${item.filename}`
+                        : `No rendered outputs for ${item.filename}`}
+                      aria-label={item.output_count > 0
+                        ? `Clear rendered outputs for ${item.filename}`
+                        : `No rendered outputs for ${item.filename}`}
                     >
                       ◍
                     </button>

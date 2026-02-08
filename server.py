@@ -276,6 +276,19 @@ def _count_output_videos_for_source(video_id: str) -> int:
     return total
 
 
+def _output_counts_by_source() -> dict[str, int]:
+    if not OUTPUT_DIR.exists():
+        return {}
+    counts: dict[str, int] = {}
+    for path in OUTPUT_DIR.iterdir():
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        counts[path.stem] = counts.get(path.stem, 0) + 1
+    return counts
+
+
 def _count_existing_clips() -> int:
     total = 0
     stale: list[str] = []
@@ -450,6 +463,7 @@ async def list_videos():
             mtime = 0.0
         return (-mtime, vid)
 
+    output_counts = _output_counts_by_source()
     result = []
     stale_missing: list[str] = []
     for vid, path in sorted(_videos.items(), key=_sort_key):
@@ -473,6 +487,7 @@ async def list_videos():
             "filename": _display_filename(vid, path),
             "info": info,
             "cached": _has_cached_analysis(vid, path),
+            "output_count": output_counts.get(vid, 0),
         })
     if stale_missing:
         name_changed = False

@@ -170,6 +170,7 @@ export interface VideoListItem {
   filename: string;
   info: VideoInfo;
   cached: boolean;
+  output_count: number;
 }
 
 interface VideoMetaResult {
