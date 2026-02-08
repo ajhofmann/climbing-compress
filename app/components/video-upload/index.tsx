@@ -21,7 +21,7 @@ export function VideoUpload() {
     void listVideos()
       .then((items) => {
         if (cancelled) return;
-        setRecentVideos([...items].reverse().slice(0, 6));
+        setRecentVideos(items.slice(0, 6));
       })
       .catch(() => {
         if (cancelled) return;

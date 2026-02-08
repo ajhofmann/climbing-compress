@@ -227,13 +227,13 @@ export async function renderVideo(
 }
 
 export async function listVideos(): Promise<VideoListItem[]> {
-  const res = await fetch(`${API}/api/videos`);
+  const res = await fetch(`${API}/api/videos`, { cache: "no-store" });
   if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();
 }
 
 export async function getVideoMeta(videoId: string): Promise<VideoMetaResult> {
-  const res = await fetch(`${API}/api/video-meta/${videoId}`);
+  const res = await fetch(`${API}/api/video-meta/${videoId}`, { cache: "no-store" });
   if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();
 }
