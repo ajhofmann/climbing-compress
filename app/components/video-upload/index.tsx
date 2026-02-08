@@ -48,13 +48,14 @@ export function VideoUpload() {
   const [clearingLibrary, setClearingLibrary] = useState(false);
   const [clearingOutputs, setClearingOutputs] = useState(false);
   const [clipBytes, setClipBytes] = useState<number | null>(null);
+  const [currentSourceBytes, setCurrentSourceBytes] = useState<number | null>(null);
   const [outputCount, setOutputCount] = useState<number | null>(null);
   const [outputBytes, setOutputBytes] = useState<number | null>(null);
   const [clipOutputCount, setClipOutputCount] = useState<number | null>(null);
   const [clipOutputBytes, setClipOutputBytes] = useState<number | null>(null);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
-  const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration" | "outputs">("recent");
+  const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration" | "outputs" | "size">("recent");
   const [recentOutputScope, setRecentOutputScope] = useState<"all" | "with" | "none">("all");
   const recentFilterInputRef = useRef<HTMLInputElement>(null);
 
@@ -63,7 +64,7 @@ export function VideoUpload() {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; outputScope?: string };
-      if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration" || parsed.sort === "outputs") {
+      if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration" || parsed.sort === "outputs" || parsed.sort === "size") {
         setRecentSort(parsed.sort);
       }
       if (typeof parsed.showAll === "boolean") {
@@ -139,6 +140,13 @@ export function VideoUpload() {
           if (byOutputs !== 0) return byOutputs;
           return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
         }
+        if (recentSort === "size") {
+          const bySourceBytes = b.source_bytes - a.source_bytes;
+          if (bySourceBytes !== 0) return bySourceBytes;
+          const byOutputBytes = b.output_bytes - a.output_bytes;
+          if (byOutputBytes !== 0) return byOutputBytes;
+          return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        }
         const byDuration = b.info.duration - a.info.duration;
         if (Math.abs(byDuration) > 1e-6) return byDuration;
         return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
@@ -201,6 +209,7 @@ export function VideoUpload() {
 
   useEffect(() => {
     if (!videoId) {
+      setCurrentSourceBytes(null);
       setClipOutputCount(null);
       setClipOutputBytes(null);
       return;
@@ -340,8 +349,9 @@ export function VideoUpload() {
     try {
       const data = await uploadVideo(file);
       setVideo(data.video_id, data.info, data.thumbnails, data.filename);
+      setCurrentSourceBytes(data.source_bytes ?? null);
       setClipOutputCount(data.output_count ?? 0);
-      setClipOutputBytes(null);
+      setClipOutputBytes(data.output_bytes ?? 0);
       const cacheHint = data.cached ? " (analysis cached)" : "";
       const label = data.filename || file.name;
       const status = data.reused ? `Loaded existing clip ${label}` : `Uploaded ${label}`;
@@ -358,8 +368,9 @@ export function VideoUpload() {
     try {
       const meta = await getVideoMeta(item.video_id);
       setVideo(meta.video_id, meta.info, meta.thumbnails, meta.filename);
+      setCurrentSourceBytes(meta.source_bytes ?? item.source_bytes);
       setClipOutputCount(meta.output_count ?? item.output_count);
-      setClipOutputBytes(null);
+      setClipOutputBytes(meta.output_bytes ?? item.output_bytes);
       setProgress(0, `Loaded ${meta.filename}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Load failed";
@@ -495,6 +506,7 @@ export function VideoUpload() {
       setShowAllRecent(false);
       setRecentFetchDone(true);
       setClipBytes(0);
+      setCurrentSourceBytes(0);
       setOutputCount(0);
       setOutputBytes(0);
       setClipOutputCount(0);
@@ -648,6 +660,7 @@ export function VideoUpload() {
 
   const handleClearVideo = () => {
     if (isAnalyzing || isRendering) return;
+    setCurrentSourceBytes(null);
     clearVideo();
     setProgress(0, "Clip cleared. Pick another video or use Recent.");
   };
@@ -662,6 +675,7 @@ export function VideoUpload() {
       const result = await deleteVideo(videoId);
       await refreshRecent();
       clearVideo();
+      setCurrentSourceBytes(null);
       const outputs = result.deleted_outputs ?? 0;
       const clipBytesFreed = result.deleted_bytes ?? 0;
       const outputBytesFreed = result.deleted_output_bytes ?? 0;
@@ -810,6 +824,7 @@ export function VideoUpload() {
                     if (prev === "recent") return "name";
                     if (prev === "name") return "duration";
                     if (prev === "duration") return "outputs";
+                    if (prev === "outputs") return "size";
                     return "recent";
                   });
                 }}
@@ -871,7 +886,7 @@ export function VideoUpload() {
                       onClick={() => void handleLoadExisting(item)}
                       disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs}
                       className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={`${item.filename} · ${item.info.duration.toFixed(1)}s${item.cached ? " · cached analysis" : ""} · ${item.output_count} output${item.output_count === 1 ? "" : "s"}`}
+                      title={`${item.filename} · ${item.info.duration.toFixed(1)}s · src ${formatBytesVerbose(item.source_bytes)}${item.cached ? " · cached analysis" : ""} · ${item.output_count} output${item.output_count === 1 ? "" : "s"} (${formatBytesVerbose(item.output_bytes)})`}
                     >
                       {item.cached ? "⚡ " : ""}
                       {shortName(item.filename)}
@@ -943,6 +958,9 @@ export function VideoUpload() {
       )}
       <span className="text-[11px] font-retro led-text whitespace-nowrap">
         {videoInfo && `${videoInfo.duration.toFixed(0)}s / ${videoInfo.width}x${videoInfo.height} / ${videoInfo.fps.toFixed(0)}fps`}
+      </span>
+      <span className="text-[10px] font-pixel text-text-muted/70 whitespace-nowrap">
+        src:{formatBytesShort(currentSourceBytes)}/{formatBytesShort(clipBytes)}
       </span>
       <span className="text-[10px] font-pixel text-text-muted/70 whitespace-nowrap">
         out:{clipOutputCount ?? "?"}/{outputCount ?? "?"} · mb:{formatBytesShort(clipOutputBytes)}/{formatBytesShort(outputBytes)}

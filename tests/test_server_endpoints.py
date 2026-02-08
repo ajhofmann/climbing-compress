@@ -116,6 +116,8 @@ def test_upload_accepts_uppercase_video_extension(monkeypatch, tmp_path: Path):
     body = resp.json()
     assert body["filename"] == "clip.MP4"
     assert body["output_count"] == 0
+    assert body["source_bytes"] == 5
+    assert body["output_bytes"] == 0
 
 
 def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
@@ -153,6 +155,8 @@ def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
     assert body["cached"] is True
     assert body["filename"] == "new.mp4"
     assert body["output_count"] == 1
+    assert body["source_bytes"] == 8
+    assert body["output_bytes"] == 6
     assert server._video_names["existing"] == "new.mp4"
 
 
@@ -187,6 +191,8 @@ def test_list_videos_returns_recent_first(monkeypatch, tmp_path: Path):
     assert [item["video_id"] for item in body] == ["b", "a"]
     assert [item["cached"] for item in body] == [False, True]
     assert [item["output_count"] for item in body] == [1, 2]
+    assert [item["output_bytes"] for item in body] == [2, 4]
+    assert [item["source_bytes"] for item in body] == [1, 1]
 
 
 def test_list_videos_output_count_ignores_non_video_files(monkeypatch, tmp_path: Path):
@@ -214,6 +220,8 @@ def test_list_videos_output_count_ignores_non_video_files(monkeypatch, tmp_path:
     body = resp.json()
     assert body[0]["video_id"] == "source"
     assert body[0]["output_count"] == 1
+    assert body[0]["output_bytes"] == 5
+    assert body[0]["source_bytes"] == 5
 
 
 def test_list_videos_output_count_defaults_to_zero_when_output_dir_missing(monkeypatch, tmp_path: Path):
@@ -238,6 +246,8 @@ def test_list_videos_output_count_defaults_to_zero_when_output_dir_missing(monke
     body = resp.json()
     assert body[0]["video_id"] == "source"
     assert body[0]["output_count"] == 0
+    assert body[0]["output_bytes"] == 0
+    assert body[0]["source_bytes"] == 5
 
 
 def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
@@ -269,6 +279,8 @@ def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
     assert body["thumbnails"] == ["thumb-url"]
     assert body["cached"] is True
     assert body["output_count"] == 1
+    assert body["output_bytes"] == 6
+    assert body["source_bytes"] == 5
 
 
 def test_video_meta_missing_video_returns_404(monkeypatch):

@@ -53,6 +53,7 @@ Upload notes:
 - Loaded clip bar includes **CLEAR LIB** to wipe the entire local library without ejecting first.
 - Loaded clip bar includes **CLEAR OUT** to purge rendered outputs for the loaded clip only.
 - Loaded clip bar now shows `out:clip/total` (`out:C/T`) near clip metadata for per-clip vs global output visibility.
+- Loaded clip bar now also shows source storage footprint (`src:clip/total`) for current-clip vs library-size context.
 - Loaded clip bar also shows output storage footprint (`mb:clip/total`) for quick disk-usage checks.
 - Loaded `out:C/T` counter now auto-refreshes after quick/full renders and clip deletion flows (no manual refresh needed).
 - Upload/load metadata now carries per-clip `output_count` so loaded counters hydrate immediately on open/reuse.
@@ -90,7 +91,7 @@ Upload notes:
 - Recent header now also shows aggregated local duration (`Recent (N · M:SS)`).
 - While filtering, Recent header switches to filtered/total metrics (`Recent (n/N · m:ss/M:SS)`).
 - Dropzone now surfaces local-library action feedback inline (rename/delete/clear outcomes).
-- Recent row now supports sort cycling (`[sort:recent]`, `[sort:name]`, `[sort:duration]`, `[sort:outputs]`).
+- Recent row now supports sort cycling (`[sort:recent]`, `[sort:name]`, `[sort:duration]`, `[sort:outputs]`, `[sort:size]`).
 - Recent sort/expansion preferences persist across page reloads for faster local iteration.
 
 ## Speed-ramp modes

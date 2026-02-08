@@ -34,6 +34,7 @@ Upload constraints are enforced by the backend:
 - loaded clip toolbar includes `[CLEAR LIB]` to wipe all local clips immediately
 - loaded clip toolbar includes `[CLEAR OUT]` to purge rendered outputs for the loaded clip only
 - loaded clip toolbar shows `out:C/T` (clip/global output counts) near clip metadata for quick housekeeping visibility
+- loaded clip toolbar shows `src:C/T` (current clip bytes / total library bytes) for local-storage context
 - loaded clip toolbar also shows `mb:C/T` (clip/global output bytes) for local disk-usage awareness
 - loaded `out:C/T` count auto-refreshes after quick/full renders and loaded-clip deletion flows
 - upload/load metadata now includes per-clip `output_count` so loaded counters hydrate immediately
@@ -71,7 +72,7 @@ Upload constraints are enforced by the backend:
 - recent header also shows total local duration (`Recent (N · M:SS)`)
 - when filter is active, header shows filtered vs total counts/durations (`n/N · m:ss/M:SS`)
 - dropzone now shows inline feedback text for local library actions (rename/delete/clear results)
-- recent row supports sort cycling between recency, filename, duration, and output-count ordering
+- recent row supports sort cycling between recency, filename, duration, output-count, and source-size ordering
 - recent sort mode and expanded/collapsed preview state are remembered across reloads
 
 ## Common scripts

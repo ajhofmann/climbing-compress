@@ -302,17 +302,18 @@ def _count_output_videos_for_source(video_id: str) -> int:
     return total
 
 
-def _output_counts_by_source() -> dict[str, int]:
+def _output_totals_by_source() -> dict[str, tuple[int, int]]:
     if not OUTPUT_DIR.exists():
         return {}
-    counts: dict[str, int] = {}
+    totals: dict[str, tuple[int, int]] = {}
     for path in OUTPUT_DIR.iterdir():
         if not path.is_file():
             continue
         if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
             continue
-        counts[path.stem] = counts.get(path.stem, 0) + 1
-    return counts
+        count, byte_total = totals.get(path.stem, (0, 0))
+        totals[path.stem] = (count + 1, byte_total + _safe_file_size(path))
+    return totals
 
 
 def _existing_clip_stats() -> tuple[int, int]:
@@ -441,13 +442,16 @@ async def upload_video(file: UploadFile = File(...)):
                     _persist_video_names()
                 info = _get_video_info_cached(existing_id, dest)
                 thumbs = _get_thumbnails_cached(existing_id, dest, n=8)
+                output_count, output_bytes = _output_video_totals_for_source(existing_id)
                 return {
                     "video_id": existing_id,
                     "filename": _display_filename(existing_id, dest),
                     "info": info,
                     "thumbnails": thumbs,
                     "cached": _has_cached_analysis(existing_id, dest),
-                    "output_count": _count_output_videos_for_source(existing_id),
+                    "output_count": output_count,
+                    "source_bytes": _safe_file_size(dest),
+                    "output_bytes": output_bytes,
                     "reused": True,
                 }
 
@@ -466,6 +470,7 @@ async def upload_video(file: UploadFile = File(...)):
         info = get_video_info(str(dest))
         thumbs = _encode_thumbnails(generate_thumbnails(str(dest), n=8))
         _video_meta_cache[video_id] = {"info": info, "thumbnails": thumbs}
+        output_count, output_bytes = _output_video_totals_for_source(video_id)
 
         return {
             "video_id": video_id,
@@ -473,7 +478,9 @@ async def upload_video(file: UploadFile = File(...)):
             "info": info,
             "thumbnails": thumbs,
             "cached": _has_cached_analysis(video_id, dest),
-            "output_count": _count_output_videos_for_source(video_id),
+            "output_count": output_count,
+            "source_bytes": _safe_file_size(dest),
+            "output_bytes": output_bytes,
             "reused": False,
         }
     except (OSError, ValueError) as exc:
@@ -494,7 +501,7 @@ async def list_videos():
             mtime = 0.0
         return (-mtime, vid)
 
-    output_counts = _output_counts_by_source()
+    output_totals = _output_totals_by_source()
     result = []
     stale_missing: list[str] = []
     for vid, path in sorted(_videos.items(), key=_sort_key):
@@ -513,12 +520,15 @@ async def list_videos():
                 _unreadable_warned[vid] = mtime
             continue
         _unreadable_warned.pop(vid, None)
+        output_count, output_bytes = output_totals.get(vid, (0, 0))
         result.append({
             "video_id": vid,
             "filename": _display_filename(vid, path),
             "info": info,
             "cached": _has_cached_analysis(vid, path),
-            "output_count": output_counts.get(vid, 0),
+            "output_count": output_count,
+            "source_bytes": _safe_file_size(path),
+            "output_bytes": output_bytes,
         })
     if stale_missing:
         name_changed = False
@@ -536,13 +546,16 @@ async def video_meta(video_id: str):
     path = _get_video_path(video_id)
     info = _get_video_info_cached(video_id, path)
     thumbs = _get_thumbnails_cached(video_id, path, n=8)
+    output_count, output_bytes = _output_video_totals_for_source(video_id)
     return {
         "video_id": video_id,
         "filename": _display_filename(video_id, path),
         "info": info,
         "thumbnails": thumbs,
         "cached": _has_cached_analysis(video_id, path),
-        "output_count": _count_output_videos_for_source(video_id),
+        "output_count": output_count,
+        "source_bytes": _safe_file_size(path),
+        "output_bytes": output_bytes,
     }
 
 

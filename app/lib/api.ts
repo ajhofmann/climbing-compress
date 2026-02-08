@@ -15,6 +15,8 @@ interface UploadResult {
   thumbnails: string[];
   cached: boolean;
   output_count: number;
+  source_bytes: number;
+  output_bytes: number;
   reused: boolean;
 }
 
@@ -172,6 +174,8 @@ export interface VideoListItem {
   info: VideoInfo;
   cached: boolean;
   output_count: number;
+  source_bytes: number;
+  output_bytes: number;
 }
 
 interface VideoMetaResult {
@@ -181,6 +185,8 @@ interface VideoMetaResult {
   thumbnails: string[];
   cached: boolean;
   output_count: number;
+  source_bytes: number;
+  output_bytes: number;
 }
 
 interface RenameVideoResult {
