@@ -184,15 +184,24 @@ export function VideoUpload() {
     () => parsedRecentFilterTerms.filter((item) => item.isExclude).map((item) => item.term),
     [parsedRecentFilterTerms],
   );
+  const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
+    if (term.startsWith("#")) {
+      const tag = term.slice(1);
+      if (tag === "cached") return item.cached;
+      if (tag === "uncached") return !item.cached;
+      if (tag === "out") return item.output_count > 0;
+      if (tag === "noout") return item.output_count <= 0;
+    }
+    return item.filename.toLowerCase().includes(term);
+  }, []);
   const nameFilteredRecent = useMemo(() => (
     recentFilterTerms.length > 0
       ? recentVideos.filter((item) => {
-        const lower = item.filename.toLowerCase();
-        return includeRecentFilterTerms.every((term) => lower.includes(term))
-          && excludeRecentFilterTerms.every((term) => !lower.includes(term));
+        return includeRecentFilterTerms.every((term) => matchesRecentFilterTerm(item, term))
+          && excludeRecentFilterTerms.every((term) => !matchesRecentFilterTerm(item, term));
       })
       : recentVideos
-  ), [recentVideos, recentFilterTerms.length, includeRecentFilterTerms, excludeRecentFilterTerms]);
+  ), [recentVideos, recentFilterTerms.length, includeRecentFilterTerms, excludeRecentFilterTerms, matchesRecentFilterTerm]);
   const removeRecentFilterTerm = useCallback((termIndex: number) => {
     const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
     if (termIndex < 0 || termIndex >= sourceTerms.length) return;
@@ -1429,8 +1438,8 @@ export function VideoUpload() {
                       e.currentTarget.blur();
                     }
                   }}
-                  placeholder="filter clips (+term -term)"
-                  aria-label="Filter recent clips by name (space-separated terms, prefix with dash to exclude)"
+                  placeholder="filter clips (+term -term #tag)"
+                  aria-label="Filter recent clips by terms (space-separated include/exclude and optional tags like #cached or #out)"
                   aria-keyshortcuts="Alt+Backspace"
                   className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
                 />

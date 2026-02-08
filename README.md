@@ -87,6 +87,7 @@ Upload notes:
 - Keyboard: `Alt + X` ejects the currently loaded clip back to dropzone mode.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, and `-term` exclusions.
+- Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout` (and exclusions like `-#out`).
 - Recent filter now renders active term chips (`+term` includes, `-term` excludes) to clarify parsed query semantics.
 - Click a filter term chip to remove that specific term from the query instantly.
 - Recent section includes output-scope filtering (`[out:all]` / `[out:with]` / `[out:none]`) for output-housekeeping workflows.
