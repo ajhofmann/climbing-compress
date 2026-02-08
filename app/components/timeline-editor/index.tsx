@@ -233,6 +233,18 @@ export function TimelineEditor() {
     updateSettings({ editMode: "pins" });
   }, [keyframes, settings.minSpeed, settings.maxSpeed, setPins, updateSettings]);
 
+  const sortPinsByTime = useCallback(() => {
+    if (pins.length < 2) return;
+    const next = [...pins].sort((a, b) => a.time - b.time);
+    setPins(next);
+  }, [pins, setPins]);
+
+  const sortKeyframesByTime = useCallback(() => {
+    if (keyframes.length < 2) return;
+    const next = [...keyframes].sort((a, b) => a.time - b.time);
+    setKeyframes(next);
+  }, [keyframes, setKeyframes]);
+
   if (!analysis) {
     return (
       <div className="rounded-lg bg-bg-card border border-border flex items-center justify-center h-24 text-text-muted text-xs font-pixel uppercase tracking-wider opacity-60">
@@ -284,6 +296,26 @@ export function TimelineEditor() {
                 className="text-danger hover:underline"
               >
                 clear all
+              </button>
+            </Tooltip>
+          )}
+          {settings.editMode === "pins" && pins.length > 1 && (
+            <Tooltip text="Sort pins by timeline time">
+              <button
+                onClick={sortPinsByTime}
+                className="text-cyan-300 hover:underline"
+              >
+                sort pins
+              </button>
+            </Tooltip>
+          )}
+          {settings.editMode === "keyframes" && keyframes.length > 1 && (
+            <Tooltip text="Sort keyframes by timeline time">
+              <button
+                onClick={sortKeyframesByTime}
+                className="text-cyan-300 hover:underline"
+              >
+                sort keyframes
               </button>
             </Tooltip>
           )}
