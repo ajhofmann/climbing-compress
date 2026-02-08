@@ -151,11 +151,18 @@ export function VideoUpload() {
   }, []);
 
   const normalizedRecentFilter = recentFilter.trim().toLowerCase();
+  const recentFilterTerms = useMemo(
+    () => normalizedRecentFilter.split(/\s+/).filter(Boolean),
+    [normalizedRecentFilter],
+  );
   const nameFilteredRecent = useMemo(() => (
-    normalizedRecentFilter
-      ? recentVideos.filter((item) => item.filename.toLowerCase().includes(normalizedRecentFilter))
+    recentFilterTerms.length > 0
+      ? recentVideos.filter((item) => {
+        const lower = item.filename.toLowerCase();
+        return recentFilterTerms.every((term) => lower.includes(term));
+      })
       : recentVideos
-  ), [recentVideos, normalizedRecentFilter]);
+  ), [recentVideos, recentFilterTerms]);
 
   const outputScopedRecent = useMemo(() => {
     if (recentOutputScope === "all") return nameFilteredRecent;
@@ -1333,8 +1340,8 @@ export function VideoUpload() {
                       e.currentTarget.blur();
                     }
                   }}
-                  placeholder="filter clips"
-                  aria-label="Filter recent clips by name"
+                  placeholder="filter clips (terms)"
+                  aria-label="Filter recent clips by name (space-separated terms)"
                   className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
                 />
                 {recentFilter && (
