@@ -29,7 +29,8 @@ Upload constraints are enforced by the backend:
 - loaded clip toolbar includes `[EJECT]` for returning to the dropzone + Recent list without reloading
 - loaded clip toolbar includes `[DELETE]` to remove the active clip from local library
 - loaded clip toolbar displays active filename to clarify swap/delete actions
-- each recent pill has `X` removal action (confirm prompt) for local library cleanup
+- loaded clip toolbar includes `[RENAME]` to relabel the active clip
+- each recent pill has `✎` (rename) and `X` (delete) actions for local library cleanup
 
 ## Common scripts
 
