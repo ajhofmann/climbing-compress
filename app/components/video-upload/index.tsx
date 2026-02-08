@@ -14,7 +14,7 @@ const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_T
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>10m", "#mb>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur>90s", "#dur>1m30s"] as const;
-type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=";
+type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 
 function parseDurationLiteralSeconds(raw: string): number | null {
   const value = raw.trim().toLowerCase();
@@ -42,7 +42,7 @@ function parseDurationLiteralSeconds(raw: string): number | null {
 }
 
 function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
-  const comparatorMatch = term.match(/^#out(<=|>=|=|<|>)(\d+)$/);
+  const comparatorMatch = term.match(/^#out(<=|>=|!=|=|<|>)(\d+)$/);
   if (!comparatorMatch) return null;
   const operator = comparatorMatch[1] as ComparatorOperator;
   const value = Number(comparatorMatch[2]);
@@ -67,7 +67,7 @@ function parseByteLiteral(raw: string): number | null {
 }
 
 function parseSourceBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
-  const comparatorMatch = term.match(/^#src(<=|>=|=|<|>)(.+)$/);
+  const comparatorMatch = term.match(/^#src(<=|>=|!=|=|<|>)(.+)$/);
   if (!comparatorMatch) return null;
   const operator = comparatorMatch[1] as ComparatorOperator;
   const valueBytes = parseByteLiteral(comparatorMatch[2]);
@@ -76,7 +76,7 @@ function parseSourceBytesComparatorTerm(term: string): { operator: ComparatorOpe
 }
 
 function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
-  const comparatorMatch = term.match(/^#mb(<=|>=|=|<|>)(.+)$/);
+  const comparatorMatch = term.match(/^#mb(<=|>=|!=|=|<|>)(.+)$/);
   if (!comparatorMatch) return null;
   const operator = comparatorMatch[1] as ComparatorOperator;
   const valueBytes = parseByteLiteral(comparatorMatch[2]);
@@ -85,7 +85,7 @@ function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOpe
 }
 
 function parseDurationComparatorTerm(term: string): { operator: ComparatorOperator; valueSeconds: number } | null {
-  const comparatorMatch = term.match(/^#dur(<=|>=|=|<|>)(.+)$/);
+  const comparatorMatch = term.match(/^#dur(<=|>=|!=|=|<|>)(.+)$/);
   if (!comparatorMatch) return null;
   const operator = comparatorMatch[1] as ComparatorOperator;
   const valueSeconds = parseDurationLiteralSeconds(comparatorMatch[2]);
@@ -403,6 +403,7 @@ export function VideoUpload() {
       if (operator === "<=") return sourceBytes <= valueBytes;
       if (operator === ">") return sourceBytes > valueBytes;
       if (operator === ">=") return sourceBytes >= valueBytes;
+      if (operator === "!=") return sourceBytes !== valueBytes;
       return sourceBytes === valueBytes;
     }
     const outputBytesComparator = parseOutputBytesComparatorTerm(term);
@@ -413,6 +414,7 @@ export function VideoUpload() {
       if (operator === "<=") return outputBytesForClip <= valueBytes;
       if (operator === ">") return outputBytesForClip > valueBytes;
       if (operator === ">=") return outputBytesForClip >= valueBytes;
+      if (operator === "!=") return outputBytesForClip !== valueBytes;
       return outputBytesForClip === valueBytes;
     }
     const outputComparator = parseOutputComparatorTerm(term);
@@ -423,6 +425,7 @@ export function VideoUpload() {
       if (operator === "<=") return outputs <= value;
       if (operator === ">") return outputs > value;
       if (operator === ">=") return outputs >= value;
+      if (operator === "!=") return outputs !== value;
       return outputs === value;
     }
     const durationComparator = parseDurationComparatorTerm(term);
@@ -433,6 +436,7 @@ export function VideoUpload() {
       if (operator === "<=") return duration <= valueSeconds;
       if (operator === ">") return duration > valueSeconds;
       if (operator === ">=") return duration >= valueSeconds;
+      if (operator === "!=") return Math.abs(duration - valueSeconds) >= 0.05;
       return Math.abs(duration - valueSeconds) < 0.05;
     }
     if (term.startsWith("#")) {
