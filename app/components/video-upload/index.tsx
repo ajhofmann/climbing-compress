@@ -156,7 +156,7 @@ export function VideoUpload() {
       await deleteVideo(videoId);
       setRecentVideos((prev) => prev.filter((item) => item.video_id !== videoId));
       clearVideo();
-      setProgress(0, "Removed current clip from local library.");
+      setProgress(0, `Removed ${label} from local library.`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Delete failed";
       setProgress(0, `Delete failed: ${msg}`);
