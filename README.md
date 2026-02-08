@@ -51,6 +51,7 @@ Upload notes:
 - Loaded clip bar includes **RENAME** for quick relabeling of local clips.
 - Recent entries include **✎** (rename) and **X** (delete) actions to manage local library entries in-place.
 - Rename keeps supported video extensions (`.mov/.mp4/.avi/.mkv`) and auto-appends the current extension if omitted.
+- Rename inputs are validated client-side before request (empty/too-long/unsupported names are rejected immediately).
 
 ## Speed-ramp modes
 
