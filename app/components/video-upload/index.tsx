@@ -11,6 +11,36 @@ const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
 const RECENT_FILTER_TAG_TEMPLATES = ["#dur>5", "#dur<5"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
+type DurationComparatorOperator = "<" | "<=" | ">" | ">=" | "=";
+
+function parseDurationLiteralSeconds(raw: string): number | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (/^\d+(?:\.\d+)?$/.test(value)) {
+    const seconds = Number(value);
+    return Number.isFinite(seconds) ? seconds : null;
+  }
+  const secondsMatch = value.match(/^(\d+(?:\.\d+)?)s$/);
+  if (secondsMatch) {
+    const seconds = Number(secondsMatch[1]);
+    return Number.isFinite(seconds) ? seconds : null;
+  }
+  const minutesMatch = value.match(/^(\d+)m(?:(\d+(?:\.\d+)?)s?)?$/);
+  if (!minutesMatch) return null;
+  const minutes = Number(minutesMatch[1]);
+  const seconds = minutesMatch[2] ? Number(minutesMatch[2]) : 0;
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+  return minutes * 60 + seconds;
+}
+
+function parseDurationComparatorTerm(term: string): { operator: DurationComparatorOperator; valueSeconds: number } | null {
+  const comparatorMatch = term.match(/^#dur(<=|>=|=|<|>)(.+)$/);
+  if (!comparatorMatch) return null;
+  const operator = comparatorMatch[1] as DurationComparatorOperator;
+  const valueSeconds = parseDurationLiteralSeconds(comparatorMatch[2]);
+  if (valueSeconds == null || !Number.isFinite(valueSeconds)) return null;
+  return { operator, valueSeconds };
+}
 
 function formatBytesShort(bytes: number | null) {
   if (bytes == null || !Number.isFinite(bytes)) return "?";
@@ -191,7 +221,7 @@ export function VideoUpload() {
   );
   const isRecognizedRecentTagTerm = useCallback((term: string) => {
     if (RECENT_FILTER_SIMPLE_TAGS.includes(term as typeof RECENT_FILTER_SIMPLE_TAGS[number])) return true;
-    return /^#dur(<=|>=|=|<|>)(\d+(?:\.\d+)?)$/.test(term);
+    return parseDurationComparatorTerm(term) !== null;
   }, []);
   const unknownRecentTagTerms = useMemo(() => {
     const out: string[] = [];
@@ -206,17 +236,15 @@ export function VideoUpload() {
     return out;
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
-    const durationMatcher = term.match(/^#dur(<=|>=|=|<|>)(\d+(?:\.\d+)?)$/);
-    if (durationMatcher) {
-      const [, operator, rawValue] = durationMatcher;
-      const value = Number(rawValue);
-      if (!Number.isFinite(value)) return false;
+    const durationComparator = parseDurationComparatorTerm(term);
+    if (durationComparator) {
+      const { operator, valueSeconds } = durationComparator;
       const duration = item.info.duration;
-      if (operator === "<") return duration < value;
-      if (operator === "<=") return duration <= value;
-      if (operator === ">") return duration > value;
-      if (operator === ">=") return duration >= value;
-      return Math.abs(duration - value) < 0.05;
+      if (operator === "<") return duration < valueSeconds;
+      if (operator === "<=") return duration <= valueSeconds;
+      if (operator === ">") return duration > valueSeconds;
+      if (operator === ">=") return duration >= valueSeconds;
+      return Math.abs(duration - valueSeconds) < 0.05;
     }
     if (term.startsWith("#")) {
       const tag = term.slice(1);
