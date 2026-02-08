@@ -1387,6 +1387,28 @@ export function VideoUpload() {
                 )}
               </div>
             )}
+            {(includeRecentFilterTerms.length > 0 || excludeRecentFilterTerms.length > 0) && (
+              <div className="flex flex-wrap justify-center items-center gap-1 text-[8px] font-pixel">
+                {includeRecentFilterTerms.map((term, idx) => (
+                  <span
+                    key={`inc-${term}-${idx}`}
+                    className="px-1 py-0.5 rounded border border-cyan-500/30 text-cyan-200/90"
+                    aria-label={`Including term ${term}`}
+                  >
+                    +{term}
+                  </span>
+                ))}
+                {excludeRecentFilterTerms.map((term, idx) => (
+                  <span
+                    key={`exc-${term}-${idx}`}
+                    className="px-1 py-0.5 rounded border border-amber-500/30 text-amber-200/90"
+                    aria-label={`Excluding term ${term}`}
+                  >
+                    -{term}
+                  </span>
+                ))}
+              </div>
+            )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
                 keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset · loaded: Alt+P/N cycle, Alt+X eject

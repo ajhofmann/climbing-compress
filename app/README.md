@@ -82,6 +82,7 @@ Upload constraints are enforced by the backend:
 - keyboard shortcut `Alt+X` ejects the loaded clip back to the dropzone selector
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
 - recent module supports inline name filtering with dedicated `no matching clips` empty state, space-separated AND-term matching, and `-term` exclusions
+- active filter chips are shown for parsed terms (`+term` includes, `-term` excludes)
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
 - `Esc` clears active recent filter text and restores default preview
 - pressing `Enter` in recent filter input loads the first matching clip immediately
