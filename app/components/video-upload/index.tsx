@@ -47,6 +47,7 @@ export function VideoUpload() {
   const [refreshingRecent, setRefreshingRecent] = useState(false);
   const [clearingLibrary, setClearingLibrary] = useState(false);
   const [clearingOutputs, setClearingOutputs] = useState(false);
+  const [clearingFilteredOutputs, setClearingFilteredOutputs] = useState(false);
   const [pruningFiltered, setPruningFiltered] = useState(false);
   const [clipBytes, setClipBytes] = useState<number | null>(null);
   const [currentSourceBytes, setCurrentSourceBytes] = useState<number | null>(null);
@@ -215,6 +216,10 @@ export function VideoUpload() {
   );
   const filteredOutputCount = useMemo(
     () => filteredRecent.reduce((sum, item) => sum + item.output_count, 0),
+    [filteredRecent],
+  );
+  const filteredClipsWithOutputs = useMemo(
+    () => filteredRecent.reduce((count, item) => count + (item.output_count > 0 ? 1 : 0), 0),
     [filteredRecent],
   );
   const filteredOutputBytes = useMemo(
@@ -664,6 +669,93 @@ export function VideoUpload() {
     }
   };
 
+  const handleClearFilteredOutputs = async () => {
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    if (!hasActiveRecentSubset) {
+      setProgress(0, "No filtered clip subset is active.");
+      return;
+    }
+    if (filteredRecent.length <= 0) {
+      setProgress(0, "No filtered clips to clear outputs for.");
+      return;
+    }
+
+    const liveOutputStats = await Promise.all(filteredRecent.map(async (item) => {
+      try {
+        const stats = await getLibraryStats(item.video_id);
+        return {
+          videoId: item.video_id,
+          outputs: Math.max(0, stats.clip_outputs ?? item.output_count),
+          bytes: Math.max(0, stats.clip_output_bytes ?? item.output_bytes),
+        };
+      } catch {
+        return {
+          videoId: item.video_id,
+          outputs: Math.max(0, item.output_count),
+          bytes: Math.max(0, item.output_bytes),
+        };
+      }
+    }));
+
+    const confirmOutputCount = liveOutputStats.reduce((sum, item) => sum + item.outputs, 0);
+    if (confirmOutputCount <= 0) {
+      setProgress(0, "No rendered outputs matched current filters.");
+      return;
+    }
+    const confirmOutputBytes = liveOutputStats.reduce((sum, item) => sum + item.bytes, 0);
+    const confirmClipCount = liveOutputStats.reduce((count, item) => count + (item.outputs > 0 ? 1 : 0), 0);
+    const confirmText = `Remove filtered rendered outputs? (${confirmOutputCount} rendered output${confirmOutputCount === 1 ? "" : "s"} across ${confirmClipCount}/${filteredRecent.length} clips, ${formatBytesVerbose(confirmOutputBytes)})`;
+    if (!window.confirm(confirmText)) return;
+
+    setClearingOutputs(true);
+    setClearingFilteredOutputs(true);
+    try {
+      let clearedOutputs = 0;
+      let clearedBytes = 0;
+      let clearedClips = 0;
+      let failed = 0;
+      const targets = liveOutputStats.filter((item) => item.outputs > 0);
+      for (const item of targets) {
+        try {
+          const result = await deleteOutputsForVideo(item.videoId);
+          const removed = result.deleted_outputs ?? 0;
+          if (removed > 0) clearedClips += 1;
+          clearedOutputs += removed;
+          clearedBytes += result.deleted_output_bytes ?? 0;
+        } catch {
+          failed += 1;
+        }
+      }
+      await refreshRecent();
+      if (clearedOutputs <= 0) {
+        const failPart = failed <= 0
+          ? ""
+          : failed === 1
+            ? " 1 clip failed to clear."
+            : ` ${failed} clips failed to clear.`;
+        setProgress(0, `No rendered outputs were cleared.${failPart}`);
+        return;
+      }
+      const outputPart = clearedOutputs === 1
+        ? "Cleared 1 rendered output"
+        : `Cleared ${clearedOutputs} rendered outputs`;
+      const clipPart = ` across ${clearedClips} clip${clearedClips === 1 ? "" : "s"}.`;
+      const bytesPart = clearedBytes > 0 ? ` Freed ${formatBytesVerbose(clearedBytes)}.` : "";
+      const failPart = failed <= 0
+        ? ""
+        : failed === 1
+          ? " 1 clip failed to clear."
+          : ` ${failed} clips failed to clear.`;
+      setProgress(0, `${outputPart}${clipPart}${bytesPart}${failPart}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Clear outputs failed";
+      setProgress(0, `Clear outputs failed: ${msg}`);
+    } finally {
+      setClearingFilteredOutputs(false);
+      setClearingOutputs(false);
+    }
+  };
+
   const handleClearAllOutputs = useCallback(async () => {
     if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     const outputLabel = outputCount && outputCount > 0
@@ -941,6 +1033,16 @@ export function VideoUpload() {
               >
                 {pruningFiltered ? "[clearing filt...]" : "[clear filtered]"}
               </button>
+              {hasActiveRecentSubset && (
+                <button
+                  onClick={() => void handleClearFilteredOutputs()}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || filteredOutputCount <= 0}
+                  className="text-[9px] font-pixel text-amber-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                  aria-label={`Clear rendered outputs for filtered clips (${filteredOutputCount} outputs across ${filteredClipsWithOutputs} clips)`}
+                >
+                  {clearingFilteredOutputs ? "[clearing filt out...]" : "[clear filt out]"}
+                </button>
+              )}
               <button
                 onClick={() => void handleClearAllOutputs()}
                 disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || outputCount === 0}
@@ -948,7 +1050,7 @@ export function VideoUpload() {
                 aria-label="Clear all rendered outputs"
                 aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
               >
-                {clearingOutputs ? "[clearing out...]" : "[clear outputs]"}
+                {clearingOutputs && !clearingFilteredOutputs ? "[clearing out...]" : "[clear outputs]"}
               </button>
               {filteredRecent.length > RECENT_PREVIEW_LIMIT && (
                 <button
