@@ -96,6 +96,7 @@ Upload notes:
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
 - Press `Enter` in the recent filter input to load the first matching clip instantly.
+- Press `↑` / `↓` in the recent filter input to choose a clip, then `Enter` to load the highlighted selection.
 - Recent filter text now persists across reloads (alongside sort/show/scope preferences).
 - Missing/deleted source files are auto-pruned from Recent/library indexes during list refreshes.
 - Refresh control now shows a temporary loading state while rescanning local clips.

@@ -57,6 +57,7 @@ export function VideoUpload() {
   const [clipOutputBytes, setClipOutputBytes] = useState<number | null>(null);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
+  const [recentCursorIdx, setRecentCursorIdx] = useState(-1);
   const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration" | "outputs" | "size">("recent");
   const [recentOutputScope, setRecentOutputScope] = useState<"all" | "with" | "none">("all");
   const [recentCacheScope, setRecentCacheScope] = useState<"all" | "cached" | "uncached">("all");
@@ -197,6 +198,17 @@ export function VideoUpload() {
       ? sortedRecent
       : sortedRecent.slice(0, RECENT_PREVIEW_LIMIT)
   ), [showAllRecent, sortedRecent]);
+  useEffect(() => {
+    setRecentCursorIdx(-1);
+  }, [normalizedRecentFilter, recentOutputScope, recentCacheScope, recentSort, showAllRecent]);
+  useEffect(() => {
+    setRecentCursorIdx((prev) => {
+      if (visibleRecent.length <= 0) return -1;
+      if (prev < 0) return prev;
+      return Math.min(prev, visibleRecent.length - 1);
+    });
+  }, [visibleRecent.length]);
+
   const hiddenRecentCount = Math.max(0, sortedRecent.length - visibleRecent.length);
   const outputScopeCount = useMemo(() => {
     if (recentOutputScope === "all") return cacheScopedRecent.length;
@@ -1161,18 +1173,40 @@ export function VideoUpload() {
                   value={recentFilter}
                   onChange={(e) => setRecentFilter(e.target.value)}
                   onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      if (visibleRecent.length <= 0) return;
+                      e.preventDefault();
+                      setRecentCursorIdx((prev) => {
+                        if (prev < 0) return 0;
+                        return Math.min(prev + 1, visibleRecent.length - 1);
+                      });
+                      return;
+                    }
+                    if (e.key === "ArrowUp") {
+                      if (visibleRecent.length <= 0) return;
+                      e.preventDefault();
+                      setRecentCursorIdx((prev) => {
+                        if (prev < 0) return 0;
+                        return Math.max(prev - 1, 0);
+                      });
+                      return;
+                    }
                     if (e.key === "Enter") {
                       e.preventDefault();
                       if (visibleRecent.length <= 0) {
                         setProgress(0, "No matching clips to load.");
                         return;
                       }
-                      void handleLoadExisting(visibleRecent[0]);
+                      const targetIndex = recentCursorIdx >= 0
+                        ? Math.min(recentCursorIdx, visibleRecent.length - 1)
+                        : 0;
+                      void handleLoadExisting(visibleRecent[targetIndex]);
                       return;
                     }
                     if (e.key === "Escape") {
                       e.preventDefault();
                       setRecentFilter("");
+                      setRecentCursorIdx(-1);
                       e.currentTarget.blur();
                     }
                   }}
@@ -1193,12 +1227,12 @@ export function VideoUpload() {
             )}
             {visibleRecent.length > 0 ? (
               <div className="flex flex-wrap justify-center gap-1">
-                {visibleRecent.map((item) => (
+                {visibleRecent.map((item, idx) => (
                   <div key={item.video_id} className="flex items-center gap-0.5">
                     <button
                       onClick={() => void handleLoadExisting(item)}
                       disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
-                      className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={`retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed ${idx === recentCursorIdx ? "ring-1 ring-cyan-300/80" : ""}`}
                       title={`${item.filename} · ${item.info.duration.toFixed(1)}s · src ${formatBytesVerbose(item.source_bytes)}${item.cached ? " · cached analysis" : ""} · ${item.output_count} output${item.output_count === 1 ? "" : "s"} (${formatBytesVerbose(item.output_bytes)})`}
                     >
                       {item.cached ? "⚡ " : ""}

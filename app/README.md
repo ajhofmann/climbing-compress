@@ -77,6 +77,7 @@ Upload constraints are enforced by the backend:
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
 - `Esc` clears active recent filter text and restores default preview
 - pressing `Enter` in recent filter input loads the first matching clip immediately
+- `ArrowUp` / `ArrowDown` in recent filter input moves a visible-clip cursor; `Enter` loads that highlighted clip
 - recent filter text is persisted across reloads with other recent-view preferences
 - stale/missing source files are automatically dropped from Recent on refresh
 - refresh action shows temporary loading label while list rescan is in progress
