@@ -63,6 +63,7 @@ Upload notes:
 - Recent header now includes a live clip count (`Recent (N)`).
 - Recent header now also shows aggregated local duration (`Recent (N · M:SS)`).
 - Dropzone now surfaces local-library action feedback inline (rename/delete/clear outcomes).
+- Recent row now supports sort cycling (`[sort:recent]`, `[sort:name]`, `[sort:duration]`).
 
 ## Speed-ramp modes
 

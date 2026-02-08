@@ -44,6 +44,7 @@ Upload constraints are enforced by the backend:
 - recent header displays a live item count (`Recent (N)`)
 - recent header also shows total local duration (`Recent (N · M:SS)`)
 - dropzone now shows inline feedback text for local library actions (rename/delete/clear results)
+- recent row supports sort cycling between recency, filename, and duration ordering
 
 ## Common scripts
 
