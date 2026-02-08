@@ -88,6 +88,7 @@ Upload notes:
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, and `-term` exclusions.
 - Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long` (and exclusions like `-#out`).
+- Output-count comparators are supported too (for example `#out>=1`, `#out=0`, `#out>2`).
 - Duration comparator tags are also supported (for example `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`).
 - Unknown `#tag` tokens are highlighted in warning style and listed as `unknown tag:*` until corrected/removed.
 - Unknown non-duration tags also surface `did you mean` replacement buttons (for example `#cachedd` → `#cached`) with one-click repair.
