@@ -57,6 +57,7 @@ Upload notes:
 - Recent section includes `[clear all]` to wipe the local library in one step.
 - Missing/deleted source files are auto-pruned from Recent/library indexes during list refreshes.
 - Refresh control now shows a temporary loading state while rescanning local clips.
+- Recent header now includes a live clip count (`Recent (N)`).
 - Dropzone now surfaces local-library action feedback inline (rename/delete/clear outcomes).
 
 ## Speed-ramp modes
