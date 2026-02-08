@@ -35,6 +35,24 @@ function parseDurationLiteralSeconds(raw: string): number | null {
     if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || seconds >= 60) return null;
     return minutes * 60 + seconds;
   }
+  const clockHmsMatch = value.match(/^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/);
+  if (clockHmsMatch) {
+    const hours = Number(clockHmsMatch[1]);
+    const minutes = Number(clockHmsMatch[2]);
+    const seconds = Number(clockHmsMatch[3]);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+    if (minutes >= 60 || seconds >= 60) return null;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+  const hoursMatch = value.match(/^(\d+)h(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s?)?$/);
+  if (hoursMatch) {
+    const hours = Number(hoursMatch[1]);
+    const minutes = hoursMatch[2] ? Number(hoursMatch[2]) : 0;
+    const seconds = hoursMatch[3] ? Number(hoursMatch[3]) : 0;
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+    if (minutes >= 60 || seconds >= 60) return null;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
   const decimalMinutesMatch = value.match(/^(\d+(?:\.\d+)?)m$/);
   if (decimalMinutesMatch) {
     const minutes = Number(decimalMinutesMatch[1]);
