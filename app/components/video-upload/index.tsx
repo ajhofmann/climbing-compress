@@ -6,6 +6,7 @@ import { deleteAllVideos, deleteVideo, getVideoMeta, listVideos, renameVideo, up
 import { Tooltip } from "@/components/tooltip";
 
 const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
+const RECENT_PREVIEW_LIMIT = 6;
 
 export function VideoUpload() {
   const videoId = useStore((state) => state.videoId);
@@ -25,6 +26,7 @@ export function VideoUpload() {
   const [recentFetchDone, setRecentFetchDone] = useState(false);
   const [refreshingRecent, setRefreshingRecent] = useState(false);
   const [clearingLibrary, setClearingLibrary] = useState(false);
+  const [showAllRecent, setShowAllRecent] = useState(false);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -38,18 +40,28 @@ export function VideoUpload() {
     return `${stem.slice(0, 6)}…${ext}`;
   };
 
+  const applyRecent = (items: VideoListItem[]) => {
+    setRecentVideos(items);
+    setShowAllRecent((prev) => (items.length > RECENT_PREVIEW_LIMIT ? prev : false));
+  };
+
+  const visibleRecent = showAllRecent
+    ? recentVideos
+    : recentVideos.slice(0, RECENT_PREVIEW_LIMIT);
+  const hiddenRecentCount = Math.max(0, recentVideos.length - visibleRecent.length);
+
   useEffect(() => {
     if (videoId) return;
     let cancelled = false;
     void listVideos()
       .then((items) => {
         if (cancelled) return;
-        setRecentVideos(items.slice(0, 6));
+        applyRecent(items);
         setRecentFetchDone(true);
       })
       .catch(() => {
         if (cancelled) return;
-        setRecentVideos([]);
+        applyRecent([]);
         setRecentFetchDone(true);
       })
     return () => {
@@ -61,9 +73,9 @@ export function VideoUpload() {
     setRefreshingRecent(true);
     try {
       const items = await listVideos();
-      setRecentVideos(items.slice(0, 6));
+      applyRecent(items);
     } catch {
-      setRecentVideos([]);
+      applyRecent([]);
     } finally {
       setRecentFetchDone(true);
       setRefreshingRecent(false);
@@ -169,6 +181,7 @@ export function VideoUpload() {
     try {
       const result = await deleteAllVideos();
       setRecentVideos([]);
+      setShowAllRecent(false);
       setRecentFetchDone(true);
       if (shouldClearCurrent) clearVideo();
       const count = result.deleted ?? 0;
@@ -301,10 +314,20 @@ export function VideoUpload() {
               >
                 {clearingLibrary ? "[clearing...]" : "[clear all]"}
               </button>
+              {recentVideos.length > RECENT_PREVIEW_LIMIT && (
+                <button
+                  onClick={() => setShowAllRecent((prev) => !prev)}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
+                  className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                  aria-label={showAllRecent ? "Show fewer recent clips" : "Show all recent clips"}
+                >
+                  {showAllRecent ? "[show less]" : "[show all]"}
+                </button>
+              )}
             </div>
-            {recentVideos.length > 0 ? (
+            {visibleRecent.length > 0 ? (
               <div className="flex flex-wrap justify-center gap-1">
-                {recentVideos.map((item) => (
+                {visibleRecent.map((item) => (
                   <div key={item.video_id} className="flex items-center gap-0.5">
                     <button
                       onClick={() => void handleLoadExisting(item)}
@@ -338,6 +361,11 @@ export function VideoUpload() {
               </div>
             ) : (
               <span className="text-[10px] font-pixel text-text-muted/70 text-center">no local clips</span>
+            )}
+            {hiddenRecentCount > 0 && !showAllRecent && (
+              <span className="text-[9px] font-pixel text-text-muted/60 text-center">
+                +{hiddenRecentCount} more clip{hiddenRecentCount === 1 ? "" : "s"}
+              </span>
             )}
           </div>
         )}
