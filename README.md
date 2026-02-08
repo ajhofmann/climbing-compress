@@ -57,6 +57,7 @@ Upload notes:
 - Rename no-ops are ignored (if normalized target name matches current name).
 - Recent section now remains visible when empty (`no local clips`) and includes a manual `[refresh]` control.
 - Recent section includes `[clear all]` to wipe the local library in one step.
+- `[clear all]` / `CLEAR LIB` now also remove rendered output files and report both counts in status feedback.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.

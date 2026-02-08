@@ -38,6 +38,7 @@ Upload constraints are enforced by the backend:
 - no-op renames are skipped when normalized target equals current filename
 - recent module shows explicit empty state (`no local clips`) and a `[refresh]` action to rescan local library
 - recent module includes `[clear all]` action for one-click local library wipe
+- clear-library actions now also purge rendered outputs and include both clip/output counts in feedback
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
 - recent module supports inline name filtering with dedicated `no matching clips` empty state
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
