@@ -40,6 +40,7 @@ INPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "512"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+ALLOWED_VIDEO_EXTS = (".mov", ".mp4", ".avi", ".mkv")
 
 _cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
 
@@ -59,7 +60,7 @@ _file_hashes: dict[str, str] = {}
 
 # Scan existing input videos on startup
 for _f in INPUT_DIR.iterdir():
-    if _f.suffix.lower() in (".mov", ".mp4", ".avi", ".mkv") and not _f.name.startswith("_tmp_"):
+    if _f.suffix.lower() in ALLOWED_VIDEO_EXTS and not _f.name.startswith("_tmp_"):
         _videos[_f.stem] = _f
         try:
             _file_hashes[content_hash(str(_f))] = _f.stem
@@ -156,7 +157,11 @@ def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
 
 @app.post("/api/upload")
 async def upload_video(file: UploadFile = File(...)):
-    ext = Path(file.filename).suffix or ".mov"
+    filename = file.filename or ""
+    ext = Path(filename).suffix.lower() or ".mov"
+    if ext not in ALLOWED_VIDEO_EXTS:
+        allowed = ", ".join(ALLOWED_VIDEO_EXTS)
+        raise HTTPException(415, f"Unsupported video format. Allowed: {allowed}")
 
     # Save to temp first so we can hash before committing
     tmp = INPUT_DIR / f"_tmp_{uuid.uuid4().hex[:8]}{ext}"

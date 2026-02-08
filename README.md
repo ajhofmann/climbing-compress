@@ -39,6 +39,10 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000), drop in a climbing video, hit **analyze**, tweak the curve, and **render**.
 
+Upload notes:
+- Supported file extensions: `.mov`, `.mp4`, `.avi`, `.mkv`
+- Backend upload cap defaults to `512 MB` (override with `MAX_UPLOAD_MB`)
+
 ## Speed-ramp modes
 
 **Constant Progress** (default) — allocates output time proportional to wall progress. At 50% of the output you're ~50% up the boulder. Rest sections are detected automatically and fast-forwarded.

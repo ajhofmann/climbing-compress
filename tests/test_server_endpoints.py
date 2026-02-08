@@ -60,3 +60,14 @@ def test_upload_rejects_oversized_files(monkeypatch):
 
     assert resp.status_code == 413
     assert "upload too large" in resp.text.lower()
+
+
+def test_upload_rejects_unsupported_extension():
+    client = TestClient(server.app)
+    resp = client.post(
+        "/api/upload",
+        files={"file": ("clip.webm", b"video", "video/webm")},
+    )
+
+    assert resp.status_code == 415
+    assert "unsupported video format" in resp.text.lower()
