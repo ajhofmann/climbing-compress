@@ -11,6 +11,7 @@ const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
 const RECENT_FILTER_TAG_TEMPLATES = ["#dur>5", "#dur<5", "#dur>90s", "#dur>1m30s"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
+const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur>90s", "#dur>1m30s"] as const;
 type DurationComparatorOperator = "<" | "<=" | ">" | ">=" | "=";
 
 function parseDurationLiteralSeconds(raw: string): number | null {
@@ -1673,8 +1674,19 @@ export function VideoUpload() {
                   unknown tag{unknownRecentTagTerms.length === 1 ? "" : "s"}: {unknownRecentTagTerms.join(", ")}
                 </div>
                 {hasUnknownDurationTagTerm && (
-                  <div className="text-[8px] font-pixel text-rose-200/80 text-center">
-                    duration examples: #dur&gt;5 · #dur&gt;90s · #dur&gt;1m30s
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>duration examples:</span>
+                    {RECENT_DURATION_HINT_TAGS.map((tag) => (
+                      <button
+                        key={`dur-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => applyRecentTagSuggestion(tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed duration filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
