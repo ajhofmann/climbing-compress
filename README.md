@@ -54,6 +54,7 @@ Upload notes:
 - Loaded clip bar includes **CLEAR OUT** to purge rendered outputs for the loaded clip only.
 - Loaded clip bar now shows `out:clip/total` (`out:C/T`) near clip metadata for per-clip vs global output visibility.
 - Loaded `out:C/T` counter now auto-refreshes after quick/full renders and clip deletion flows (no manual refresh needed).
+- Upload/load metadata now carries per-clip `output_count` so loaded counters hydrate immediately on open/reuse.
 - Loaded `[CLEAR OUT]` is disabled when current clip has no render outputs (`out:0/T`), even if other clips still have outputs.
 - Loaded **SWAP** action is disabled while analyze/render/library-mutation jobs are active to prevent conflicting state changes.
 - Recent entries include **✎** (rename) and **X** (delete) actions to manage local library entries in-place.

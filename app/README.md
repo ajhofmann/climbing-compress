@@ -35,6 +35,7 @@ Upload constraints are enforced by the backend:
 - loaded clip toolbar includes `[CLEAR OUT]` to purge rendered outputs for the loaded clip only
 - loaded clip toolbar shows `out:C/T` (clip/global output counts) near clip metadata for quick housekeeping visibility
 - loaded `out:C/T` count auto-refreshes after quick/full renders and loaded-clip deletion flows
+- upload/load metadata now includes per-clip `output_count` so loaded counters hydrate immediately
 - loaded `[CLEAR OUT]` is disabled when clip output count is zero (`out:0/T`)
 - loaded `[SWAP]` is guarded/disabled during analyze, render, and library mutation operations
 - each recent pill has `✎` (rename) and `X` (delete) actions for local library cleanup
