@@ -7,6 +7,7 @@ import { Tooltip } from "@/components/tooltip";
 
 const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 const RECENT_PREVIEW_LIMIT = 6;
+const RECENT_PREF_KEY = "sendit.recentPrefs";
 
 export function VideoUpload() {
   const videoId = useStore((state) => state.videoId);
@@ -29,6 +30,33 @@ export function VideoUpload() {
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
   const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration">("recent");
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(RECENT_PREF_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean };
+      if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration") {
+        setRecentSort(parsed.sort);
+      }
+      if (typeof parsed.showAll === "boolean") {
+        setShowAllRecent(parsed.showAll);
+      }
+    } catch {
+      // ignore malformed local preferences
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(RECENT_PREF_KEY, JSON.stringify({
+        sort: recentSort,
+        showAll: showAllRecent,
+      }));
+    } catch {
+      // ignore storage write failures
+    }
+  }, [recentSort, showAllRecent]);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
