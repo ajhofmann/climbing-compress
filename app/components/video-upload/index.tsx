@@ -1971,7 +1971,7 @@ export function VideoUpload() {
                     ))}
                   </div>
                 )}
-                {unknownOutputHintConfig && (
+                {!unknownTagReplacementHints && unknownOutputHintConfig && (
                   <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
                     <span>output examples:</span>
                     {unknownOutputHintConfig.tags.map((tag) => (
@@ -1987,7 +1987,7 @@ export function VideoUpload() {
                     ))}
                   </div>
                 )}
-                {unknownStorageHintConfig && (
+                {!unknownTagReplacementHints && unknownStorageHintConfig && (
                   <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
                     <span>storage examples:</span>
                     {unknownStorageHintConfig.tags.map((tag) => (
@@ -2003,7 +2003,7 @@ export function VideoUpload() {
                     ))}
                   </div>
                 )}
-                {unknownDurationHintConfig && (
+                {!unknownTagReplacementHints && unknownDurationHintConfig && (
                   <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
                     <span>duration examples:</span>
                     {unknownDurationHintConfig.tags.map((tag) => (
