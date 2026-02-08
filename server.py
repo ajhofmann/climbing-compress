@@ -472,6 +472,12 @@ async def rename_video(video_id: str, req: RenameVideoRequest):
     if len(filename) > 120:
         raise HTTPException(400, "Filename too long (max 120 characters)")
 
+    if _video_names.get(video_id) == filename:
+        return {
+            "video_id": video_id,
+            "filename": filename,
+        }
+
     _video_names[video_id] = filename
     _persist_video_names()
 

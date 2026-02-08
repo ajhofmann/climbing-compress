@@ -629,6 +629,27 @@ def test_rename_video_rejects_too_long_name(monkeypatch, tmp_path: Path):
     assert resp.status_code == 400
 
 
+def test_rename_video_noop_skips_persist(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_file_hashes", {})
+    monkeypatch.setattr(server, "_video_hashes", {})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"source": "same_name.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    persist_calls = {"count": 0}
+    monkeypatch.setattr(server, "_persist_video_names", lambda: persist_calls.__setitem__("count", persist_calls["count"] + 1))
+
+    client = TestClient(server.app)
+    resp = client.patch("/api/videos/source", json={"filename": "same_name.mp4"})
+
+    assert resp.status_code == 200
+    assert persist_calls["count"] == 0
+
+
 def test_rename_video_missing_source_returns_404_and_cleans_state(monkeypatch, tmp_path: Path):
     missing_path = tmp_path / "missing.mp4"
 
