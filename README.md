@@ -68,6 +68,7 @@ Upload notes:
 - Recent/output counters remain accurate after loaded-clip deletes (no stale double-decrement drift).
 - Each Recent clip row now includes a mini output-clear action (`◍`) for clip-scoped render cleanup without loading the clip first.
 - Recent mini output-clear action (`◍`) is now clip-aware and disabled when that specific clip has zero rendered outputs.
+- Recent mini output-clear action now displays clip output count inline (`◍N`) when outputs exist.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
