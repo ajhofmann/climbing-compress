@@ -62,6 +62,13 @@ export function VideoUpload() {
   useEffect(() => {
     if (videoId || !recentFetchDone) return;
     const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!recentFilter) return;
+        e.preventDefault();
+        setRecentFilter("");
+        recentFilterInputRef.current?.blur();
+        return;
+      }
       if (e.key !== "/") return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
@@ -71,7 +78,7 @@ export function VideoUpload() {
     };
     window.addEventListener("keydown", onGlobalKeyDown, true);
     return () => window.removeEventListener("keydown", onGlobalKeyDown, true);
-  }, [videoId, recentFetchDone]);
+  }, [videoId, recentFetchDone, recentFilter]);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -431,6 +438,13 @@ export function VideoUpload() {
                   ref={recentFilterInputRef}
                   value={recentFilter}
                   onChange={(e) => setRecentFilter(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setRecentFilter("");
+                      e.currentTarget.blur();
+                    }
+                  }}
                   placeholder="filter clips"
                   aria-label="Filter recent clips by name"
                   className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
