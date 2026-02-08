@@ -574,6 +574,43 @@ def test_delete_all_outputs_when_empty(monkeypatch, tmp_path: Path):
     assert resp.json() == {"deleted_outputs": 0}
 
 
+def test_delete_outputs_for_video_removes_only_matching_stem(monkeypatch, tmp_path: Path):
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    matching = out_dir / "source.mp4"
+    matching.write_bytes(b"a")
+    unrelated = out_dir / "other.mp4"
+    unrelated.write_bytes(b"b")
+    keep = out_dir / "source.txt"
+    keep.write_text("keep", encoding="utf-8")
+
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/outputs/source")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"video_id": "source", "deleted_outputs": 1}
+    assert not matching.exists()
+    assert unrelated.exists()
+    assert keep.exists()
+
+
+def test_delete_outputs_for_video_when_no_match(monkeypatch, tmp_path: Path):
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    (out_dir / "other.mp4").write_bytes(b"x")
+
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/outputs/source")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"video_id": "source", "deleted_outputs": 0}
+    assert (out_dir / "other.mp4").exists()
+
+
 def test_library_stats_counts_existing_clips_and_outputs(monkeypatch, tmp_path: Path):
     existing = tmp_path / "existing.mp4"
     existing.write_bytes(b"video")

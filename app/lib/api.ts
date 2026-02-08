@@ -282,6 +282,12 @@ export async function deleteAllOutputs(): Promise<{ deleted_outputs: number }> {
   return res.json();
 }
 
+export async function deleteOutputsForVideo(videoId: string): Promise<{ video_id: string; deleted_outputs: number }> {
+  const res = await fetch(`${API}/api/outputs/${videoId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
 export async function getLibraryStats(): Promise<LibraryStats> {
   const res = await fetch(`${API}/api/library-stats`, { cache: "no-store" });
   if (!res.ok) throw new Error(await readErrorMessage(res));

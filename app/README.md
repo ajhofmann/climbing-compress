@@ -32,7 +32,7 @@ Upload constraints are enforced by the backend:
 - loaded clip toolbar displays active filename to clarify swap/delete actions
 - loaded clip toolbar includes `[RENAME]` to relabel the active clip
 - loaded clip toolbar includes `[CLEAR LIB]` to wipe all local clips immediately
-- loaded clip toolbar includes `[CLEAR OUT]` to purge rendered outputs without unloading source clip
+- loaded clip toolbar includes `[CLEAR OUT]` to purge rendered outputs for the loaded clip only
 - loaded clip toolbar shows `out:N` output count near clip metadata for quick housekeeping visibility
 - loaded `out:N` count auto-refreshes after quick/full renders and loaded-clip deletion flows
 - loaded `[SWAP]` is guarded/disabled during analyze, render, and library mutation operations
@@ -43,7 +43,7 @@ Upload constraints are enforced by the backend:
 - recent module shows explicit empty state (`no local clips`) and a `[refresh]` action to rescan local library
 - recent module includes `[clear all]` action for one-click local library wipe
 - clear-library actions now also purge rendered outputs and include both clip/output counts in feedback
-- recent module includes `[clear outputs]` for output-only cleanup while keeping local clips
+- recent module includes `[clear outputs]` for global output-only cleanup while keeping local clips
 - recent controls display live `out:N` render-output count and disable output cleanup when `out:0`
 - recent/library output count remains consistent after loaded delete operations (no extra decrement drift)
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews

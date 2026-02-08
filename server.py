@@ -527,6 +527,13 @@ async def delete_all_outputs():
     return {"deleted_outputs": deleted_outputs}
 
 
+@app.delete("/api/outputs/{video_id}")
+async def delete_outputs_for_video(video_id: str):
+    """Delete rendered outputs for one source video id."""
+    deleted_outputs = _clear_output_videos_for_source(video_id)
+    return {"video_id": video_id, "deleted_outputs": deleted_outputs}
+
+
 @app.get("/api/library-stats")
 async def library_stats():
     """Small fast counters for local clip/output housekeeping UI."""

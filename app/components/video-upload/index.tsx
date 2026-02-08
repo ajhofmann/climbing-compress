@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { deleteAllOutputs, deleteAllVideos, deleteVideo, getLibraryStats, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
+import { deleteAllOutputs, deleteAllVideos, deleteOutputsForVideo, deleteVideo, getLibraryStats, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
 
 const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
@@ -335,7 +335,7 @@ export function VideoUpload() {
     }
   };
 
-  const handleClearOutputs = async () => {
+  const handleClearAllOutputs = async () => {
     if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
     const confirmed = window.confirm("Remove all rendered outputs? (keeps source clips)");
     if (!confirmed) return;
@@ -350,6 +350,33 @@ export function VideoUpload() {
         setProgress(0, "Cleared 1 rendered output.");
       } else {
         setProgress(0, `Cleared ${outputs} rendered outputs.`);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Clear outputs failed";
+      setProgress(0, `Clear outputs failed: ${msg}`);
+    } finally {
+      setClearingOutputs(false);
+    }
+  };
+
+  const handleClearCurrentOutputs = async () => {
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    const confirmed = window.confirm("Remove rendered outputs for this clip only?");
+    if (!confirmed) return;
+    setClearingOutputs(true);
+    try {
+      const result = await deleteOutputsForVideo(videoId);
+      const outputs = result.deleted_outputs ?? 0;
+      setOutputCount((prev) => {
+        if (prev == null) return null;
+        return Math.max(0, prev - outputs);
+      });
+      if (outputs <= 0) {
+        setProgress(0, "No rendered outputs found for current clip.");
+      } else if (outputs === 1) {
+        setProgress(0, "Cleared 1 rendered output for current clip.");
+      } else {
+        setProgress(0, `Cleared ${outputs} rendered outputs for current clip.`);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Clear outputs failed";
@@ -486,7 +513,7 @@ export function VideoUpload() {
                 {clearingLibrary ? "[clearing...]" : "[clear all]"}
               </button>
               <button
-                onClick={() => void handleClearOutputs()}
+                onClick={() => void handleClearAllOutputs()}
                 disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || outputCount === 0}
                 className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label="Clear all rendered outputs"
@@ -662,9 +689,9 @@ export function VideoUpload() {
           [CLEAR LIB]
         </button>
       </Tooltip>
-      <Tooltip text="Delete all rendered outputs while keeping source clips">
+      <Tooltip text="Delete rendered outputs for current clip only">
         <button
-          onClick={() => void handleClearOutputs()}
+          onClick={() => void handleClearCurrentOutputs()}
           disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || outputCount === 0}
           className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
