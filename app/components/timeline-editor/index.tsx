@@ -149,6 +149,52 @@ export function TimelineEditor() {
     updateSettings({ editMode: "keyframes" });
   }, [analysis, settings, cruxPoints, curve, curveTimes, setKeyframes, updateSettings]);
 
+  const applyCruxPins = useCallback(() => {
+    if (!analysis) return;
+    const rangeStart = settings.trimStart;
+    const rangeEnd = settings.trimEnd > 0 ? settings.trimEnd : analysis.duration;
+    const inRangeCrux = cruxPoints
+      .map((c) => c.time)
+      .filter((t) => t >= rangeStart && t <= rangeEnd);
+    if (inRangeCrux.length === 0) return;
+
+    const sampleSpeedAt = (time: number) => {
+      if (!curve.length || !curveTimes.length) return Math.max(settings.minSpeed, 1.0);
+      let bestIdx = 0;
+      let bestDist = Number.POSITIVE_INFINITY;
+      for (let i = 0; i < curveTimes.length; i++) {
+        const d = Math.abs(curveTimes[i] - time);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      return curve[bestIdx] ?? Math.max(settings.minSpeed, 1.0);
+    };
+
+    const dedupedTimes: number[] = [];
+    for (const t of [...inRangeCrux].sort((a, b) => a - b)) {
+      if (!dedupedTimes.length || Math.abs(t - dedupedTimes[dedupedTimes.length - 1]) > 0.2) {
+        dedupedTimes.push(t);
+      }
+    }
+
+    const generated = dedupedTimes.map((t) => {
+      const speed = Math.max(
+        settings.minSpeed,
+        Math.min(settings.maxSpeed, sampleSpeedAt(t) * 0.8),
+      );
+      return {
+        time: Number(t.toFixed(2)),
+        speed: Number(speed.toFixed(2)),
+        radius: 1.2,
+      };
+    });
+
+    setPins(generated);
+    updateSettings({ editMode: "pins" });
+  }, [analysis, settings, cruxPoints, curve, curveTimes, setPins, updateSettings]);
+
   if (!analysis) {
     return (
       <div className="rounded-lg bg-bg-card border border-border flex items-center justify-center h-24 text-text-muted text-xs font-pixel uppercase tracking-wider opacity-60">
@@ -200,6 +246,16 @@ export function TimelineEditor() {
                 className="text-danger hover:underline"
               >
                 clear all
+              </button>
+            </Tooltip>
+          )}
+          {settings.editMode === "pins" && cruxPoints.length > 0 && (
+            <Tooltip text="Auto-generate speed pins at detected crux markers in the current trim range">
+              <button
+                onClick={applyCruxPins}
+                className="text-neon-magenta hover:underline"
+              >
+                from crux
               </button>
             </Tooltip>
           )}
