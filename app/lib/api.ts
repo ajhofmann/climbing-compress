@@ -258,7 +258,7 @@ export async function deleteVideo(videoId: string): Promise<void> {
   if (!res.ok) throw new Error(await readErrorMessage(res));
 }
 
-export async function deleteAllVideos(): Promise<{ deleted: number; video_ids: string[] }> {
+export async function deleteAllVideos(): Promise<{ deleted: number; video_ids: string[]; deleted_outputs: number }> {
   const res = await fetch(`${API}/api/videos`, { method: "DELETE" });
   if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();

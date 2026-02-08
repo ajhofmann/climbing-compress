@@ -275,13 +275,18 @@ export function VideoUpload() {
       setRecentFetchDone(true);
       if (shouldClearCurrent) clearVideo();
       const count = result.deleted ?? 0;
-      if (count <= 0) {
-        setProgress(0, "Local library already empty.");
-      } else if (count === 1) {
-        setProgress(0, "Removed 1 local clip.");
-      } else {
-        setProgress(0, `Removed ${count} local clips.`);
-      }
+      const outputs = result.deleted_outputs ?? 0;
+      const clipPart = count <= 0
+        ? "Local library already empty."
+        : count === 1
+          ? "Removed 1 local clip."
+          : `Removed ${count} local clips.`;
+      const outputPart = outputs <= 0
+        ? ""
+        : outputs === 1
+          ? " Cleared 1 rendered output."
+          : ` Cleared ${outputs} rendered outputs.`;
+      setProgress(0, `${clipPart}${outputPart}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Clear failed";
       setProgress(0, `Clear failed: ${msg}`);
