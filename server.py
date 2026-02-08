@@ -182,10 +182,27 @@ class AnalyzeRequest(BaseModel):
 
 # ---- Helpers ----
 
-def _get_video_path(video_id: str) -> Path:
+def _drop_video_state(video_id: str, *, remove_name: bool) -> None:
+    _videos.pop(video_id, None)
+    _video_meta_cache.pop(video_id, None)
+    _video_info_errors.pop(video_id, None)
+    _unreadable_warned.pop(video_id, None)
+    _video_hashes.pop(video_id, None)
+    for h, vid in list(_file_hashes.items()):
+        if vid == video_id:
+            _file_hashes.pop(h, None)
+    if remove_name and _video_names.pop(video_id, None) is not None:
+        _persist_video_names()
+
+
+def _get_video_path(video_id: str, *, require_exists: bool = True) -> Path:
     if video_id not in _videos:
         raise HTTPException(404, f"Video '{video_id}' not found")
-    return _videos[video_id]
+    path = _videos[video_id]
+    if require_exists and not path.exists():
+        _drop_video_state(video_id, remove_name=True)
+        raise HTTPException(404, f"Video '{video_id}' not found")
+    return path
 
 
 def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
@@ -385,7 +402,7 @@ async def video_meta(video_id: str):
 @app.delete("/api/videos/{video_id}")
 async def delete_video(video_id: str):
     """Delete a source video from local library + clear its cached analysis."""
-    path = _get_video_path(video_id)
+    path = _get_video_path(video_id, require_exists=False)
 
     hash_keys = []
     if video_id in _video_hashes:
@@ -412,18 +429,7 @@ async def delete_video(video_id: str):
         except OSError as exc:
             raise HTTPException(500, f"Failed to delete video: {exc}") from exc
 
-    _videos.pop(video_id, None)
-    _video_meta_cache.pop(video_id, None)
-    _video_info_errors.pop(video_id, None)
-    _unreadable_warned.pop(video_id, None)
-    _video_hashes.pop(video_id, None)
-
-    if _video_names.pop(video_id, None) is not None:
-        _persist_video_names()
-
-    # Drop any dedup hash references pointing to this video id.
-    for h in hash_keys:
-        _file_hashes.pop(h, None)
+    _drop_video_state(video_id, remove_name=True)
 
     return {"video_id": video_id, "deleted": True}
 

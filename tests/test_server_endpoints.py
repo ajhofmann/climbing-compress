@@ -212,6 +212,29 @@ def test_video_meta_missing_video_returns_404(monkeypatch):
     assert resp.status_code == 404
 
 
+def test_video_meta_missing_source_file_returns_404_and_drops_indexes(monkeypatch, tmp_path: Path):
+    missing_path = tmp_path / "missing.mp4"
+
+    monkeypatch.setattr(server, "_videos", {"missing": missing_path})
+    monkeypatch.setattr(server, "_file_hashes", {"hash-missing": "missing"})
+    monkeypatch.setattr(server, "_video_hashes", {"missing": "hash-missing"})
+    monkeypatch.setattr(server, "_video_meta_cache", {"missing": {"info": {"duration": 1.0}}})
+    monkeypatch.setattr(server, "_video_names", {"missing": "missing.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {"missing": 1.0})
+    monkeypatch.setattr(server, "_unreadable_warned", {"missing": 1.0})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+
+    client = TestClient(server.app)
+    resp = client.get("/api/video-meta/missing")
+
+    assert resp.status_code == 404
+    assert "missing" not in server._videos
+    assert "missing" not in server._video_meta_cache
+    assert "missing" not in server._video_hashes
+    assert "hash-missing" not in server._file_hashes
+    assert "missing" not in server._video_names
+
+
 def test_list_videos_skips_unreadable_files(monkeypatch, tmp_path: Path):
     good_path = tmp_path / "good.mp4"
     bad_path = tmp_path / "bad.mp4"
