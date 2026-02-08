@@ -262,6 +262,34 @@ def test_list_videos_skips_unreadable_files(monkeypatch, tmp_path: Path):
     assert [item["video_id"] for item in body] == ["good"]
 
 
+def test_list_videos_drops_missing_sources_from_state(monkeypatch, tmp_path: Path):
+    missing_path = tmp_path / "missing.mp4"
+    existing_path = tmp_path / "existing.mp4"
+    existing_path.write_bytes(b"video")
+
+    monkeypatch.setattr(server, "_videos", {"missing": missing_path, "existing": existing_path})
+    monkeypatch.setattr(server, "_file_hashes", {"hash-missing": "missing", "hash-existing": "existing"})
+    monkeypatch.setattr(server, "_video_hashes", {"missing": "hash-missing", "existing": "hash-existing"})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"missing": "missing.mp4", "existing": "existing.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+    monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
+    monkeypatch.setattr(server, "has_cache_by_hash", lambda key: key == "hash-existing")
+
+    client = TestClient(server.app)
+    resp = client.get("/api/videos")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [item["video_id"] for item in body] == ["existing"]
+    assert "missing" not in server._videos
+    assert "missing" not in server._video_hashes
+    assert "hash-missing" not in server._file_hashes
+    assert "missing" not in server._video_names
+
+
 def test_video_meta_caches_thumbnails_after_first_request(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")

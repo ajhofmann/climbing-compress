@@ -366,7 +366,11 @@ async def list_videos():
         return (-mtime, vid)
 
     result = []
+    stale_missing: list[str] = []
     for vid, path in sorted(_videos.items(), key=_sort_key):
+        if not path.exists():
+            stale_missing.append(vid)
+            continue
         try:
             info = _get_video_info_cached(vid, path)
         except (OSError, ValueError) as exc:
@@ -385,6 +389,9 @@ async def list_videos():
             "info": info,
             "cached": _has_cached_analysis(vid, path),
         })
+    if stale_missing:
+        for vid in stale_missing:
+            _drop_video_state(vid, remove_name=True)
     return result
 
 
