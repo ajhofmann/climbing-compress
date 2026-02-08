@@ -277,14 +277,14 @@ export function VideoUpload() {
               <button
                 onClick={() => void refreshRecent()}
                 disabled={deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
-                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
               >
                 {refreshingRecent ? "[refreshing...]" : "[refresh]"}
               </button>
               <button
                 onClick={() => void handleClearLibrary()}
-                disabled={deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
-                className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || recentVideos.length === 0}
+                className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
               >
                 {clearingLibrary ? "[clearing...]" : "[clear all]"}
               </button>
