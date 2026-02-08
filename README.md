@@ -52,8 +52,9 @@ Upload notes:
 - Loaded clip bar includes **RENAME** for quick relabeling of local clips.
 - Loaded clip bar includes **CLEAR LIB** to wipe the entire local library without ejecting first.
 - Loaded clip bar includes **CLEAR OUT** to purge rendered outputs for the loaded clip only.
-- Loaded clip bar now shows `out:N` for current render-output count near clip metadata.
-- Loaded `out:N` counter now auto-refreshes after quick/full renders and clip deletion flows (no manual refresh needed).
+- Loaded clip bar now shows `out:clip/total` (`out:C/T`) near clip metadata for per-clip vs global output visibility.
+- Loaded `out:C/T` counter now auto-refreshes after quick/full renders and clip deletion flows (no manual refresh needed).
+- Loaded `[CLEAR OUT]` is disabled when current clip has no render outputs (`out:0/T`), even if other clips still have outputs.
 - Loaded **SWAP** action is disabled while analyze/render/library-mutation jobs are active to prevent conflicting state changes.
 - Recent entries include **✎** (rename) and **X** (delete) actions to manage local library entries in-place.
 - Rename keeps supported video extensions (`.mov/.mp4/.avi/.mkv`) and auto-appends the current extension if omitted.
