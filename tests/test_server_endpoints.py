@@ -71,3 +71,28 @@ def test_upload_rejects_unsupported_extension():
 
     assert resp.status_code == 415
     assert "unsupported video format" in resp.text.lower()
+
+
+def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
+    existing = tmp_path / "existing.mp4"
+    existing.write_bytes(b"existing")
+
+    monkeypatch.setattr(server, "INPUT_DIR", tmp_path)
+    monkeypatch.setattr(server, "_videos", {"existing": existing})
+    monkeypatch.setattr(server, "_file_hashes", {"same-hash": "existing"})
+    monkeypatch.setattr(server, "content_hash", lambda _path: "same-hash")
+    monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
+    monkeypatch.setattr(server, "generate_thumbnails", lambda _path, n=8: [])
+    monkeypatch.setattr(server, "has_cache", lambda _path: True)
+
+    client = TestClient(server.app)
+    resp = client.post(
+        "/api/upload",
+        files={"file": ("new.mp4", b"new", "video/mp4")},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["video_id"] == "existing"
+    assert body["reused"] is True
+    assert body["cached"] is True
