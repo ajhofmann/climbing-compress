@@ -105,7 +105,10 @@ export function VideoUpload() {
     const nextRaw = window.prompt("Rename clip", currentName);
     if (nextRaw === null) return;
     const next = nextRaw.trim().split(/[/\\]/).pop() ?? "";
-    if (!next || next === currentName) return;
+    if (!next) return;
+    const currentExt = currentName.includes(".") ? `.${currentName.split(".").pop()?.toLowerCase()}` : "";
+    const impliedName = next.includes(".") ? next : `${next}${currentExt}`;
+    if (impliedName.toLowerCase() === currentName.toLowerCase()) return;
     if (next.length > 120) {
       setProgress(0, "Rename failed: filename too long (max 120 chars)");
       return;
