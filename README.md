@@ -83,6 +83,7 @@ Upload notes:
 - Recent mini output-clear action now displays clip output count inline (`◍N`) when outputs exist.
 - Keyboard: `Ctrl/Cmd + Shift + O` triggers output cleanup (global in dropzone, clip-specific when a clip is loaded).
 - Keyboard: `Ctrl/Cmd + Alt + O` clears outputs for the current filtered subset in dropzone mode.
+- Keyboard: `Alt + P` / `Alt + N` cycle previous/next recent clip from loaded mode.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state.
 - Recent section includes output-scope filtering (`[out:all]` / `[out:with]` / `[out:none]`) for output-housekeeping workflows.

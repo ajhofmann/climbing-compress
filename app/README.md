@@ -73,6 +73,7 @@ Upload constraints are enforced by the backend:
 - keyboard `V` (or `[reset view]`) resets name/output/cache subset filters back to default all-state
 - keyboard shortcut `Ctrl/Cmd + Shift + O` clears outputs contextually (global in dropzone, clip-only in loaded toolbar)
 - keyboard shortcut `Ctrl/Cmd + Alt + O` clears outputs for the active filtered subset in dropzone
+- keyboard shortcuts `Alt+P` / `Alt+N` cycle previous/next recent clip while a clip is loaded
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
 - recent module supports inline name filtering with dedicated `no matching clips` empty state
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded

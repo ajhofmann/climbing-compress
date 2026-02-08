@@ -458,7 +458,7 @@ export function VideoUpload() {
     }
   };
 
-  const handleLoadExisting = async (item: VideoListItem) => {
+  const handleLoadExisting = useCallback(async (item: VideoListItem) => {
     if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     setProgress(0.05, `Loading ${item.filename}...`);
     try {
@@ -472,7 +472,15 @@ export function VideoUpload() {
       const msg = e instanceof Error ? e.message : "Load failed";
       setProgress(0, `Load failed: ${msg}`);
     }
-  };
+  }, [
+    deletingVideoId,
+    renamingVideoId,
+    clearingLibrary,
+    clearingOutputs,
+    pruningFiltered,
+    setProgress,
+    setVideo,
+  ]);
 
   const runRename = async (targetId: string, currentName: string) => {
     const nextRaw = window.prompt("Rename clip", currentName);
@@ -958,7 +966,7 @@ export function VideoUpload() {
     }
   };
 
-  const handleLoadAdjacent = async (direction: -1 | 1) => {
+  const handleLoadAdjacent = useCallback(async (direction: -1 | 1) => {
     if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
     let source = recentVideos;
     if (source.length <= 1) {
@@ -986,12 +994,48 @@ export function VideoUpload() {
     const nextIndex = ((baseIndex + direction) % source.length + source.length) % source.length;
     const next = source[nextIndex];
     await handleLoadExisting(next);
-  };
+  }, [
+    videoId,
+    isAnalyzing,
+    isRendering,
+    deletingVideoId,
+    renamingVideoId,
+    refreshingRecent,
+    clearingLibrary,
+    clearingOutputs,
+    pruningFiltered,
+    recentVideos,
+    videoName,
+    applyRecent,
+    setProgress,
+    handleLoadExisting,
+  ]);
 
   const handleRenameCurrent = async () => {
     if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     await runRename(videoId, videoName || "clip.mp4");
   };
+
+  useEffect(() => {
+    const onAdjacentShortcut = (e: KeyboardEvent) => {
+      if (!videoId || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || tag === "button" || target?.isContentEditable) return;
+      const key = e.key.toLowerCase();
+      if (key === "p") {
+        e.preventDefault();
+        void handleLoadAdjacent(-1);
+        return;
+      }
+      if (key === "n") {
+        e.preventDefault();
+        void handleLoadAdjacent(1);
+      }
+    };
+    window.addEventListener("keydown", onAdjacentShortcut, true);
+    return () => window.removeEventListener("keydown", onAdjacentShortcut, true);
+  }, [videoId, handleLoadAdjacent]);
 
   useEffect(() => {
     const onOutputShortcut = (e: KeyboardEvent) => {
@@ -1361,6 +1405,7 @@ export function VideoUpload() {
           onClick={() => void handleLoadAdjacent(-1)}
           disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
           className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase px-1 py-0.5 border border-cyan-400/35 rounded"
+          aria-keyshortcuts="Alt+P"
         >
           [PREV]
         </button>
@@ -1370,6 +1415,7 @@ export function VideoUpload() {
           onClick={() => void handleLoadAdjacent(1)}
           disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
           className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase px-1 py-0.5 border border-cyan-400/35 rounded"
+          aria-keyshortcuts="Alt+N"
         >
           [NEXT]
         </button>
