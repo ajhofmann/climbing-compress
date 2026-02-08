@@ -21,6 +21,7 @@ export function VideoUpload() {
   const [recentVideos, setRecentVideos] = useState<VideoListItem[]>([]);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [renamingVideoId, setRenamingVideoId] = useState<string | null>(null);
+  const [recentFetchDone, setRecentFetchDone] = useState(false);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -41,15 +42,28 @@ export function VideoUpload() {
       .then((items) => {
         if (cancelled) return;
         setRecentVideos(items.slice(0, 6));
+        setRecentFetchDone(true);
       })
       .catch(() => {
         if (cancelled) return;
         setRecentVideos([]);
+        setRecentFetchDone(true);
       })
     return () => {
       cancelled = true;
     };
   }, [videoId]);
+
+  const refreshRecent = async () => {
+    try {
+      const items = await listVideos();
+      setRecentVideos(items.slice(0, 6));
+    } catch {
+      setRecentVideos([]);
+    } finally {
+      setRecentFetchDone(true);
+    }
+  };
 
   const handleFile = async (file: File) => {
     const ext = file.name.includes(".") ? `.${file.name.split(".").pop()?.toLowerCase()}` : "";
@@ -128,8 +142,7 @@ export function VideoUpload() {
     setDeletingVideoId(item.video_id);
     try {
       await deleteVideo(item.video_id);
-      const refreshed = await listVideos();
-      setRecentVideos(refreshed.slice(0, 6));
+      await refreshRecent();
       setProgress(0, `Removed ${item.filename}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Delete failed";
@@ -164,8 +177,7 @@ export function VideoUpload() {
     setDeletingVideoId(videoId);
     try {
       await deleteVideo(videoId);
-      const refreshed = await listVideos();
-      setRecentVideos(refreshed.slice(0, 6));
+      await refreshRecent();
       clearVideo();
       setProgress(0, `Removed ${label} from local library.`);
     } catch (e: unknown) {
@@ -228,46 +240,59 @@ export function VideoUpload() {
           {">> DROP VIDEO OR CLICK TO START <<"}
         </span>
         <span className="text-sm font-retro text-text-muted">[ or click to browse ]</span>
-        {recentVideos.length > 0 && (
+        {recentFetchDone && (
           <div
             className="w-full px-4 pt-1 flex flex-col gap-1"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
-            <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">Recent</span>
-            <div className="flex flex-wrap justify-center gap-1">
-              {recentVideos.map((item) => (
-                <div key={item.video_id} className="flex items-center gap-0.5">
-                  <button
-                    onClick={() => void handleLoadExisting(item)}
-                    disabled={deletingVideoId !== null || renamingVideoId !== null}
-                    className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={`${item.filename} · ${item.info.duration.toFixed(1)}s${item.cached ? " · cached analysis" : ""}`}
-                  >
-                    {item.cached ? "⚡ " : ""}
-                    {shortName(item.filename)}
-                  </button>
-                  <button
-                    onClick={() => void handleRenameExisting(item)}
-                    disabled={deletingVideoId !== null || renamingVideoId !== null}
-                    className="text-[10px] font-pixel px-1 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={`Rename ${item.filename}`}
-                    aria-label={`Rename ${item.filename}`}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    onClick={() => void handleDeleteExisting(item)}
-                    disabled={deletingVideoId !== null || renamingVideoId !== null}
-                    className="text-[10px] font-pixel px-1 py-0.5 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={`Remove ${item.filename}`}
-                    aria-label={`Remove ${item.filename} from local library`}
-                  >
-                    X
-                  </button>
-                </div>
-              ))}
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">Recent</span>
+              <button
+                onClick={() => void refreshRecent()}
+                disabled={deletingVideoId !== null || renamingVideoId !== null}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                [refresh]
+              </button>
             </div>
+            {recentVideos.length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-1">
+                {recentVideos.map((item) => (
+                  <div key={item.video_id} className="flex items-center gap-0.5">
+                    <button
+                      onClick={() => void handleLoadExisting(item)}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null}
+                      className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={`${item.filename} · ${item.info.duration.toFixed(1)}s${item.cached ? " · cached analysis" : ""}`}
+                    >
+                      {item.cached ? "⚡ " : ""}
+                      {shortName(item.filename)}
+                    </button>
+                    <button
+                      onClick={() => void handleRenameExisting(item)}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null}
+                      className="text-[10px] font-pixel px-1 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={`Rename ${item.filename}`}
+                      aria-label={`Rename ${item.filename}`}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      onClick={() => void handleDeleteExisting(item)}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null}
+                      className="text-[10px] font-pixel px-1 py-0.5 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={`Remove ${item.filename}`}
+                      aria-label={`Remove ${item.filename} from local library`}
+                    >
+                      X
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="text-[10px] font-pixel text-text-muted/70 text-center">no local clips</span>
+            )}
           </div>
         )}
       </div>
