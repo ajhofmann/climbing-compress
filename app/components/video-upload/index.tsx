@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { deleteAllOutputs, deleteAllVideos, deleteOutputsForVideo, deleteVideo, getLibraryStats, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
@@ -399,7 +399,7 @@ export function VideoUpload() {
     }
   };
 
-  const handleClearAllOutputs = async () => {
+  const handleClearAllOutputs = useCallback(async () => {
     if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
     const confirmed = window.confirm("Remove all rendered outputs? (keeps source clips)");
     if (!confirmed) return;
@@ -423,9 +423,18 @@ export function VideoUpload() {
     } finally {
       setClearingOutputs(false);
     }
-  };
+  }, [
+    isAnalyzing,
+    isRendering,
+    deletingVideoId,
+    renamingVideoId,
+    clearingLibrary,
+    clearingOutputs,
+    videoId,
+    setProgress,
+  ]);
 
-  const handleClearCurrentOutputs = async () => {
+  const handleClearCurrentOutputs = useCallback(async () => {
     if (!videoId || !clipOutputCount || clipOutputCount <= 0 || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
     const confirmed = window.confirm("Remove rendered outputs for this clip only?");
     if (!confirmed) return;
@@ -456,7 +465,17 @@ export function VideoUpload() {
     } finally {
       setClearingOutputs(false);
     }
-  };
+  }, [
+    videoId,
+    clipOutputCount,
+    isAnalyzing,
+    isRendering,
+    deletingVideoId,
+    renamingVideoId,
+    clearingLibrary,
+    clearingOutputs,
+    setProgress,
+  ]);
 
   const openPicker = () => {
     const input = document.createElement("input");
@@ -504,6 +523,26 @@ export function VideoUpload() {
     if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
     await runRename(videoId, videoName || "clip.mp4");
   };
+
+  useEffect(() => {
+    const onOutputShortcut = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.key.toLowerCase() !== "o") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || tag === "button" || target?.isContentEditable) return;
+      if (videoId) {
+        if (!clipOutputCount || clipOutputCount <= 0) return;
+        e.preventDefault();
+        void handleClearCurrentOutputs();
+        return;
+      }
+      if (!recentFetchDone || !outputCount || outputCount <= 0) return;
+      e.preventDefault();
+      void handleClearAllOutputs();
+    };
+    window.addEventListener("keydown", onOutputShortcut, true);
+    return () => window.removeEventListener("keydown", onOutputShortcut, true);
+  }, [videoId, clipOutputCount, outputCount, recentFetchDone, handleClearCurrentOutputs, handleClearAllOutputs]);
 
   if (!videoId) {
     return (
@@ -589,6 +628,7 @@ export function VideoUpload() {
                 disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || outputCount === 0}
                 className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label="Clear all rendered outputs"
+                aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
               >
                 {clearingOutputs ? "[clearing out...]" : "[clear outputs]"}
               </button>
@@ -779,6 +819,7 @@ export function VideoUpload() {
           onClick={() => void handleClearCurrentOutputs()}
           disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || !clipOutputCount || clipOutputCount <= 0}
           className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
+          aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
         >
           {clearingOutputs ? "[CLEARING OUT]" : "[CLEAR OUT]"}
         </button>
