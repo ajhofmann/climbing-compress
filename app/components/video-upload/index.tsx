@@ -26,6 +26,11 @@ function parseDurationLiteralSeconds(raw: string): number | null {
     const seconds = Number(secondsMatch[1]);
     return Number.isFinite(seconds) ? seconds : null;
   }
+  const decimalMinutesMatch = value.match(/^(\d+(?:\.\d+)?)m$/);
+  if (decimalMinutesMatch) {
+    const minutes = Number(decimalMinutesMatch[1]);
+    return Number.isFinite(minutes) ? minutes * 60 : null;
+  }
   const minutesMatch = value.match(/^(\d+)m(?:(\d+(?:\.\d+)?)s?)?$/);
   if (!minutesMatch) return null;
   const minutes = Number(minutesMatch[1]);
