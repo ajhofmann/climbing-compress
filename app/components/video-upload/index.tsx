@@ -399,6 +399,7 @@ export function VideoUpload() {
   ]);
 
   const handleFile = async (file: File) => {
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
     const ext = file.name.includes(".") ? `.${file.name.split(".").pop()?.toLowerCase()}` : "";
     if (!SUPPORTED_VIDEO_EXTS.includes(ext as typeof SUPPORTED_VIDEO_EXTS[number])) {
       setProgress(0, `Unsupported file type (${ext || "unknown"}). Use ${SUPPORTED_VIDEO_EXTS.join(", ")}`);
@@ -617,7 +618,6 @@ export function VideoUpload() {
     const confirmed = window.confirm(`Remove filtered clips from local library? (${clipSummary}; ${outputSummary})`);
     if (!confirmed) return;
     setPruningFiltered(true);
-    setClearingLibrary(true);
     try {
       let deleted = 0;
       let deletedOutputs = 0;
@@ -656,7 +656,6 @@ export function VideoUpload() {
       setProgress(0, `${clipPart}${clipBytesPart}${outputPart}${failPart}`);
     } finally {
       setPruningFiltered(false);
-      setClearingLibrary(false);
     }
   };
 
@@ -772,6 +771,7 @@ export function VideoUpload() {
   ]);
 
   const openPicker = () => {
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
     const input = document.createElement("input");
     input.type = "file";
     input.accept = SUPPORTED_VIDEO_EXTS.join(",");
@@ -1024,7 +1024,7 @@ export function VideoUpload() {
                   <div key={item.video_id} className="flex items-center gap-0.5">
                     <button
                       onClick={() => void handleLoadExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
                       className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed"
                       title={`${item.filename} · ${item.info.duration.toFixed(1)}s · src ${formatBytesVerbose(item.source_bytes)}${item.cached ? " · cached analysis" : ""} · ${item.output_count} output${item.output_count === 1 ? "" : "s"} (${formatBytesVerbose(item.output_bytes)})`}
                     >
@@ -1033,7 +1033,7 @@ export function VideoUpload() {
                     </button>
                     <button
                       onClick={() => void handleRenameExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
                       className="text-[10px] font-pixel px-1 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       title={`Rename ${item.filename}`}
                       aria-label={`Rename ${item.filename}`}
@@ -1042,7 +1042,7 @@ export function VideoUpload() {
                     </button>
                     <button
                       onClick={() => void handleClearOutputsForExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || item.output_count <= 0}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered || item.output_count <= 0}
                       className="text-[10px] font-pixel px-1 py-0.5 border rounded border-amber-400/40 text-amber-200 hover:text-white hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       title={item.output_count > 0
                         ? `Clear ${item.output_count} rendered output${item.output_count === 1 ? "" : "s"} for ${item.filename}`
@@ -1055,7 +1055,7 @@ export function VideoUpload() {
                     </button>
                     <button
                       onClick={() => void handleDeleteExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
                       className="text-[10px] font-pixel px-1 py-0.5 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       title={`Remove ${item.filename}`}
                       aria-label={`Remove ${item.filename} from local library`}
@@ -1108,7 +1108,7 @@ export function VideoUpload() {
       <Tooltip text="Clear current clip and return to upload/recent selector">
         <button
           onClick={handleClearVideo}
-          disabled={isAnalyzing || isRendering || clearingOutputs}
+          disabled={isAnalyzing || isRendering || clearingOutputs || pruningFiltered}
           className="text-[11px] font-pixel text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           [EJECT]
@@ -1117,7 +1117,7 @@ export function VideoUpload() {
       <Tooltip text="Replace the current video with a new one">
         <button
           onClick={openPicker}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
           className="text-[11px] font-pixel text-neon-magenta hover:text-white retro-glow-magenta shrink-0 uppercase disabled:opacity-40 disabled:cursor-not-allowed"
         >
           [SWAP]
@@ -1126,7 +1126,7 @@ export function VideoUpload() {
       <Tooltip text="Delete this clip from local library and clear the current session">
         <button
           onClick={() => void handleDeleteCurrent()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
           className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           [DELETE]
@@ -1135,7 +1135,7 @@ export function VideoUpload() {
       <Tooltip text="Rename current clip label in local library">
         <button
           onClick={() => void handleRenameCurrent()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
           className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           [RENAME]
@@ -1144,7 +1144,7 @@ export function VideoUpload() {
       <Tooltip text="Remove every clip from local library and reset to upload screen">
         <button
           onClick={() => void handleClearLibrary()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
           className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           [CLEAR LIB]
@@ -1153,7 +1153,7 @@ export function VideoUpload() {
       <Tooltip text="Delete rendered outputs for current clip only">
         <button
           onClick={() => void handleClearCurrentOutputs()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || !clipOutputCount || clipOutputCount <= 0}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered || !clipOutputCount || clipOutputCount <= 0}
           className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
           aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
         >
