@@ -22,6 +22,7 @@ export function VideoUpload() {
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [renamingVideoId, setRenamingVideoId] = useState<string | null>(null);
   const [recentFetchDone, setRecentFetchDone] = useState(false);
+  const [refreshingRecent, setRefreshingRecent] = useState(false);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -55,6 +56,7 @@ export function VideoUpload() {
   }, [videoId]);
 
   const refreshRecent = async () => {
+    setRefreshingRecent(true);
     try {
       const items = await listVideos();
       setRecentVideos(items.slice(0, 6));
@@ -62,6 +64,7 @@ export function VideoUpload() {
       setRecentVideos([]);
     } finally {
       setRecentFetchDone(true);
+      setRefreshingRecent(false);
     }
   };
 
@@ -250,10 +253,10 @@ export function VideoUpload() {
               <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">Recent</span>
               <button
                 onClick={() => void refreshRecent()}
-                disabled={deletingVideoId !== null || renamingVideoId !== null}
+                disabled={deletingVideoId !== null || renamingVideoId !== null || refreshingRecent}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                [refresh]
+                {refreshingRecent ? "[refreshing...]" : "[refresh]"}
               </button>
             </div>
             {recentVideos.length > 0 ? (
