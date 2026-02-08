@@ -168,13 +168,21 @@ export function VideoUpload() {
     () => normalizedRecentFilter.split(/\s+/).filter(Boolean),
     [normalizedRecentFilter],
   );
-  const includeRecentFilterTerms = useMemo(
-    () => recentFilterTerms.filter((term) => !term.startsWith("-")),
+  const parsedRecentFilterTerms = useMemo(
+    () => recentFilterTerms.map((raw, idx) => {
+      const isExclude = raw.startsWith("-") && raw.length > 1;
+      const term = isExclude ? raw.slice(1) : raw;
+      return { idx, raw, term, isExclude };
+    }).filter((item) => item.term.length > 0),
     [recentFilterTerms],
   );
+  const includeRecentFilterTerms = useMemo(
+    () => parsedRecentFilterTerms.filter((item) => !item.isExclude).map((item) => item.term),
+    [parsedRecentFilterTerms],
+  );
   const excludeRecentFilterTerms = useMemo(
-    () => recentFilterTerms.filter((term) => term.startsWith("-") && term.length > 1).map((term) => term.slice(1)),
-    [recentFilterTerms],
+    () => parsedRecentFilterTerms.filter((item) => item.isExclude).map((item) => item.term),
+    [parsedRecentFilterTerms],
   );
   const nameFilteredRecent = useMemo(() => (
     recentFilterTerms.length > 0
@@ -185,6 +193,14 @@ export function VideoUpload() {
       })
       : recentVideos
   ), [recentVideos, recentFilterTerms.length, includeRecentFilterTerms, excludeRecentFilterTerms]);
+  const removeRecentFilterTerm = useCallback((termIndex: number) => {
+    const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
+    if (termIndex < 0 || termIndex >= sourceTerms.length) return;
+    sourceTerms.splice(termIndex, 1);
+    setRecentFilter(sourceTerms.join(" "));
+    setRecentCursorIdx(-1);
+    recentFilterInputRef.current?.focus();
+  }, [recentFilter]);
 
   const outputScopedRecent = useMemo(() => {
     if (recentOutputScope === "all") return nameFilteredRecent;
@@ -1415,25 +1431,23 @@ export function VideoUpload() {
                 )}
               </div>
             )}
-            {(includeRecentFilterTerms.length > 0 || excludeRecentFilterTerms.length > 0) && (
+            {parsedRecentFilterTerms.length > 0 && (
               <div className="flex flex-wrap justify-center items-center gap-1 text-[8px] font-pixel">
-                {includeRecentFilterTerms.map((term, idx) => (
-                  <span
-                    key={`inc-${term}-${idx}`}
-                    className="px-1 py-0.5 rounded border border-cyan-500/30 text-cyan-200/90"
-                    aria-label={`Including term ${term}`}
+                {parsedRecentFilterTerms.map((item) => (
+                  <button
+                    key={`term-${item.idx}-${item.raw}`}
+                    onClick={() => removeRecentFilterTerm(item.idx)}
+                    className={`px-1 py-0.5 rounded border hover:text-white ${
+                      item.isExclude
+                        ? "border-amber-500/30 text-amber-200/90 hover:border-amber-400/70"
+                        : "border-cyan-500/30 text-cyan-200/90 hover:border-cyan-400/70"
+                    }`}
+                    aria-label={`Remove ${item.isExclude ? "exclude" : "include"} term ${item.term} from filter`}
+                    title={`Remove ${item.isExclude ? "-" : "+"}${item.term} from filter`}
                   >
-                    +{term}
-                  </span>
-                ))}
-                {excludeRecentFilterTerms.map((term, idx) => (
-                  <span
-                    key={`exc-${term}-${idx}`}
-                    className="px-1 py-0.5 rounded border border-amber-500/30 text-amber-200/90"
-                    aria-label={`Excluding term ${term}`}
-                  >
-                    -{term}
-                  </span>
+                    {item.isExclude ? "-" : "+"}
+                    {item.term}
+                  </button>
                 ))}
               </div>
             )}
