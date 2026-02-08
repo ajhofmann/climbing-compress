@@ -86,6 +86,7 @@ Upload constraints are enforced by the backend:
 - filter query also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long` (plus exclusions like `-#out`)
 - duration comparator tags are supported too (e.g. `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`)
 - unknown `#tag` tokens are rendered as warning chips with an inline `unknown tag:*` message
+- unknown non-duration tags include `did you mean` replacement buttons for typo repair (e.g. `#cachedd` -> `#cached`)
 - malformed `#dur...` comparator tags also show inline duration-format examples (`#dur>90s`, `#dur>1m30s`)
 - duration-format example tags are clickable to replace malformed `#dur` tokens immediately
 - malformed exclude tokens (`-#dur...`) keep the `-` prefix when applying a duration example button

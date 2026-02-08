@@ -48,6 +48,37 @@ function parseDurationComparatorTerm(term: string): { operator: DurationComparat
   return { operator, valueSeconds };
 }
 
+function normalizeRecentFilterTerms(sourceTerms: string[]): string[] {
+  const dedupedTerms: string[] = [];
+  for (const token of sourceTerms) {
+    const lower = token.toLowerCase();
+    const isTagToken = lower.startsWith("#") || lower.startsWith("-#");
+    if (isTagToken && dedupedTerms.some((entry) => entry.toLowerCase() === lower)) continue;
+    dedupedTerms.push(token);
+  }
+  return dedupedTerms;
+}
+
+function levenshteinDistance(left: string, right: string): number {
+  if (left === right) return 0;
+  if (left.length === 0) return right.length;
+  if (right.length === 0) return left.length;
+  const prev = Array.from({ length: right.length + 1 }, (_, idx) => idx);
+  for (let i = 0; i < left.length; i += 1) {
+    const curr = [i + 1];
+    for (let j = 0; j < right.length; j += 1) {
+      const cost = left[i] === right[j] ? 0 : 1;
+      curr[j + 1] = Math.min(
+        curr[j] + 1,
+        prev[j + 1] + 1,
+        prev[j] + cost,
+      );
+    }
+    for (let j = 0; j < curr.length; j += 1) prev[j] = curr[j];
+  }
+  return prev[right.length];
+}
+
 function formatBytesShort(bytes: number | null) {
   if (bytes == null || !Number.isFinite(bytes)) return "?";
   const safe = Math.max(0, Math.round(bytes));
@@ -245,6 +276,35 @@ export function VideoUpload() {
     () => unknownRecentTagTerms.some((term) => term.startsWith("#dur")),
     [unknownRecentTagTerms],
   );
+  const unknownTagReplacementHints = useMemo(() => {
+    const unknownTagTerms = parsedRecentFilterTerms.filter(
+      (item) => item.term.startsWith("#")
+        && !item.term.startsWith("#dur")
+        && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownTagTerms.length <= 0) return null as null | { term: string; termIndex: number; replacements: string[] };
+    const target = unknownTagTerms[unknownTagTerms.length - 1];
+    const normalizedTarget = target.term.toLowerCase();
+    const scored = RECENT_FILTER_SIMPLE_TAGS
+      .map((tag) => {
+        const normalizedTag = tag.toLowerCase();
+        const distance = levenshteinDistance(normalizedTarget, normalizedTag);
+        const sharesPrefix = normalizedTag.startsWith(normalizedTarget) || normalizedTarget.startsWith(normalizedTag);
+        return { tag, distance, sharesPrefix };
+      })
+      .filter((entry) => entry.distance <= 2 || entry.sharesPrefix)
+      .sort((a, b) => {
+        if (a.distance !== b.distance) return a.distance - b.distance;
+        return a.tag.localeCompare(b.tag);
+      })
+      .slice(0, 3);
+    if (scored.length <= 0) return null;
+    return {
+      term: target.term,
+      termIndex: target.idx,
+      replacements: scored.map((entry) => (target.isExclude ? `-${entry.tag}` : entry.tag)),
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownDurationHintTags = useMemo(() => {
     const unknownDurationTerms = parsedRecentFilterTerms.filter(
       (item) => item.term.startsWith("#dur") && !isRecognizedRecentTagTerm(item.term),
@@ -311,6 +371,16 @@ export function VideoUpload() {
     setRecentTagCursorIdx(-1);
     recentFilterInputRef.current?.focus();
   }, [recentFilter]);
+  const replaceRecentFilterTerm = useCallback((termIndex: number, replacement: string) => {
+    const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
+    if (termIndex < 0 || termIndex >= sourceTerms.length) return;
+    sourceTerms[termIndex] = replacement;
+    const normalizedTerms = normalizeRecentFilterTerms(sourceTerms);
+    setRecentFilter(`${normalizedTerms.join(" ")} `);
+    setRecentCursorIdx(-1);
+    setRecentTagCursorIdx(-1);
+    recentFilterInputRef.current?.focus();
+  }, [recentFilter]);
   const recentTagSuggestions = useMemo(() => {
     if (!recentFilterFocused || recentFilter.endsWith(" ")) return [] as string[];
     const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
@@ -345,14 +415,8 @@ export function VideoUpload() {
     } else {
       sourceTerms.push(suggestion);
     }
-    const dedupedTerms: string[] = [];
-    for (const token of sourceTerms) {
-      const lower = token.toLowerCase();
-      const isTagToken = lower.startsWith("#") || lower.startsWith("-#");
-      if (isTagToken && dedupedTerms.some((entry) => entry.toLowerCase() === lower)) continue;
-      dedupedTerms.push(token);
-    }
-    setRecentFilter(`${dedupedTerms.join(" ")} `);
+    const normalizedTerms = normalizeRecentFilterTerms(sourceTerms);
+    setRecentFilter(`${normalizedTerms.join(" ")} `);
     setRecentCursorIdx(-1);
     setRecentTagCursorIdx(-1);
     recentFilterInputRef.current?.focus();
@@ -1688,6 +1752,22 @@ export function VideoUpload() {
                 <div className="text-[8px] font-pixel text-rose-300/85 text-center">
                   unknown tag{unknownRecentTagTerms.length === 1 ? "" : "s"}: {unknownRecentTagTerms.join(", ")}
                 </div>
+                {unknownTagReplacementHints && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>did you mean:</span>
+                    {unknownTagReplacementHints.replacements.map((replacement) => (
+                      <button
+                        key={`unknown-hint-${replacement}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownTagReplacementHints.termIndex, replacement)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace unknown tag ${unknownTagReplacementHints.term} with ${replacement}`}
+                      >
+                        {replacement}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {hasUnknownDurationTagTerm && (
                   <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
                     <span>duration examples:</span>

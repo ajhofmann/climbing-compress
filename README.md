@@ -90,6 +90,7 @@ Upload notes:
 - Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long` (and exclusions like `-#out`).
 - Duration comparator tags are also supported (for example `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`).
 - Unknown `#tag` tokens are highlighted in warning style and listed as `unknown tag:*` until corrected/removed.
+- Unknown non-duration tags also surface `did you mean` replacement buttons (for example `#cachedd` → `#cached`) with one-click repair.
 - Unknown `#dur...` comparator tags now also surface inline duration-format examples (seconds/minutes syntax).
 - Duration-format examples are clickable to replace malformed `#dur` tokens instantly.
 - If the malformed token is exclude-form (`-#dur...`), clickable replacements preserve the exclude prefix.
