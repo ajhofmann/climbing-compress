@@ -43,6 +43,7 @@ Upload notes:
 - Supported file extensions: `.mov`, `.mp4`, `.avi`, `.mkv`
 - Backend upload cap defaults to `512 MB` (override with `MAX_UPLOAD_MB`)
 - Upload panel includes a **Recent** row so you can reload local clips without reopening the file picker.
+- Recent entries now keep a friendly upload filename (instead of only hash IDs), and backend video metadata is cached for faster repeat loads.
 
 ## Speed-ramp modes
 

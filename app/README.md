@@ -24,6 +24,7 @@ Upload constraints are enforced by the backend:
 - accepted extensions: `.mov`, `.mp4`, `.avi`, `.mkv`
 - default max file size: `512 MB` (via backend `MAX_UPLOAD_MB`)
 - the no-video dropzone also shows a **Recent** list for one-click reload of local clips
+- recent items preserve human-readable upload names and load faster on repeat (server-side metadata cache)
 
 ## Common scripts
 
