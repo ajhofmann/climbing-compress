@@ -362,6 +362,12 @@ async def delete_video(video_id: str):
 
     if path.exists():
         try:
+            clear_cache(str(path))
+        except OSError as exc:
+            logger.warning("Failed to clear cache for deleted video %s: %s", video_id, exc)
+
+    if path.exists():
+        try:
             path.unlink()
         except OSError as exc:
             raise HTTPException(500, f"Failed to delete video: {exc}") from exc
@@ -378,11 +384,6 @@ async def delete_video(video_id: str):
     for h, vid in list(_file_hashes.items()):
         if vid == video_id:
             _file_hashes.pop(h, None)
-
-    try:
-        clear_cache(str(path))
-    except OSError as exc:
-        logger.warning("Failed to clear cache for deleted video %s: %s", video_id, exc)
 
     return {"video_id": video_id, "deleted": True}
 

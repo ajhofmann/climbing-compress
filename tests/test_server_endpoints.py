@@ -371,7 +371,13 @@ def test_delete_video_removes_file_and_indexes(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(server, "_unreadable_warned", {"source": 1.0})
     monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
     cache_calls: list[str] = []
-    monkeypatch.setattr(server, "clear_cache", lambda path: cache_calls.append(path))
+    cache_state = {"source_exists_at_clear": False}
+
+    def _clear(path: str):
+        cache_calls.append(path)
+        cache_state["source_exists_at_clear"] = Path(path).exists()
+
+    monkeypatch.setattr(server, "clear_cache", _clear)
 
     client = TestClient(server.app)
     resp = client.delete("/api/videos/source")
@@ -388,6 +394,7 @@ def test_delete_video_removes_file_and_indexes(monkeypatch, tmp_path: Path):
     assert "source" not in server._unreadable_warned
     assert "hash1" not in server._file_hashes
     assert cache_calls == [str(source)]
+    assert cache_state["source_exists_at_clear"] is True
 
 
 def test_delete_video_missing_returns_404(monkeypatch):
