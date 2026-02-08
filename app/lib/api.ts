@@ -180,6 +180,12 @@ interface VideoMetaResult {
   cached: boolean;
 }
 
+interface RenameVideoResult {
+  video_id: string;
+  filename: string;
+  exists: boolean;
+}
+
 export async function renderVideo(
   videoId: string,
   settings: Settings,
@@ -251,6 +257,16 @@ export async function getVideoMeta(videoId: string): Promise<VideoMetaResult> {
 export async function deleteVideo(videoId: string): Promise<void> {
   const res = await fetch(`${API}/api/videos/${videoId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(await readErrorMessage(res));
+}
+
+export async function renameVideo(videoId: string, filename: string): Promise<RenameVideoResult> {
+  const res = await fetch(`${API}/api/videos/${videoId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename }),
+  });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
 }
 
 export function videoUrl(id: string) {

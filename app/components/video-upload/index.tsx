@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
-import { deleteVideo, getVideoMeta, listVideos, uploadVideo, VideoListItem } from "@/lib/api";
+import { deleteVideo, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
 
 const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
@@ -12,6 +12,7 @@ export function VideoUpload() {
   const videoName = useStore((state) => state.videoName);
   const videoInfo = useStore((state) => state.videoInfo);
   const setVideo = useStore((state) => state.setVideo);
+  const setVideoName = useStore((state) => state.setVideoName);
   const clearVideo = useStore((state) => state.clearVideo);
   const setProgress = useStore((state) => state.setProgress);
   const isAnalyzing = useStore((state) => state.isAnalyzing);
@@ -19,6 +20,7 @@ export function VideoUpload() {
   const [isDragging, setIsDragging] = useState(false);
   const [recentVideos, setRecentVideos] = useState<VideoListItem[]>([]);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
+  const [renamingVideoId, setRenamingVideoId] = useState<string | null>(null);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -70,7 +72,7 @@ export function VideoUpload() {
   };
 
   const handleLoadExisting = async (item: VideoListItem) => {
-    if (deletingVideoId) return;
+    if (deletingVideoId || renamingVideoId) return;
     setProgress(0.05, `Loading ${item.filename}...`);
     try {
       const meta = await getVideoMeta(item.video_id);
@@ -82,8 +84,36 @@ export function VideoUpload() {
     }
   };
 
+  const runRename = async (targetId: string, currentName: string) => {
+    const nextRaw = window.prompt("Rename clip", currentName);
+    if (nextRaw === null) return;
+    const next = nextRaw.trim();
+    if (!next || next === currentName) return;
+    setRenamingVideoId(targetId);
+    try {
+      const renamed = await renameVideo(targetId, next);
+      setRecentVideos((prev) => prev.map((item) => (
+        item.video_id === targetId
+          ? { ...item, filename: renamed.filename }
+          : item
+      )));
+      if (videoId === targetId) setVideoName(renamed.filename);
+      setProgress(0, `Renamed to ${renamed.filename}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Rename failed";
+      setProgress(0, `Rename failed: ${msg}`);
+    } finally {
+      setRenamingVideoId(null);
+    }
+  };
+
+  const handleRenameExisting = async (item: VideoListItem) => {
+    if (deletingVideoId || renamingVideoId) return;
+    await runRename(item.video_id, item.filename);
+  };
+
   const handleDeleteExisting = async (item: VideoListItem) => {
-    if (deletingVideoId) return;
+    if (deletingVideoId || renamingVideoId) return;
     const confirmed = window.confirm(`Remove ${item.filename} from your local library?`);
     if (!confirmed) return;
     setDeletingVideoId(item.video_id);
@@ -117,7 +147,7 @@ export function VideoUpload() {
   };
 
   const handleDeleteCurrent = async () => {
-    if (!videoId || isAnalyzing || isRendering || deletingVideoId) return;
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId) return;
     const label = videoName || "current clip";
     const confirmed = window.confirm(`Remove ${label} from your local library?`);
     if (!confirmed) return;
@@ -133,6 +163,11 @@ export function VideoUpload() {
     } finally {
       setDeletingVideoId(null);
     }
+  };
+
+  const handleRenameCurrent = async () => {
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId) return;
+    await runRename(videoId, videoName || "clip.mp4");
   };
 
   if (!videoId) {
@@ -194,7 +229,7 @@ export function VideoUpload() {
                 <div key={item.video_id} className="flex items-center gap-0.5">
                   <button
                     onClick={() => void handleLoadExisting(item)}
-                    disabled={deletingVideoId !== null}
+                    disabled={deletingVideoId !== null || renamingVideoId !== null}
                     className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed"
                     title={`${item.filename} · ${item.info.duration.toFixed(1)}s${item.cached ? " · cached analysis" : ""}`}
                   >
@@ -202,8 +237,17 @@ export function VideoUpload() {
                     {shortName(item.filename)}
                   </button>
                   <button
+                    onClick={() => void handleRenameExisting(item)}
+                    disabled={deletingVideoId !== null || renamingVideoId !== null}
+                    className="text-[10px] font-pixel px-1 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={`Rename ${item.filename}`}
+                    aria-label={`Rename ${item.filename}`}
+                  >
+                    ✎
+                  </button>
+                  <button
                     onClick={() => void handleDeleteExisting(item)}
-                    disabled={deletingVideoId !== null}
+                    disabled={deletingVideoId !== null || renamingVideoId !== null}
                     className="text-[10px] font-pixel px-1 py-0.5 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     title={`Remove ${item.filename}`}
                     aria-label={`Remove ${item.filename} from local library`}
@@ -249,10 +293,19 @@ export function VideoUpload() {
       <Tooltip text="Delete this clip from local library and clear the current session">
         <button
           onClick={() => void handleDeleteCurrent()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null}
           className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           [DELETE]
+        </button>
+      </Tooltip>
+      <Tooltip text="Rename current clip label in local library">
+        <button
+          onClick={() => void handleRenameCurrent()}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null}
+          className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
+        >
+          [RENAME]
         </button>
       </Tooltip>
     </div>

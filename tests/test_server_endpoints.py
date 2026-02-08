@@ -474,3 +474,45 @@ def test_delete_video_missing_returns_404(monkeypatch):
     resp = client.delete("/api/videos/missing")
 
     assert resp.status_code == 404
+
+
+def test_rename_video_updates_display_name(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_file_hashes", {})
+    monkeypatch.setattr(server, "_video_hashes", {})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"source": "old_name.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+
+    client = TestClient(server.app)
+    resp = client.patch("/api/videos/source", json={"filename": "../new_session.mov"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["video_id"] == "source"
+    assert body["filename"] == "new_session.mov"
+    assert server._video_names["source"] == "new_session.mov"
+
+
+def test_rename_video_rejects_empty_name(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_file_hashes", {})
+    monkeypatch.setattr(server, "_video_hashes", {})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"source": "old_name.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+
+    client = TestClient(server.app)
+    resp = client.patch("/api/videos/source", json={"filename": "   "})
+
+    assert resp.status_code == 400

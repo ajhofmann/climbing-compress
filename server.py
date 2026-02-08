@@ -180,6 +180,10 @@ class AnalyzeRequest(BaseModel):
     tracker_model: str = "yolo26m"
 
 
+class RenameVideoRequest(BaseModel):
+    filename: str
+
+
 # ---- Helpers ----
 
 def _drop_video_state(video_id: str, *, remove_name: bool) -> None:
@@ -432,6 +436,25 @@ async def delete_video(video_id: str):
     _drop_video_state(video_id, remove_name=True)
 
     return {"video_id": video_id, "deleted": True}
+
+
+@app.patch("/api/videos/{video_id}")
+async def rename_video(video_id: str, req: RenameVideoRequest):
+    path = _get_video_path(video_id, require_exists=False)
+    filename = Path(req.filename.strip()).name
+    if not filename:
+        raise HTTPException(400, "Filename cannot be empty")
+    if len(filename) > 120:
+        raise HTTPException(400, "Filename too long (max 120 characters)")
+
+    _video_names[video_id] = filename
+    _persist_video_names()
+
+    return {
+        "video_id": video_id,
+        "filename": filename,
+        "exists": path.exists(),
+    }
 
 
 @app.post("/api/analyze")

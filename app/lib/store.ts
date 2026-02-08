@@ -16,6 +16,7 @@ interface Store {
   videoInfo: VideoInfo | null;
   thumbnails: string[];
   setVideo: (id: string, info: VideoInfo, thumbs: string[], name?: string) => void;
+  setVideoName: (name: string | null) => void;
   clearVideo: () => void;
 
   // Analysis
@@ -81,6 +82,7 @@ export const useStore = create<Store>((set) => ({
   videoInfo: null,
   thumbnails: [],
   setVideo: (id, info, thumbs, name) => set((s) => ({ videoId: id, videoName: name ?? null, videoInfo: info, thumbnails: thumbs, analysis: null, analysisParams: null, curve: [], curveTimes: [], solveScores: [], restRegions: [], cruxPoints: [], stats: null, outputId: null, comparisonId: null, pins: [], keyframes: [], settings: { ...s.settings, trimStart: 0, trimEnd: 0, editMode: "pins" } })),
+  setVideoName: (name) => set({ videoName: name }),
   clearVideo: () => set((s) => ({
     videoId: null,
     videoName: null,
