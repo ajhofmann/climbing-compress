@@ -452,6 +452,10 @@ def test_list_videos_memoizes_unreadable_sources_between_requests(monkeypatch, t
 def test_delete_video_removes_file_and_indexes(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    rendered = out_dir / "source.mp4"
+    rendered.write_bytes(b"rendered")
 
     monkeypatch.setattr(server, "_videos", {"source": source})
     monkeypatch.setattr(server, "_file_hashes", {"hash1": "source"})
@@ -461,6 +465,7 @@ def test_delete_video_removes_file_and_indexes(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(server, "_video_info_errors", {"source": 1.0})
     monkeypatch.setattr(server, "_unreadable_warned", {"source": 1.0})
     monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
     cache_calls: list[str] = []
     hash_calls: list[tuple[str, bool]] = []
 
@@ -477,7 +482,9 @@ def test_delete_video_removes_file_and_indexes(monkeypatch, tmp_path: Path):
     body = resp.json()
     assert body["video_id"] == "source"
     assert body["deleted"] is True
+    assert body["deleted_outputs"] == 1
     assert source.exists() is False
+    assert rendered.exists() is False
     assert "source" not in server._videos
     assert "source" not in server._video_meta_cache
     assert "source" not in server._video_names
@@ -490,6 +497,10 @@ def test_delete_video_removes_file_and_indexes(monkeypatch, tmp_path: Path):
 
 def test_delete_video_clears_cache_by_hash_when_source_missing(monkeypatch, tmp_path: Path):
     source = tmp_path / "missing_source.mp4"
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    rendered = out_dir / "source.mp4"
+    rendered.write_bytes(b"rendered")
 
     monkeypatch.setattr(server, "_videos", {"source": source})
     monkeypatch.setattr(server, "_file_hashes", {"hash1": "source"})
@@ -499,6 +510,7 @@ def test_delete_video_clears_cache_by_hash_when_source_missing(monkeypatch, tmp_
     monkeypatch.setattr(server, "_video_info_errors", {})
     monkeypatch.setattr(server, "_unreadable_warned", {})
     monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
     clear_calls: list[str] = []
     clear_hash_calls: list[str] = []
     monkeypatch.setattr(server, "clear_cache", lambda path: clear_calls.append(path))
@@ -508,9 +520,11 @@ def test_delete_video_clears_cache_by_hash_when_source_missing(monkeypatch, tmp_
     resp = client.delete("/api/videos/source")
 
     assert resp.status_code == 200
+    assert resp.json()["deleted_outputs"] == 1
     assert clear_calls == []
     assert clear_hash_calls == ["hash1"]
     assert "hash1" not in server._file_hashes
+    assert rendered.exists() is False
 
 
 def test_delete_video_missing_returns_404(monkeypatch):
@@ -525,6 +539,33 @@ def test_delete_video_missing_returns_404(monkeypatch):
     resp = client.delete("/api/videos/missing")
 
     assert resp.status_code == 404
+
+
+def test_delete_video_keeps_unrelated_outputs(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    unrelated = out_dir / "other.mp4"
+    unrelated.write_bytes(b"rendered")
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_file_hashes", {"hash1": "source"})
+    monkeypatch.setattr(server, "_video_hashes", {"source": "hash1"})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+    monkeypatch.setattr(server, "clear_cache_by_hash", lambda _h: None)
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/videos/source")
+
+    assert resp.status_code == 200
+    assert resp.json()["deleted_outputs"] == 0
+    assert unrelated.exists()
 
 
 def test_delete_all_videos_clears_library_and_indexes(monkeypatch, tmp_path: Path):

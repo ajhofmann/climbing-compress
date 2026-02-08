@@ -233,6 +233,24 @@ def _clear_output_videos() -> int:
     return deleted
 
 
+def _clear_output_videos_for_source(video_id: str) -> int:
+    """Remove rendered output files that share the deleted source video id stem."""
+    deleted = 0
+    for path in OUTPUT_DIR.iterdir():
+        if not path.is_file():
+            continue
+        if path.stem != video_id:
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        try:
+            path.unlink()
+            deleted += 1
+        except OSError as exc:
+            raise HTTPException(500, f"Failed to delete output video: {exc}") from exc
+    return deleted
+
+
 def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
     """Encode thumbnail arrays as base64 data URLs."""
     from PIL import Image
@@ -468,9 +486,10 @@ async def delete_video(video_id: str):
         except OSError as exc:
             raise HTTPException(500, f"Failed to delete video: {exc}") from exc
 
+    deleted_outputs = _clear_output_videos_for_source(video_id)
     _drop_video_state(video_id, remove_name=True)
 
-    return {"video_id": video_id, "deleted": True}
+    return {"video_id": video_id, "deleted": True, "deleted_outputs": deleted_outputs}
 
 
 @app.patch("/api/videos/{video_id}")
