@@ -128,6 +128,10 @@ export function VideoUpload() {
     () => recentVideos.reduce((sum, item) => sum + item.info.duration, 0),
     [recentVideos],
   );
+  const filteredRecentDuration = useMemo(
+    () => filteredRecent.reduce((sum, item) => sum + item.info.duration, 0),
+    [filteredRecent],
+  );
 
   useEffect(() => {
     if (videoId) return;
@@ -376,7 +380,9 @@ export function VideoUpload() {
           >
             <div className="flex items-center justify-center gap-2">
               <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">
-                Recent ({recentVideos.length} · {formatDuration(totalRecentDuration)})
+                {normalizedRecentFilter
+                  ? `Recent (${filteredRecent.length}/${recentVideos.length} · ${formatDuration(filteredRecentDuration)}/${formatDuration(totalRecentDuration)})`
+                  : `Recent (${recentVideos.length} · ${formatDuration(totalRecentDuration)})`}
               </span>
               <button
                 onClick={() => void refreshRecent()}
