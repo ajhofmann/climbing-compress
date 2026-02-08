@@ -609,8 +609,42 @@ export function useTimeline(config: TimelineConfig) {
       }
     };
 
+    const onKeyPressForRadius = (e: KeyboardEvent) => {
+      if (hoverIdx < 0 || dragging !== null) return;
+      if (editMode !== "pins") return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+
+      const key = e.key;
+      const isDecrease = key === "[" || key === "{";
+      const isIncrease = key === "]" || key === "}";
+      if (!isDecrease && !isIncrease) return;
+
+      e.preventDefault();
+      const step = e.shiftKey ? 0.5 : e.altKey ? 0.05 : 0.2;
+      const delta = isDecrease ? -step : step;
+      const MIN_PIN_RADIUS = 0.2;
+      const MAX_PIN_RADIUS = 10.0;
+
+      const next = pins.map((pin, i) => {
+        if (i !== hoverIdx) return pin;
+        const radius = pin.radius ?? DEFAULT_PIN_RADIUS;
+        return {
+          ...pin,
+          radius: Math.max(MIN_PIN_RADIUS, Math.min(MAX_PIN_RADIUS, radius + delta)),
+        };
+      });
+      onPinsChange(next);
+    };
+
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyPressForRadius);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", onKeyPressForRadius);
+    };
   }, [hoverIdx, dragging, editMode, pins, keyframes, onPinsChange, onKeyframesChange, duration, minSpeed, maxSpeed]);
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {

@@ -285,6 +285,7 @@ export function TimelineEditor() {
           <span>click to add</span>
           <span>drag to move</span>
           {settings.editMode === "pins" && <span>scroll to resize</span>}
+          {settings.editMode === "pins" && <span>[ ] resize hovered</span>}
           <span>right-click to delete</span>
           <span>del to delete hovered</span>
           <span>arrows to nudge hovered</span>
@@ -366,7 +367,7 @@ export function TimelineEditor() {
           ref={canvasRef}
           {...handlers}
           tabIndex={0}
-          aria-label={`Speed curve editor (${settings.editMode}) — click to add, drag to move, right-click/Delete to remove, arrow keys to nudge hovered point${settings.editMode === "pins" ? ", scroll to resize pin radius" : ""}`}
+          aria-label={`Speed curve editor (${settings.editMode}) — click to add, drag to move, right-click/Delete to remove, arrow keys to nudge hovered point${settings.editMode === "pins" ? ", scroll or bracket keys to resize pin radius" : ""}`}
           role="img"
           className="w-full h-44 rounded-lg border border-border focus:outline-none focus:ring-1 focus:ring-accent/60"
         />
