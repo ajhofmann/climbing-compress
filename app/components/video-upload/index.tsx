@@ -10,6 +10,7 @@ const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
+const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>10m", "#mb>10m"] as const;
@@ -392,14 +393,12 @@ export function VideoUpload() {
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownTagReplacementHints = useMemo(() => {
     const unknownTagTerms = parsedRecentFilterTerms.filter(
-      (item) => item.term.startsWith("#")
-        && !item.term.startsWith("#dur")
-        && !isRecognizedRecentTagTerm(item.term),
+      (item) => item.term.startsWith("#") && !isRecognizedRecentTagTerm(item.term),
     );
     if (unknownTagTerms.length <= 0) return null as null | { term: string; termIndex: number; replacements: string[] };
     const target = unknownTagTerms[unknownTagTerms.length - 1];
     const normalizedTarget = target.term.toLowerCase();
-    const scored = RECENT_FILTER_SIMPLE_TAGS
+    const simpleScored = RECENT_FILTER_SIMPLE_TAGS
       .map((tag) => {
         const normalizedTag = tag.toLowerCase();
         const distance = levenshteinDistance(normalizedTarget, normalizedTag);
@@ -412,11 +411,36 @@ export function VideoUpload() {
         return a.tag.localeCompare(b.tag);
       })
       .slice(0, 3);
-    if (scored.length <= 0) return null;
+    const comparatorMatch = normalizedTarget.match(/^#([a-z]+)([<>=!].+)$/);
+    const comparatorScored = comparatorMatch
+      ? RECENT_COMPARATOR_FAMILIES
+        .map((tag) => {
+          const distance = levenshteinDistance(`#${comparatorMatch[1]}`, tag);
+          const sharesPrefix = tag.startsWith(`#${comparatorMatch[1]}`) || `#${comparatorMatch[1]}`.startsWith(tag);
+          return { tag, distance, sharesPrefix };
+        })
+        .filter((entry) => entry.distance <= 2 || entry.sharesPrefix)
+        .sort((a, b) => {
+          if (a.distance !== b.distance) return a.distance - b.distance;
+          return a.tag.localeCompare(b.tag);
+        })
+        .slice(0, 3)
+      : [];
+    const baseSuggestions = [
+      ...simpleScored.map((entry) => entry.tag),
+      ...comparatorScored.map((entry) => `${entry.tag}${comparatorMatch?.[2] ?? ""}`),
+    ];
+    const dedupedSuggestions: string[] = [];
+    for (const suggestion of baseSuggestions) {
+      if (suggestion.toLowerCase() === normalizedTarget) continue;
+      if (dedupedSuggestions.some((entry) => entry.toLowerCase() === suggestion.toLowerCase())) continue;
+      dedupedSuggestions.push(suggestion);
+    }
+    if (dedupedSuggestions.length <= 0) return null;
     return {
       term: target.term,
       termIndex: target.idx,
-      replacements: scored.map((entry) => (target.isExclude ? `-${entry.tag}` : entry.tag)),
+      replacements: dedupedSuggestions.map((entry) => (target.isExclude ? `-${entry}` : entry)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownDurationHintConfig = useMemo(() => {
