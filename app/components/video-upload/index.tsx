@@ -59,7 +59,8 @@ export function VideoUpload() {
       const data = await uploadVideo(file);
       setVideo(data.video_id, data.info, data.thumbnails);
       const cacheHint = data.cached ? " (analysis cached)" : "";
-      const status = data.reused ? `Loaded existing clip ${file.name}` : `Uploaded ${file.name}`;
+      const label = data.filename || file.name;
+      const status = data.reused ? `Loaded existing clip ${label}` : `Uploaded ${label}`;
       setProgress(0, `${status}${cacheHint}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Upload failed";

@@ -107,6 +107,8 @@ def test_upload_accepts_uppercase_video_extension(monkeypatch, tmp_path: Path):
     )
 
     assert resp.status_code == 200
+    body = resp.json()
+    assert body["filename"] == "clip.MP4"
 
 
 def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
@@ -137,6 +139,7 @@ def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
     assert body["video_id"] == "existing"
     assert body["reused"] is True
     assert body["cached"] is True
+    assert body["filename"] == "new.mp4"
 
 
 def test_list_videos_returns_recent_first(monkeypatch, tmp_path: Path):

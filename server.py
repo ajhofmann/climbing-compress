@@ -270,6 +270,7 @@ async def upload_video(file: UploadFile = File(...)):
                 thumbs = _get_thumbnails_cached(existing_id, dest, n=8)
                 return {
                     "video_id": existing_id,
+                    "filename": _display_filename(existing_id, dest),
                     "info": info,
                     "thumbnails": thumbs,
                     "cached": has_cache(str(dest)),
@@ -293,6 +294,7 @@ async def upload_video(file: UploadFile = File(...)):
 
         return {
             "video_id": video_id,
+            "filename": _display_filename(video_id, dest),
             "info": info,
             "thumbnails": thumbs,
             "cached": has_cache(str(dest)),
