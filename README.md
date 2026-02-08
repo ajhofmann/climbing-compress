@@ -66,6 +66,7 @@ Upload notes:
 - Recent section now includes `[clear outputs]` for global output-only cleanup while keeping local source clips.
 - Recent controls now show live render-output counter (`out:N`) and disable output cleanup when `out:0`.
 - Recent/output counters remain accurate after loaded-clip deletes (no stale double-decrement drift).
+- Each Recent clip row now includes a mini output-clear action (`◍`) for clip-scoped render cleanup without loading the clip first.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.

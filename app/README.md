@@ -47,6 +47,7 @@ Upload constraints are enforced by the backend:
 - recent module includes `[clear outputs]` for global output-only cleanup while keeping local clips
 - recent controls display live `out:N` render-output count and disable output cleanup when `out:0`
 - recent/library output count remains consistent after loaded delete operations (no extra decrement drift)
+- recent clip rows include a mini output-clear action (`◍`) for per-clip render cleanup directly from dropzone
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
 - recent module supports inline name filtering with dedicated `no matching clips` empty state
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
