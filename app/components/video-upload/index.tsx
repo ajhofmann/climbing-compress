@@ -145,6 +145,12 @@ export function VideoUpload() {
     return nameFilteredRecent.filter((item) => item.output_count <= 0);
   }, [nameFilteredRecent, recentOutputScope]);
 
+  const cacheScopedRecent = useMemo(() => {
+    if (recentCacheScope === "all") return nameFilteredRecent;
+    if (recentCacheScope === "cached") return nameFilteredRecent.filter((item) => item.cached);
+    return nameFilteredRecent.filter((item) => !item.cached);
+  }, [nameFilteredRecent, recentCacheScope]);
+
   const filteredRecent = useMemo(() => {
     if (recentCacheScope === "all") return outputScopedRecent;
     if (recentCacheScope === "cached") return outputScopedRecent.filter((item) => item.cached);
@@ -180,26 +186,16 @@ export function VideoUpload() {
       : sortedRecent.slice(0, RECENT_PREVIEW_LIMIT)
   ), [showAllRecent, sortedRecent]);
   const hiddenRecentCount = Math.max(0, sortedRecent.length - visibleRecent.length);
-  const clipsWithOutputs = useMemo(
-    () => recentVideos.reduce((count, item) => count + (item.output_count > 0 ? 1 : 0), 0),
-    [recentVideos],
-  );
-  const clipsWithoutOutputs = recentVideos.length - clipsWithOutputs;
-  const outputScopeCount = recentOutputScope === "all"
-    ? recentVideos.length
-    : recentOutputScope === "with"
-      ? clipsWithOutputs
-      : clipsWithoutOutputs;
-  const clipsCached = useMemo(
-    () => recentVideos.reduce((count, item) => count + (item.cached ? 1 : 0), 0),
-    [recentVideos],
-  );
-  const clipsUncached = recentVideos.length - clipsCached;
-  const cacheScopeCount = recentCacheScope === "all"
-    ? recentVideos.length
-    : recentCacheScope === "cached"
-      ? clipsCached
-      : clipsUncached;
+  const outputScopeCount = useMemo(() => {
+    if (recentOutputScope === "all") return cacheScopedRecent.length;
+    if (recentOutputScope === "with") return cacheScopedRecent.filter((item) => item.output_count > 0).length;
+    return cacheScopedRecent.filter((item) => item.output_count <= 0).length;
+  }, [cacheScopedRecent, recentOutputScope]);
+  const cacheScopeCount = useMemo(() => {
+    if (recentCacheScope === "all") return outputScopedRecent.length;
+    if (recentCacheScope === "cached") return outputScopedRecent.filter((item) => item.cached).length;
+    return outputScopedRecent.filter((item) => !item.cached).length;
+  }, [outputScopedRecent, recentCacheScope]);
   const totalRecentDuration = useMemo(
     () => recentVideos.reduce((sum, item) => sum + item.info.duration, 0),
     [recentVideos],
