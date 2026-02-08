@@ -55,6 +55,7 @@ export function VideoUpload() {
   const [outputBytes, setOutputBytes] = useState<number | null>(null);
   const [clipOutputCount, setClipOutputCount] = useState<number | null>(null);
   const [clipOutputBytes, setClipOutputBytes] = useState<number | null>(null);
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
   const [recentCursorIdx, setRecentCursorIdx] = useState(-1);
@@ -396,6 +397,11 @@ export function VideoUpload() {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setShowShortcutHelp((prev) => !prev);
+        return;
+      }
       if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
         const idx = Number(e.key) - 1;
         if (idx < 0 || idx >= visibleRecent.length) return;
@@ -1097,7 +1103,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / O C S R V A 1 2 3 4 5 6 7 8 9 Control+Alt+O Meta+Alt+O"
+        aria-keyshortcuts="Enter Space / Shift+/ O C S R V A 1 2 3 4 5 6 7 8 9 Control+Alt+O Meta+Alt+O"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -1245,6 +1251,15 @@ export function VideoUpload() {
               >
                 [cache:{recentCacheScope}:{cacheScopeCount}]
               </button>
+              <button
+                onClick={() => setShowShortcutHelp((prev) => !prev)}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`${showShortcutHelp ? "Hide" : "Show"} dropzone keyboard shortcuts help`}
+                aria-keyshortcuts="Shift+/"
+              >
+                [keys:{showShortcutHelp ? "on" : "off"}]
+              </button>
               {hasActiveRecentSubset && (
                 <button
                   onClick={resetRecentView}
@@ -1316,6 +1331,11 @@ export function VideoUpload() {
                     [x]
                   </button>
                 )}
+              </div>
+            )}
+            {showShortcutHelp && (
+              <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
+                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-9 quick load · O out · C cache · S sort · R refresh · A expand · V reset
               </div>
             )}
             {visibleRecent.length > 0 ? (
