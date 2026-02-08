@@ -128,7 +128,8 @@ export function VideoUpload() {
     setDeletingVideoId(item.video_id);
     try {
       await deleteVideo(item.video_id);
-      setRecentVideos((prev) => prev.filter((v) => v.video_id !== item.video_id));
+      const refreshed = await listVideos();
+      setRecentVideos(refreshed.slice(0, 6));
       setProgress(0, `Removed ${item.filename}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Delete failed";
@@ -163,7 +164,8 @@ export function VideoUpload() {
     setDeletingVideoId(videoId);
     try {
       await deleteVideo(videoId);
-      setRecentVideos((prev) => prev.filter((item) => item.video_id !== videoId));
+      const refreshed = await listVideos();
+      setRecentVideos(refreshed.slice(0, 6));
       clearVideo();
       setProgress(0, `Removed ${label} from local library.`);
     } catch (e: unknown) {
