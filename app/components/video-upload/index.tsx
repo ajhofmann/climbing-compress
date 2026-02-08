@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { deleteAllVideos, deleteVideo, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
@@ -58,22 +58,33 @@ export function VideoUpload() {
   };
 
   const normalizedRecentFilter = recentFilter.trim().toLowerCase();
-  const filteredRecent = normalizedRecentFilter
-    ? recentVideos.filter((item) => item.filename.toLowerCase().includes(normalizedRecentFilter))
-    : recentVideos;
-  const sortedRecent = recentSort === "recent"
-    ? filteredRecent
-    : [...filteredRecent].sort((a, b) => {
-      if (recentSort === "name") return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
-      const byDuration = b.info.duration - a.info.duration;
-      if (Math.abs(byDuration) > 1e-6) return byDuration;
-      return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
-    });
-  const visibleRecent = showAllRecent
-    ? sortedRecent
-    : sortedRecent.slice(0, RECENT_PREVIEW_LIMIT);
+  const filteredRecent = useMemo(() => (
+    normalizedRecentFilter
+      ? recentVideos.filter((item) => item.filename.toLowerCase().includes(normalizedRecentFilter))
+      : recentVideos
+  ), [recentVideos, normalizedRecentFilter]);
+
+  const sortedRecent = useMemo(() => (
+    recentSort === "recent"
+      ? filteredRecent
+      : [...filteredRecent].sort((a, b) => {
+        if (recentSort === "name") return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        const byDuration = b.info.duration - a.info.duration;
+        if (Math.abs(byDuration) > 1e-6) return byDuration;
+        return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+      })
+  ), [filteredRecent, recentSort]);
+
+  const visibleRecent = useMemo(() => (
+    showAllRecent
+      ? sortedRecent
+      : sortedRecent.slice(0, RECENT_PREVIEW_LIMIT)
+  ), [showAllRecent, sortedRecent]);
   const hiddenRecentCount = Math.max(0, sortedRecent.length - visibleRecent.length);
-  const totalRecentDuration = recentVideos.reduce((sum, item) => sum + item.info.duration, 0);
+  const totalRecentDuration = useMemo(
+    () => recentVideos.reduce((sum, item) => sum + item.info.duration, 0),
+    [recentVideos],
+  );
 
   useEffect(() => {
     if (videoId) return;
