@@ -593,6 +593,22 @@ def test_delete_all_videos_handles_missing_sources(monkeypatch, tmp_path: Path):
     assert cleared_hashes == ["hash-missing"]
 
 
+def test_delete_all_videos_empty_library(monkeypatch):
+    monkeypatch.setattr(server, "_videos", {})
+    monkeypatch.setattr(server, "_file_hashes", {})
+    monkeypatch.setattr(server, "_video_hashes", {})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/videos")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"deleted": 0, "video_ids": []}
+
+
 def test_rename_video_updates_display_name(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
