@@ -70,6 +70,7 @@ Upload constraints are enforced by the backend:
 - keyboard `S` cycles recent sort modes in dropzone (`recent -> name -> duration -> outputs -> size`)
 - keyboard `R` refreshes recent clips + output counts in dropzone mode without clicking `[refresh]`
 - keyboard shortcut `Ctrl/Cmd + Shift + O` clears outputs contextually (global in dropzone, clip-only in loaded toolbar)
+- keyboard shortcut `Ctrl/Cmd + Alt + O` clears outputs for the active filtered subset in dropzone
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
 - recent module supports inline name filtering with dedicated `no matching clips` empty state
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded

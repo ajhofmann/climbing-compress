@@ -669,7 +669,7 @@ export function VideoUpload() {
     }
   };
 
-  const handleClearFilteredOutputs = async () => {
+  const handleClearFilteredOutputs = useCallback(async () => {
     if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
     if (!hasActiveRecentSubset) {
       setProgress(0, "No filtered clip subset is active.");
@@ -754,7 +754,20 @@ export function VideoUpload() {
       setClearingFilteredOutputs(false);
       setClearingOutputs(false);
     }
-  };
+  }, [
+    isAnalyzing,
+    isRendering,
+    deletingVideoId,
+    renamingVideoId,
+    refreshingRecent,
+    clearingLibrary,
+    clearingOutputs,
+    pruningFiltered,
+    hasActiveRecentSubset,
+    filteredRecent,
+    setProgress,
+    refreshRecent,
+  ]);
 
   const handleClearAllOutputs = useCallback(async () => {
     if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
@@ -922,10 +935,17 @@ export function VideoUpload() {
 
   useEffect(() => {
     const onOutputShortcut = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey || e.key.toLowerCase() !== "o") return;
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "o") return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select" || tag === "button" || target?.isContentEditable) return;
+      if (e.altKey && !e.shiftKey) {
+        if (videoId || pruningFiltered || !hasActiveRecentSubset || !recentFetchDone || !filteredOutputCount || filteredOutputCount <= 0) return;
+        e.preventDefault();
+        void handleClearFilteredOutputs();
+        return;
+      }
+      if (!e.shiftKey || e.altKey) return;
       if (videoId) {
         if (!clipOutputCount || clipOutputCount <= 0) return;
         e.preventDefault();
@@ -938,7 +958,7 @@ export function VideoUpload() {
     };
     window.addEventListener("keydown", onOutputShortcut, true);
     return () => window.removeEventListener("keydown", onOutputShortcut, true);
-  }, [videoId, clipOutputCount, outputCount, recentFetchDone, pruningFiltered, handleClearCurrentOutputs, handleClearAllOutputs]);
+  }, [videoId, clipOutputCount, outputCount, recentFetchDone, pruningFiltered, hasActiveRecentSubset, filteredOutputCount, handleClearFilteredOutputs, handleClearCurrentOutputs, handleClearAllOutputs]);
 
   if (!videoId) {
     return (
@@ -957,7 +977,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / O C S R"
+        aria-keyshortcuts="Enter Space / O C S R Control+Alt+O Meta+Alt+O"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -1039,6 +1059,7 @@ export function VideoUpload() {
                   disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || filteredOutputCount <= 0}
                   className="text-[9px] font-pixel text-amber-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                   aria-label={`Clear rendered outputs for filtered clips (${filteredOutputCount} outputs across ${filteredClipsWithOutputs} clips)`}
+                  aria-keyshortcuts="Control+Alt+O Meta+Alt+O"
                 >
                   {clearingFilteredOutputs ? "[clearing filt out...]" : "[clear filt out]"}
                 </button>
