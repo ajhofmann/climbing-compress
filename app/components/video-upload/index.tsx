@@ -33,7 +33,7 @@ export function VideoUpload() {
   const [clipOutputCount, setClipOutputCount] = useState<number | null>(null);
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
-  const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration">("recent");
+  const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration" | "outputs">("recent");
   const recentFilterInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export function VideoUpload() {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean };
-      if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration") {
+      if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration" || parsed.sort === "outputs") {
         setRecentSort(parsed.sort);
       }
       if (typeof parsed.showAll === "boolean") {
@@ -123,6 +123,11 @@ export function VideoUpload() {
       ? filteredRecent
       : [...filteredRecent].sort((a, b) => {
         if (recentSort === "name") return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        if (recentSort === "outputs") {
+          const byOutputs = b.output_count - a.output_count;
+          if (byOutputs !== 0) return byOutputs;
+          return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        }
         const byDuration = b.info.duration - a.info.duration;
         if (Math.abs(byDuration) > 1e-6) return byDuration;
         return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
@@ -647,6 +652,7 @@ export function VideoUpload() {
                   setRecentSort((prev) => {
                     if (prev === "recent") return "name";
                     if (prev === "name") return "duration";
+                    if (prev === "duration") return "outputs";
                     return "recent";
                   });
                 }}
