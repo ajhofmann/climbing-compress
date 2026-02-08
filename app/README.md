@@ -39,6 +39,7 @@ Upload constraints are enforced by the backend:
 - recent module includes `[clear all]` action for one-click local library wipe
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
 - recent module supports inline name filtering with dedicated `no matching clips` empty state
+- `/` keyboard shortcut focuses recent filter input when no clip is loaded
 - stale/missing source files are automatically dropped from Recent on refresh
 - refresh action shows temporary loading label while list rescan is in progress
 - recent header displays a live item count (`Recent (N)`)

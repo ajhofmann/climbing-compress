@@ -58,6 +58,7 @@ Upload notes:
 - Recent section includes `[clear all]` to wipe the local library in one step.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state.
+- Press `/` in dropzone mode to focus the recent clip filter instantly.
 - Missing/deleted source files are auto-pruned from Recent/library indexes during list refreshes.
 - Refresh control now shows a temporary loading state while rescanning local clips.
 - Recent header now includes a live clip count (`Recent (N)`).
