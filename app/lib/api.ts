@@ -265,7 +265,10 @@ export interface DeleteVideoResult {
 export interface LibraryStats {
   clips: number;
   outputs: number;
+  clip_bytes: number;
+  output_bytes: number;
   clip_outputs?: number;
+  clip_output_bytes?: number;
 }
 
 export async function deleteVideo(videoId: string): Promise<DeleteVideoResult> {

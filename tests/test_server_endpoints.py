@@ -708,7 +708,7 @@ def test_library_stats_counts_existing_clips_and_outputs(monkeypatch, tmp_path: 
     resp = client.get("/api/library-stats")
 
     assert resp.status_code == 200
-    assert resp.json() == {"clips": 1, "outputs": 2}
+    assert resp.json() == {"clips": 1, "outputs": 2, "clip_bytes": 5, "output_bytes": 2}
     assert "missing" not in server._videos
     assert "hash-missing" not in server._file_hashes
     assert "missing" not in server._video_hashes
@@ -734,7 +734,7 @@ def test_library_stats_handles_missing_output_dir(monkeypatch, tmp_path: Path):
     resp = client.get("/api/library-stats")
 
     assert resp.status_code == 200
-    assert resp.json() == {"clips": 1, "outputs": 0}
+    assert resp.json() == {"clips": 1, "outputs": 0, "clip_bytes": 5, "output_bytes": 0}
 
 
 def test_library_stats_includes_clip_outputs_when_video_id_provided(monkeypatch, tmp_path: Path):
@@ -760,7 +760,14 @@ def test_library_stats_includes_clip_outputs_when_video_id_provided(monkeypatch,
     resp = client.get("/api/library-stats", params={"video_id": "existing"})
 
     assert resp.status_code == 200
-    assert resp.json() == {"clips": 1, "outputs": 3, "clip_outputs": 2}
+    assert resp.json() == {
+        "clips": 1,
+        "outputs": 3,
+        "clip_outputs": 2,
+        "clip_bytes": 5,
+        "output_bytes": 3,
+        "clip_output_bytes": 2,
+    }
 
 
 def test_library_stats_includes_zero_clip_outputs_when_video_id_missing_matches(monkeypatch, tmp_path: Path):
@@ -783,7 +790,14 @@ def test_library_stats_includes_zero_clip_outputs_when_video_id_missing_matches(
     resp = client.get("/api/library-stats", params={"video_id": "existing"})
 
     assert resp.status_code == 200
-    assert resp.json() == {"clips": 1, "outputs": 1, "clip_outputs": 0}
+    assert resp.json() == {
+        "clips": 1,
+        "outputs": 1,
+        "clip_outputs": 0,
+        "clip_bytes": 5,
+        "output_bytes": 1,
+        "clip_output_bytes": 0,
+    }
 
 
 def test_delete_video_keeps_unrelated_outputs(monkeypatch, tmp_path: Path):

@@ -251,20 +251,31 @@ def _clear_output_videos_for_source(video_id: str) -> int:
     return deleted
 
 
-def _count_output_videos() -> int:
+def _output_video_totals() -> tuple[int, int]:
+    """Return rendered output count + bytes across all source clips."""
     if not OUTPUT_DIR.exists():
-        return 0
+        return 0, 0
     total = 0
+    total_bytes = 0
     for path in OUTPUT_DIR.iterdir():
-        if path.is_file() and path.suffix.lower() in ALLOWED_VIDEO_EXTS:
-            total += 1
-    return total
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        total += 1
+        try:
+            total_bytes += path.stat().st_size
+        except OSError:
+            continue
+    return total, total_bytes
 
 
-def _count_output_videos_for_source(video_id: str) -> int:
+def _output_video_totals_for_source(video_id: str) -> tuple[int, int]:
+    """Return rendered output count + bytes for one source clip id."""
     if not OUTPUT_DIR.exists():
-        return 0
+        return 0, 0
     total = 0
+    total_bytes = 0
     for path in OUTPUT_DIR.iterdir():
         if not path.is_file():
             continue
@@ -273,6 +284,20 @@ def _count_output_videos_for_source(video_id: str) -> int:
         if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
             continue
         total += 1
+        try:
+            total_bytes += path.stat().st_size
+        except OSError:
+            continue
+    return total, total_bytes
+
+
+def _count_output_videos() -> int:
+    total, _ = _output_video_totals()
+    return total
+
+
+def _count_output_videos_for_source(video_id: str) -> int:
+    total, _ = _output_video_totals_for_source(video_id)
     return total
 
 
@@ -289,12 +314,18 @@ def _output_counts_by_source() -> dict[str, int]:
     return counts
 
 
-def _count_existing_clips() -> int:
+def _existing_clip_stats() -> tuple[int, int]:
+    """Return existing local source clip count + bytes while pruning stale ids."""
     total = 0
+    total_bytes = 0
     stale: list[str] = []
     for vid, path in list(_videos.items()):
         if path.exists():
             total += 1
+            try:
+                total_bytes += path.stat().st_size
+            except OSError:
+                continue
         else:
             stale.append(vid)
     if stale:
@@ -304,7 +335,7 @@ def _count_existing_clips() -> int:
                 name_changed = True
         if name_changed:
             _persist_video_names()
-    return total
+    return total, total_bytes
 
 
 def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
@@ -570,12 +601,18 @@ async def delete_outputs_for_video(video_id: str):
 @app.get("/api/library-stats")
 async def library_stats(video_id: str | None = None):
     """Small fast counters for local clip/output housekeeping UI."""
+    clips, clip_bytes = _existing_clip_stats()
+    outputs, output_bytes = _output_video_totals()
     stats: dict[str, int] = {
-        "clips": _count_existing_clips(),
-        "outputs": _count_output_videos(),
+        "clips": clips,
+        "outputs": outputs,
+        "clip_bytes": clip_bytes,
+        "output_bytes": output_bytes,
     }
     if video_id:
-        stats["clip_outputs"] = _count_output_videos_for_source(video_id)
+        clip_outputs, clip_output_bytes = _output_video_totals_for_source(video_id)
+        stats["clip_outputs"] = clip_outputs
+        stats["clip_output_bytes"] = clip_output_bytes
     return stats
 
 

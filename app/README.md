@@ -34,6 +34,7 @@ Upload constraints are enforced by the backend:
 - loaded clip toolbar includes `[CLEAR LIB]` to wipe all local clips immediately
 - loaded clip toolbar includes `[CLEAR OUT]` to purge rendered outputs for the loaded clip only
 - loaded clip toolbar shows `out:C/T` (clip/global output counts) near clip metadata for quick housekeeping visibility
+- loaded clip toolbar also shows `mb:C/T` (clip/global output bytes) for local disk-usage awareness
 - loaded `out:C/T` count auto-refreshes after quick/full renders and loaded-clip deletion flows
 - upload/load metadata now includes per-clip `output_count` so loaded counters hydrate immediately
 - loaded `[CLEAR OUT]` is disabled when clip output count is zero (`out:0/T`)
@@ -47,6 +48,8 @@ Upload constraints are enforced by the backend:
 - clear-library actions now also purge rendered outputs and include both clip/output counts in feedback
 - recent module includes `[clear outputs]` for global output-only cleanup while keeping local clips
 - recent controls display live `out:N` render-output count and disable output cleanup when `out:0`
+- recent controls display compact output storage (`mb:X`) beside `out:N`
+- clear-output confirms include output count + size summaries before deleting renders
 - recent/library output count remains consistent after loaded delete operations (no extra decrement drift)
 - recent clip rows include a mini output-clear action (`◍`) for per-clip render cleanup directly from dropzone
 - recent mini output-clear action (`◍`) is clip-aware and disabled when that clip has no outputs

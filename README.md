@@ -53,6 +53,7 @@ Upload notes:
 - Loaded clip bar includes **CLEAR LIB** to wipe the entire local library without ejecting first.
 - Loaded clip bar includes **CLEAR OUT** to purge rendered outputs for the loaded clip only.
 - Loaded clip bar now shows `out:clip/total` (`out:C/T`) near clip metadata for per-clip vs global output visibility.
+- Loaded clip bar also shows output storage footprint (`mb:clip/total`) for quick disk-usage checks.
 - Loaded `out:C/T` counter now auto-refreshes after quick/full renders and clip deletion flows (no manual refresh needed).
 - Upload/load metadata now carries per-clip `output_count` so loaded counters hydrate immediately on open/reuse.
 - Loaded `[CLEAR OUT]` is disabled when current clip has no render outputs (`out:0/T`), even if other clips still have outputs.
@@ -66,6 +67,8 @@ Upload notes:
 - `[clear all]` / `CLEAR LIB` now also remove rendered output files and report both counts in status feedback.
 - Recent section now includes `[clear outputs]` for global output-only cleanup while keeping local source clips.
 - Recent controls now show live render-output counter (`out:N`) and disable output cleanup when `out:0`.
+- Recent controls now show compact output storage (`mb:X`) next to `out:N`.
+- Output-clear confirmations now include count + size summaries (for example: `2 rendered outputs, 12 B`).
 - Recent/output counters remain accurate after loaded-clip deletes (no stale double-decrement drift).
 - Each Recent clip row now includes a mini output-clear action (`◍`) for clip-scoped render cleanup without loading the clip first.
 - Recent mini output-clear action (`◍`) is now clip-aware and disabled when that specific clip has zero rendered outputs.
