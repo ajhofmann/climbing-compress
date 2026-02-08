@@ -280,7 +280,9 @@ export function VideoUpload() {
             onKeyDown={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-center gap-2">
-              <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">Recent</span>
+              <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">
+                Recent ({recentVideos.length})
+              </span>
               <button
                 onClick={() => void refreshRecent()}
                 disabled={deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
