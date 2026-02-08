@@ -34,6 +34,7 @@ Upload constraints are enforced by the backend:
 - rename actions preserve allowed video extensions and auto-append current extension when omitted
 - rename actions are prevalidated client-side (length + extension) before API submission
 - recent module shows explicit empty state (`no local clips`) and a `[refresh]` action to rescan local library
+- stale/missing source files are automatically dropped from Recent on refresh
 
 ## Common scripts
 

@@ -53,6 +53,7 @@ Upload notes:
 - Rename keeps supported video extensions (`.mov/.mp4/.avi/.mkv`) and auto-appends the current extension if omitted.
 - Rename inputs are validated client-side before request (empty/too-long/unsupported names are rejected immediately).
 - Recent section now remains visible when empty (`no local clips`) and includes a manual `[refresh]` control.
+- Missing/deleted source files are auto-pruned from Recent/library indexes during list refreshes.
 
 ## Speed-ramp modes
 
