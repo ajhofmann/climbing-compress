@@ -35,6 +35,7 @@ export default function Home() {
   const autoSolveAbortRef = useRef<AbortController | null>(null);
   const analyzeAbortRef = useRef<AbortController | null>(null);
   const analyzeSolveAbortRef = useRef<AbortController | null>(null);
+  const analyzeRunRef = useRef(0);
   const renderAbortRef = useRef<AbortController | null>(null);
   const renderRunRef = useRef(0);
   const suspendAutoSolveRef = useRef(false);
@@ -78,6 +79,8 @@ export default function Home() {
 
   const handleAnalyze = useCallback(async () => {
     if (!videoId) return;
+    const runId = analyzeRunRef.current + 1;
+    analyzeRunRef.current = runId;
     suspendAutoSolveRef.current = true;
     analyzeAbortRef.current?.abort();
     analyzeSolveAbortRef.current?.abort();
@@ -101,33 +104,39 @@ export default function Home() {
         videoId,
         settings.analyzeStride,
         force,
-        (p, msg) => { setProgress(p, msg); },
+        (p, msg) => {
+          if (analyzeRunRef.current !== runId) return;
+          setProgress(p, msg);
+        },
         settings.useTracker,
         settings.useFlow,
         settings.trackerModel,
         analyzeController.signal,
       );
+      if (analyzeController.signal.aborted || analyzeRunRef.current !== runId) return;
       if (result) {
         setAnalysis(result, currentParams);
         if (settings.trimEnd === 0) updateSettings({ trimEnd: result.duration });
+        if (analyzeRunRef.current !== runId) return;
         setProgress(0.95, "Computing speed curve...");
         const updatedSettings = { ...settings, trimEnd: settings.trimEnd === 0 ? result.duration : settings.trimEnd };
         solveController = new AbortController();
         analyzeSolveAbortRef.current = solveController;
         const solveResult = await solveCurve(videoId, updatedSettings, pins, keyframes, solveController.signal);
-        if (solveController.signal.aborted) return;
+        if (solveController.signal.aborted || analyzeRunRef.current !== runId) return;
         setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions, solveResult.crux_points);
         setProgress(0, "Analysis complete!");
       }
     } catch (e: unknown) {
       if (isAbortError(e)) return;
+      if (analyzeRunRef.current !== runId) return;
       const msg = e instanceof Error ? e.message : "Unknown error";
       setProgress(0, `Error: ${msg}`);
     } finally {
       if (analyzeSolveAbortRef.current === solveController) {
         analyzeSolveAbortRef.current = null;
       }
-      if (analyzeAbortRef.current === analyzeController) {
+      if (analyzeRunRef.current === runId && analyzeAbortRef.current === analyzeController) {
         analyzeAbortRef.current = null;
         suspendAutoSolveRef.current = false;
         setAnalyzing(false);
@@ -136,6 +145,7 @@ export default function Home() {
   }, [videoId, analysis, analysisParams, settings, pins, keyframes, setAnalyzing, setProgress, setAnalysis, updateSettings, setCurve]);
 
   const handleCancelAnalyze = useCallback(() => {
+    analyzeRunRef.current += 1;
     if (solveTimeout.current) {
       clearTimeout(solveTimeout.current);
       solveTimeout.current = null;
