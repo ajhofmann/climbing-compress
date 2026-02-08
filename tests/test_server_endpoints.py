@@ -609,6 +609,28 @@ def test_delete_all_videos_empty_library(monkeypatch):
     assert resp.json() == {"deleted": 0, "video_ids": []}
 
 
+def test_delete_all_videos_returns_sorted_ids(monkeypatch, tmp_path: Path):
+    source_a = tmp_path / "a.mp4"
+    source_b = tmp_path / "b.mp4"
+    source_a.write_bytes(b"a")
+    source_b.write_bytes(b"b")
+
+    monkeypatch.setattr(server, "_videos", {"b": source_b, "a": source_a})
+    monkeypatch.setattr(server, "_file_hashes", {"hash-b": "b", "hash-a": "a"})
+    monkeypatch.setattr(server, "_video_hashes", {"b": "hash-b", "a": "hash-a"})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "clear_cache_by_hash", lambda _: None)
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/videos")
+
+    assert resp.status_code == 200
+    assert resp.json()["video_ids"] == ["a", "b"]
+
+
 def test_rename_video_updates_display_name(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")

@@ -525,6 +525,7 @@ async def delete_all_videos():
         _video_names.clear()
         _persist_video_names()
 
+    removed_ids.sort()
     return {"deleted": len(removed_ids), "video_ids": removed_ids}
 
 
