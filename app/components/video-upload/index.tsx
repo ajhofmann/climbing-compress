@@ -14,6 +14,11 @@ export function VideoUpload() {
   const [recentVideos, setRecentVideos] = useState<VideoListItem[]>([]);
   const fetchedRecentRef = useRef(false);
 
+  const shortName = (name: string) => {
+    if (name.length <= 14) return name;
+    return `${name.slice(0, 6)}...${name.slice(-4)}`;
+  };
+
   useEffect(() => {
     if (videoId || fetchedRecentRef.current) return;
     fetchedRecentRef.current = true;
@@ -126,11 +131,11 @@ export function VideoUpload() {
                 <button
                   key={item.video_id}
                   onClick={() => void handleLoadExisting(item)}
-                  className="retro-btn px-2 py-0.5 text-[10px] font-pixel uppercase tracking-wide max-w-[180px] truncate"
+                  className="retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate"
                   title={`${item.filename} · ${item.info.duration.toFixed(1)}s${item.cached ? " · cached analysis" : ""}`}
                 >
                   {item.cached ? "⚡ " : ""}
-                  {item.filename}
+                  {shortName(item.filename)}
                 </button>
               ))}
             </div>
