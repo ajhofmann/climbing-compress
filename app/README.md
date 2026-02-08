@@ -69,6 +69,7 @@ Upload constraints are enforced by the backend:
 - keyboard `C` cycles cache-scope filters in dropzone mode (`all -> cached -> uncached`)
 - keyboard `S` cycles recent sort modes in dropzone (`recent -> name -> duration -> outputs -> size`)
 - keyboard `R` refreshes recent clips + output counts in dropzone mode without clicking `[refresh]`
+- keyboard `V` (or `[reset view]`) resets name/output/cache subset filters back to default all-state
 - keyboard shortcut `Ctrl/Cmd + Shift + O` clears outputs contextually (global in dropzone, clip-only in loaded toolbar)
 - keyboard shortcut `Ctrl/Cmd + Alt + O` clears outputs for the active filtered subset in dropzone
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews

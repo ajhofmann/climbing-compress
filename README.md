@@ -92,6 +92,7 @@ Upload notes:
 - Press `C` in dropzone mode to cycle cache-scope filters (`all -> cached -> uncached -> all`).
 - Press `S` in dropzone mode to cycle Recent sort modes (`recent -> name -> duration -> outputs -> size`).
 - Press `R` in dropzone mode to refresh Recent clips + output counters without clicking `[refresh]`.
+- Press `V` in dropzone mode (or click `[reset view]`) to clear name/output/cache subset filters back to all.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
 - Recent filter text now persists across reloads (alongside sort/show/scope preferences).

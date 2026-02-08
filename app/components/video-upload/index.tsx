@@ -72,6 +72,12 @@ export function VideoUpload() {
     });
   }, []);
 
+  const resetRecentView = useCallback(() => {
+    setRecentFilter("");
+    setRecentOutputScope("all");
+    setRecentCacheScope("all");
+  }, []);
+
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
@@ -384,6 +390,12 @@ export function VideoUpload() {
         void refreshRecent();
         return;
       }
+      if (e.key.toLowerCase() === "v" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (!hasActiveRecentSubset) return;
+        e.preventDefault();
+        resetRecentView();
+        return;
+      }
       if (e.key !== "/") return;
       e.preventDefault();
       recentFilterInputRef.current?.focus();
@@ -402,9 +414,11 @@ export function VideoUpload() {
     clearingLibrary,
     clearingOutputs,
     pruningFiltered,
+    hasActiveRecentSubset,
     recentCacheScope,
     recentVideos.length,
     cycleRecentSort,
+    resetRecentView,
     refreshRecent,
   ]);
 
@@ -981,7 +995,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / O C S R Control+Alt+O Meta+Alt+O"
+        aria-keyshortcuts="Enter Space / O C S R V Control+Alt+O Meta+Alt+O"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -1128,6 +1142,17 @@ export function VideoUpload() {
               >
                 [cache:{recentCacheScope}:{cacheScopeCount}]
               </button>
+              {hasActiveRecentSubset && (
+                <button
+                  onClick={resetRecentView}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                  className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                  aria-label="Reset recent view filters to all"
+                  aria-keyshortcuts="V"
+                >
+                  [reset view]
+                </button>
+              )}
             </div>
             {recentVideos.length > 0 && (
               <div className="flex items-center justify-center gap-1">
