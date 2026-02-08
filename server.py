@@ -219,7 +219,7 @@ async def upload_video(file: UploadFile = File(...)):
 async def list_videos():
     """List available input videos."""
     result = []
-    for vid, path in _videos.items():
+    for vid, path in sorted(_videos.items(), key=lambda item: item[0]):
         info = get_video_info(str(path))
         result.append({"video_id": vid, "filename": path.name, "info": info})
     return result

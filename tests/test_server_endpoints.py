@@ -96,3 +96,20 @@ def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
     assert body["video_id"] == "existing"
     assert body["reused"] is True
     assert body["cached"] is True
+
+
+def test_list_videos_returns_stable_sorted_order(monkeypatch, tmp_path: Path):
+    a_path = tmp_path / "a.mp4"
+    b_path = tmp_path / "b.mp4"
+    a_path.write_bytes(b"a")
+    b_path.write_bytes(b"b")
+
+    monkeypatch.setattr(server, "_videos", {"b": b_path, "a": a_path})
+    monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
+
+    client = TestClient(server.app)
+    resp = client.get("/api/videos")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [item["video_id"] for item in body] == ["a", "b"]
