@@ -251,9 +251,15 @@ export function VideoUpload() {
     if (!confirmed) return;
     setDeletingVideoId(item.video_id);
     try {
-      await deleteVideo(item.video_id);
+      const result = await deleteVideo(item.video_id);
       await refreshRecent();
-      setProgress(0, `Removed ${item.filename}`);
+      const outputs = result.deleted_outputs ?? 0;
+      const outputPart = outputs <= 0
+        ? ""
+        : outputs === 1
+          ? " Cleared 1 rendered output."
+          : ` Cleared ${outputs} rendered outputs.`;
+      setProgress(0, `Removed ${item.filename}.${outputPart}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Delete failed";
       setProgress(0, `Delete failed: ${msg}`);
@@ -319,10 +325,16 @@ export function VideoUpload() {
     if (!confirmed) return;
     setDeletingVideoId(videoId);
     try {
-      await deleteVideo(videoId);
+      const result = await deleteVideo(videoId);
       await refreshRecent();
       clearVideo();
-      setProgress(0, `Removed ${label} from local library.`);
+      const outputs = result.deleted_outputs ?? 0;
+      const outputPart = outputs <= 0
+        ? ""
+        : outputs === 1
+          ? " Cleared 1 rendered output."
+          : ` Cleared ${outputs} rendered outputs.`;
+      setProgress(0, `Removed ${label} from local library.${outputPart}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Delete failed";
       setProgress(0, `Delete failed: ${msg}`);

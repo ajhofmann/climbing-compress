@@ -253,9 +253,16 @@ export async function getVideoMeta(videoId: string): Promise<VideoMetaResult> {
   return res.json();
 }
 
-export async function deleteVideo(videoId: string): Promise<void> {
+export interface DeleteVideoResult {
+  video_id: string;
+  deleted: boolean;
+  deleted_outputs: number;
+}
+
+export async function deleteVideo(videoId: string): Promise<DeleteVideoResult> {
   const res = await fetch(`${API}/api/videos/${videoId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
 }
 
 export async function deleteAllVideos(): Promise<{ deleted: number; video_ids: string[]; deleted_outputs: number }> {
