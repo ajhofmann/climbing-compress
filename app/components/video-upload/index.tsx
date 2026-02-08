@@ -161,14 +161,16 @@ export function VideoUpload() {
   };
 
   const handleClearLibrary = async () => {
-    if (deletingVideoId || renamingVideoId || clearingLibrary) return;
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary) return;
     const confirmed = window.confirm("Remove all local clips from this library?");
     if (!confirmed) return;
+    const shouldClearCurrent = Boolean(videoId);
     setClearingLibrary(true);
     try {
       const result = await deleteAllVideos();
       setRecentVideos([]);
       setRecentFetchDone(true);
+      if (shouldClearCurrent) clearVideo();
       const count = result.deleted ?? 0;
       if (count <= 0) {
         setProgress(0, "Local library already empty.");
@@ -285,14 +287,14 @@ export function VideoUpload() {
               </span>
               <button
                 onClick={() => void refreshRecent()}
-                disabled={deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
               >
                 {refreshingRecent ? "[refreshing...]" : "[refresh]"}
               </button>
               <button
                 onClick={() => void handleClearLibrary()}
-                disabled={deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || recentVideos.length === 0}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || recentVideos.length === 0}
                 className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
               >
                 {clearingLibrary ? "[clearing...]" : "[clear all]"}
@@ -389,6 +391,15 @@ export function VideoUpload() {
           className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
         >
           [RENAME]
+        </button>
+      </Tooltip>
+      <Tooltip text="Remove every clip from local library and reset to upload screen">
+        <button
+          onClick={() => void handleClearLibrary()}
+          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary}
+          className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
+        >
+          [CLEAR LIB]
         </button>
       </Tooltip>
     </div>
