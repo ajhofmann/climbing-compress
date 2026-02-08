@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import { getVideoMeta, listVideos, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
@@ -11,10 +11,12 @@ export function VideoUpload() {
   const videoId = useStore((state) => state.videoId);
   const videoInfo = useStore((state) => state.videoInfo);
   const setVideo = useStore((state) => state.setVideo);
+  const clearVideo = useStore((state) => state.clearVideo);
   const setProgress = useStore((state) => state.setProgress);
+  const isAnalyzing = useStore((state) => state.isAnalyzing);
+  const isRendering = useStore((state) => state.isRendering);
   const [isDragging, setIsDragging] = useState(false);
   const [recentVideos, setRecentVideos] = useState<VideoListItem[]>([]);
-  const fetchedRecentRef = useRef(false);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -29,8 +31,7 @@ export function VideoUpload() {
   };
 
   useEffect(() => {
-    if (videoId || fetchedRecentRef.current) return;
-    fetchedRecentRef.current = true;
+    if (videoId) return;
     let cancelled = false;
     void listVideos()
       .then((items) => {
@@ -84,6 +85,12 @@ export function VideoUpload() {
       if (file) handleFile(file);
     };
     input.click();
+  };
+
+  const handleClearVideo = () => {
+    if (isAnalyzing || isRendering) return;
+    clearVideo();
+    setProgress(0, "Clip cleared. Pick another video or use Recent.");
   };
 
   if (!videoId) {
@@ -164,6 +171,15 @@ export function VideoUpload() {
       <span className="text-[11px] font-retro led-text whitespace-nowrap">
         {videoInfo && `${videoInfo.duration.toFixed(0)}s / ${videoInfo.width}x${videoInfo.height} / ${videoInfo.fps.toFixed(0)}fps`}
       </span>
+      <Tooltip text="Clear current clip and return to upload/recent selector">
+        <button
+          onClick={handleClearVideo}
+          disabled={isAnalyzing || isRendering}
+          className="text-[11px] font-pixel text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
+        >
+          [EJECT]
+        </button>
+      </Tooltip>
       <Tooltip text="Replace the current video with a new one">
         <button onClick={openPicker} className="text-[11px] font-pixel text-neon-magenta hover:text-white retro-glow-magenta shrink-0 uppercase">
           [SWAP]
