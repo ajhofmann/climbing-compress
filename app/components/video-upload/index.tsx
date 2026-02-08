@@ -40,6 +40,16 @@ export function VideoUpload() {
     return `${stem.slice(0, 6)}…${ext}`;
   };
 
+  const formatDuration = (seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
+    const total = Math.round(seconds);
+    const hours = Math.floor(total / 3600);
+    const mins = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    if (hours > 0) return `${hours}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
   const applyRecent = (items: VideoListItem[]) => {
     setRecentVideos(items);
     setShowAllRecent((prev) => (items.length > RECENT_PREVIEW_LIMIT ? prev : false));
@@ -49,6 +59,7 @@ export function VideoUpload() {
     ? recentVideos
     : recentVideos.slice(0, RECENT_PREVIEW_LIMIT);
   const hiddenRecentCount = Math.max(0, recentVideos.length - visibleRecent.length);
+  const totalRecentDuration = recentVideos.reduce((sum, item) => sum + item.info.duration, 0);
 
   useEffect(() => {
     if (videoId) return;
@@ -296,7 +307,7 @@ export function VideoUpload() {
           >
             <div className="flex items-center justify-center gap-2">
               <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">
-                Recent ({recentVideos.length})
+                Recent ({recentVideos.length} · {formatDuration(totalRecentDuration)})
               </span>
               <button
                 onClick={() => void refreshRecent()}
