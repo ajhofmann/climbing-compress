@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from pipeline.cache import (
     load_analysis, has_cache, content_hash, load_flow_scores,
-    load_camera_motion, clear_cache, clear_cache_by_hash,
+    load_camera_motion, clear_cache, clear_cache_by_hash, has_cache_by_hash,
 )
 from pipeline.orchestrate import (
     run_analysis, run_render, compute_scores_and_curve, curve_stats, detect_crux_points,
@@ -59,6 +59,8 @@ _videos: dict[str, Path] = {}
 
 # Content-hash index for upload dedup (hash -> video_id)
 _file_hashes: dict[str, str] = {}
+# Reverse lookup for fast per-video cache checks (video_id -> hash)
+_video_hashes: dict[str, str] = {}
 # Video metadata cache (info + thumbnails) for fast local reloads
 _video_meta_cache: dict[str, dict[str, object]] = {}
 # Tracks source videos that failed decode for a given mtime
@@ -105,7 +107,9 @@ for _f in INPUT_DIR.iterdir():
             _video_names[_f.stem] = _f.name
             _video_names_dirty = True
         try:
-            _file_hashes[content_hash(str(_f))] = _f.stem
+            ch = content_hash(str(_f))
+            _file_hashes[ch] = _f.stem
+            _video_hashes[_f.stem] = ch
         except (OSError, ValueError) as exc:
             logger.warning("Failed to hash %s: %s", _f, exc)
 if _video_names_dirty:
@@ -234,6 +238,26 @@ def _display_filename(video_id: str, fallback: Path) -> str:
     return _video_names.get(video_id, fallback.name)
 
 
+def _cache_key_for_video(video_id: str, path: Path) -> str | None:
+    if video_id in _video_hashes:
+        return _video_hashes[video_id]
+    try:
+        ch = content_hash(str(path))
+    except (OSError, ValueError):
+        return None
+    _video_hashes[video_id] = ch
+    _file_hashes[ch] = video_id
+    return ch
+
+
+def _has_cached_analysis(video_id: str, path: Path) -> bool:
+    cache_key = _cache_key_for_video(video_id, path)
+    if cache_key:
+        return has_cache_by_hash(cache_key)
+    # Fallback for unusual cases where hashing fails.
+    return has_cache(str(path))
+
+
 # ---- Endpoints ----
 
 @app.post("/api/upload")
@@ -263,6 +287,7 @@ async def upload_video(file: UploadFile = File(...)):
             if existing_id in _videos and _videos[existing_id].exists():
                 tmp.unlink()
                 dest = _videos[existing_id]
+                _video_hashes[existing_id] = ch
                 if display_name and _video_names.get(existing_id, dest.name) == dest.name:
                     _video_names[existing_id] = display_name
                     _persist_video_names()
@@ -273,7 +298,7 @@ async def upload_video(file: UploadFile = File(...)):
                     "filename": _display_filename(existing_id, dest),
                     "info": info,
                     "thumbnails": thumbs,
-                    "cached": has_cache(str(dest)),
+                    "cached": _has_cached_analysis(existing_id, dest),
                     "reused": True,
                 }
 
@@ -284,6 +309,7 @@ async def upload_video(file: UploadFile = File(...)):
 
         _videos[video_id] = dest
         _file_hashes[ch] = video_id
+        _video_hashes[video_id] = ch
         _video_names[video_id] = display_name or dest.name
         _video_info_errors.pop(video_id, None)
         _unreadable_warned.pop(video_id, None)
@@ -297,7 +323,7 @@ async def upload_video(file: UploadFile = File(...)):
             "filename": _display_filename(video_id, dest),
             "info": info,
             "thumbnails": thumbs,
-            "cached": has_cache(str(dest)),
+            "cached": _has_cached_analysis(video_id, dest),
             "reused": False,
         }
     except (OSError, ValueError) as exc:
@@ -336,7 +362,7 @@ async def list_videos():
             "video_id": vid,
             "filename": _display_filename(vid, path),
             "info": info,
-            "cached": has_cache(str(path)),
+            "cached": _has_cached_analysis(vid, path),
         })
     return result
 
@@ -352,7 +378,7 @@ async def video_meta(video_id: str):
         "filename": _display_filename(video_id, path),
         "info": info,
         "thumbnails": thumbs,
-        "cached": has_cache(str(path)),
+        "cached": _has_cached_analysis(video_id, path),
     }
 
 
@@ -361,18 +387,24 @@ async def delete_video(video_id: str):
     """Delete a source video from local library + clear its cached analysis."""
     path = _get_video_path(video_id)
 
-    hash_keys = [h for h, vid in _file_hashes.items() if vid == video_id]
-    if path.exists():
-        try:
-            clear_cache(str(path))
-        except OSError as exc:
-            logger.warning("Failed to clear cache for deleted video %s: %s", video_id, exc)
-    else:
+    hash_keys = []
+    if video_id in _video_hashes:
+        hash_keys.append(_video_hashes[video_id])
+    for h, vid in list(_file_hashes.items()):
+        if vid == video_id and h not in hash_keys:
+            hash_keys.append(h)
+
+    if hash_keys:
         for cache_key in hash_keys:
             try:
                 clear_cache_by_hash(cache_key)
             except OSError as exc:
                 logger.warning("Failed to clear cache hash %s for %s: %s", cache_key, video_id, exc)
+    elif path.exists():
+        try:
+            clear_cache(str(path))
+        except OSError as exc:
+            logger.warning("Failed to clear cache for deleted video %s: %s", video_id, exc)
 
     if path.exists():
         try:
@@ -384,6 +416,7 @@ async def delete_video(video_id: str):
     _video_meta_cache.pop(video_id, None)
     _video_info_errors.pop(video_id, None)
     _unreadable_warned.pop(video_id, None)
+    _video_hashes.pop(video_id, None)
 
     if _video_names.pop(video_id, None) is not None:
         _persist_video_names()

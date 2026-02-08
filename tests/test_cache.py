@@ -13,6 +13,7 @@ from pipeline.cache import (
     has_cache,
     clear_cache,
     clear_cache_by_hash,
+    has_cache_by_hash,
     get_cache_path,
     save_tracks,
     load_tracks,
@@ -129,9 +130,11 @@ class TestPoseCache:
         cache_path = get_cache_path(tmp_video)
         cache_key = cache_path.name
         assert cache_path.exists()
+        assert has_cache_by_hash(cache_key)
 
         clear_cache_by_hash(cache_key)
         assert not cache_path.exists()
+        assert not has_cache_by_hash(cache_key)
 
 
 class TestTrackCache:
