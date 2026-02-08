@@ -160,6 +160,16 @@ export function VideoUpload() {
       : sortedRecent.slice(0, RECENT_PREVIEW_LIMIT)
   ), [showAllRecent, sortedRecent]);
   const hiddenRecentCount = Math.max(0, sortedRecent.length - visibleRecent.length);
+  const clipsWithOutputs = useMemo(
+    () => recentVideos.reduce((count, item) => count + (item.output_count > 0 ? 1 : 0), 0),
+    [recentVideos],
+  );
+  const clipsWithoutOutputs = recentVideos.length - clipsWithOutputs;
+  const outputScopeCount = recentOutputScope === "all"
+    ? recentVideos.length
+    : recentOutputScope === "with"
+      ? clipsWithOutputs
+      : clipsWithoutOutputs;
   const totalRecentDuration = useMemo(
     () => recentVideos.reduce((sum, item) => sum + item.info.duration, 0),
     [recentVideos],
@@ -692,10 +702,10 @@ export function VideoUpload() {
                 }}
                 disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                aria-label={`Filter recent clips by output count (currently ${recentOutputScope})`}
+                aria-label={`Filter recent clips by output count (currently ${recentOutputScope}, ${outputScopeCount} clips)`}
                 aria-keyshortcuts="O"
               >
-                [out:{recentOutputScope}]
+                [out:{recentOutputScope}:{outputScopeCount}]
               </button>
             </div>
             {recentVideos.length > 0 && (
