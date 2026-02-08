@@ -76,6 +76,7 @@ Upload notes:
 - Recent section includes output-scope filtering (`[out:all]` / `[out:with]` / `[out:none]`) for output-housekeeping workflows.
 - Output-scope toggle now shows scope counts inline (`[out:all:N]`, `[out:with:N]`, `[out:none:N]`) for quick triage.
 - Press `O` in dropzone mode to cycle output-scope filters (`all -> with -> none -> all`).
+- Press `R` in dropzone mode to refresh Recent clips + output counters without clicking `[refresh]`.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
 - Missing/deleted source files are auto-pruned from Recent/library indexes during list refreshes.

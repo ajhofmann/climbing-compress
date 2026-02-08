@@ -68,36 +68,6 @@ export function VideoUpload() {
     }
   }, [recentSort, showAllRecent, recentOutputScope]);
 
-  useEffect(() => {
-    if (videoId || !recentFetchDone) return;
-    const onGlobalKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (!recentFilter) return;
-        e.preventDefault();
-        setRecentFilter("");
-        recentFilterInputRef.current?.blur();
-        return;
-      }
-      const target = e.target as HTMLElement | null;
-      const tag = target?.tagName?.toLowerCase();
-      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
-      if (e.key.toLowerCase() === "o" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        setRecentOutputScope((prev) => {
-          if (prev === "all") return "with";
-          if (prev === "with") return "none";
-          return "all";
-        });
-        return;
-      }
-      if (e.key !== "/") return;
-      e.preventDefault();
-      recentFilterInputRef.current?.focus();
-    };
-    window.addEventListener("keydown", onGlobalKeyDown, true);
-    return () => window.removeEventListener("keydown", onGlobalKeyDown, true);
-  }, [videoId, recentFetchDone, recentFilter]);
-
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
     const dot = name.lastIndexOf(".");
@@ -120,10 +90,10 @@ export function VideoUpload() {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const applyRecent = (items: VideoListItem[]) => {
+  const applyRecent = useCallback((items: VideoListItem[]) => {
     setRecentVideos(items);
     setShowAllRecent((prev) => (items.length > RECENT_PREVIEW_LIMIT ? prev : false));
-  };
+  }, []);
 
   const normalizedRecentFilter = recentFilter.trim().toLowerCase();
   const nameFilteredRecent = useMemo(() => (
@@ -201,7 +171,7 @@ export function VideoUpload() {
     return () => {
       cancelled = true;
     };
-  }, [videoId]);
+  }, [videoId, applyRecent]);
 
   useEffect(() => {
     if (!videoId) {
@@ -243,7 +213,7 @@ export function VideoUpload() {
     };
   }, [outputId, videoId]);
 
-  const refreshRecent = async () => {
+  const refreshRecent = useCallback(async () => {
     setRefreshingRecent(true);
     try {
       const [videosRes, statsRes] = await Promise.allSettled([listVideos(), getLibraryStats()]);
@@ -266,7 +236,55 @@ export function VideoUpload() {
       setRecentFetchDone(true);
       setRefreshingRecent(false);
     }
-  };
+  }, [applyRecent]);
+
+  useEffect(() => {
+    if (videoId || !recentFetchDone) return;
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!recentFilter) return;
+        e.preventDefault();
+        setRecentFilter("");
+        recentFilterInputRef.current?.blur();
+        return;
+      }
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+      if (e.key.toLowerCase() === "o" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setRecentOutputScope((prev) => {
+          if (prev === "all") return "with";
+          if (prev === "with") return "none";
+          return "all";
+        });
+        return;
+      }
+      if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs) return;
+        e.preventDefault();
+        void refreshRecent();
+        return;
+      }
+      if (e.key !== "/") return;
+      e.preventDefault();
+      recentFilterInputRef.current?.focus();
+    };
+    window.addEventListener("keydown", onGlobalKeyDown, true);
+    return () => window.removeEventListener("keydown", onGlobalKeyDown, true);
+  }, [
+    videoId,
+    recentFetchDone,
+    recentFilter,
+    isAnalyzing,
+    isRendering,
+    deletingVideoId,
+    renamingVideoId,
+    refreshingRecent,
+    clearingLibrary,
+    clearingOutputs,
+    refreshRecent,
+  ]);
 
   const handleFile = async (file: File) => {
     const ext = file.name.includes(".") ? `.${file.name.split(".").pop()?.toLowerCase()}` : "";
@@ -596,7 +614,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / O"
+        aria-keyshortcuts="Enter Space / O R"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -647,6 +665,7 @@ export function VideoUpload() {
                 disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label="Refresh local clip library"
+                aria-keyshortcuts="R"
               >
                 {refreshingRecent ? "[refreshing...]" : "[refresh]"}
               </button>
