@@ -610,6 +610,10 @@ export function VideoUpload() {
 
   const handleClearFiltered = async () => {
     if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    if (!hasActiveRecentSubset) {
+      setProgress(0, "No filtered subset is active. Use [clear all] to wipe the full library.");
+      return;
+    }
     if (filteredRecent.length <= 0) {
       setProgress(0, "No filtered clips to clear.");
       return;
@@ -1045,14 +1049,16 @@ export function VideoUpload() {
               >
                 {clearingLibrary ? "[clearing...]" : "[clear all]"}
               </button>
-              <button
-                onClick={() => void handleClearFiltered()}
-                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || filteredRecent.length === 0}
-                className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                aria-label={`Clear ${filteredRecent.length} filtered clip${filteredRecent.length === 1 ? "" : "s"}`}
-              >
-                {pruningFiltered ? "[clearing filt...]" : "[clear filtered]"}
-              </button>
+              {hasActiveRecentSubset && (
+                <button
+                  onClick={() => void handleClearFiltered()}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || filteredRecent.length === 0}
+                  className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                  aria-label={`Clear ${filteredRecent.length} filtered clip${filteredRecent.length === 1 ? "" : "s"}`}
+                >
+                  {pruningFiltered ? "[clearing filt...]" : "[clear filtered]"}
+                </button>
+              )}
               {hasActiveRecentSubset && (
                 <button
                   onClick={() => void handleClearFilteredOutputs()}
