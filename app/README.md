@@ -53,6 +53,7 @@ Upload constraints are enforced by the backend:
 - recent controls display live `out:N` render-output count and disable output cleanup when `out:0`
 - recent controls display compact output storage (`mb:X`) beside `out:N`
 - recent controls also display compact source-library storage (`lib:X`) beside output counters
+- recent header shows filtered-view summary (`view:* · out:* · mb:*`) whenever name/output/cache subset filtering is active
 - clear-output confirms include output count + size summaries before deleting renders
 - delete/clear status messages now include freed source/output sizes where available
 - recent/library output count remains consistent after loaded delete operations (no extra decrement drift)

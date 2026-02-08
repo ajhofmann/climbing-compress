@@ -72,6 +72,7 @@ Upload notes:
 - Recent controls now show live render-output counter (`out:N`) and disable output cleanup when `out:0`.
 - Recent controls now show compact output storage (`mb:X`) next to `out:N`.
 - Recent controls now also show compact source-library storage (`lib:X`) for quick local disk checks.
+- When any subset filter is active (name/output/cache), Recent header also shows filtered-view storage/output summary (`view:* · out:* · mb:*`).
 - Output-clear confirmations now include count + size summaries (for example: `2 rendered outputs, 12 B`).
 - Delete/clear status feedback now includes freed source/output byte sizes when available.
 - Recent/output counters remain accurate after loaded-clip deletes (no stale double-decrement drift).

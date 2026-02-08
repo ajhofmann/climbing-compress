@@ -221,6 +221,7 @@ export function VideoUpload() {
     () => filteredRecent.reduce((sum, item) => sum + item.output_bytes, 0),
     [filteredRecent],
   );
+  const hasActiveRecentSubset = normalizedRecentFilter.length > 0 || recentOutputScope !== "all" || recentCacheScope !== "all";
 
   useEffect(() => {
     if (videoId) return;
@@ -910,6 +911,11 @@ export function VideoUpload() {
               <span className="text-[9px] font-pixel text-text-muted/70 text-center">
                 lib:{formatBytesShort(clipBytes)} · out:{outputCount ?? "?"} · mb:{formatBytesShort(outputBytes)}
               </span>
+              {hasActiveRecentSubset && (
+                <span className="text-[9px] font-pixel text-text-muted/70 text-center">
+                  view:{formatBytesShort(filteredSourceBytes)} · out:{filteredOutputCount} · mb:{formatBytesShort(filteredOutputBytes)}
+                </span>
+              )}
               <button
                 onClick={() => void refreshRecent()}
                 disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
