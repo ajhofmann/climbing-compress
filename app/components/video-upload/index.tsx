@@ -87,8 +87,17 @@ export function VideoUpload() {
   const runRename = async (targetId: string, currentName: string) => {
     const nextRaw = window.prompt("Rename clip", currentName);
     if (nextRaw === null) return;
-    const next = nextRaw.trim();
+    const next = nextRaw.trim().split(/[/\\]/).pop() ?? "";
     if (!next || next === currentName) return;
+    if (next.length > 120) {
+      setProgress(0, "Rename failed: filename too long (max 120 chars)");
+      return;
+    }
+    const ext = next.includes(".") ? `.${next.split(".").pop()?.toLowerCase()}` : "";
+    if (ext && !SUPPORTED_VIDEO_EXTS.includes(ext as typeof SUPPORTED_VIDEO_EXTS[number])) {
+      setProgress(0, `Rename failed: unsupported extension ${ext}`);
+      return;
+    }
     setRenamingVideoId(targetId);
     try {
       const renamed = await renameVideo(targetId, next);
