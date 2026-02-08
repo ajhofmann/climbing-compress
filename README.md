@@ -74,6 +74,7 @@ Upload notes:
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state.
 - Recent section includes output-scope filtering (`[out:all]` / `[out:with]` / `[out:none]`) for output-housekeeping workflows.
+- Press `O` in dropzone mode to cycle output-scope filters (`all -> with -> none -> all`).
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
 - Missing/deleted source files are auto-pruned from Recent/library indexes during list refreshes.
