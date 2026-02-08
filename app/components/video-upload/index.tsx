@@ -160,14 +160,23 @@ export function VideoUpload() {
     () => normalizedRecentFilter.split(/\s+/).filter(Boolean),
     [normalizedRecentFilter],
   );
+  const includeRecentFilterTerms = useMemo(
+    () => recentFilterTerms.filter((term) => !term.startsWith("-")),
+    [recentFilterTerms],
+  );
+  const excludeRecentFilterTerms = useMemo(
+    () => recentFilterTerms.filter((term) => term.startsWith("-") && term.length > 1).map((term) => term.slice(1)),
+    [recentFilterTerms],
+  );
   const nameFilteredRecent = useMemo(() => (
     recentFilterTerms.length > 0
       ? recentVideos.filter((item) => {
         const lower = item.filename.toLowerCase();
-        return recentFilterTerms.every((term) => lower.includes(term));
+        return includeRecentFilterTerms.every((term) => lower.includes(term))
+          && excludeRecentFilterTerms.every((term) => !lower.includes(term));
       })
       : recentVideos
-  ), [recentVideos, recentFilterTerms]);
+  ), [recentVideos, recentFilterTerms.length, includeRecentFilterTerms, excludeRecentFilterTerms]);
 
   const outputScopedRecent = useMemo(() => {
     if (recentOutputScope === "all") return nameFilteredRecent;
@@ -1363,8 +1372,8 @@ export function VideoUpload() {
                       e.currentTarget.blur();
                     }
                   }}
-                  placeholder="filter clips (terms)"
-                  aria-label="Filter recent clips by name (space-separated terms)"
+                  placeholder="filter clips (+term -term)"
+                  aria-label="Filter recent clips by name (space-separated terms, prefix with dash to exclude)"
                   className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
                 />
                 {recentFilter && (
