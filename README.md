@@ -65,6 +65,7 @@ The solver also returns **crux markers** (`C1`, `C2`, …) on the timeline. In k
 - Full **Render** for final quality output.
 - You can cancel an active render from the transport bar (or press `Esc` while rendering).
 - Keyboard transport shortcuts:
+  - `Ctrl/Cmd + Shift + A` → Analyze / Cancel Analyze
   - `Ctrl/Cmd + Enter` → Quick Preview
   - `Ctrl/Cmd + Shift + Enter` → Full Render
 - Playback shortcuts (when output player is visible):

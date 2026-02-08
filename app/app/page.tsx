@@ -258,20 +258,44 @@ export default function Home() {
   const hasAnalysis = !!analysis;
 
   const handleTransportShortcuts = useCallback((e: KeyboardEvent) => {
-    if (!videoId || !hasAnalysis || isAnalyzing || isRendering) return;
-    if (!(e.ctrlKey || e.metaKey) || e.key !== "Enter") return;
-
     const target = e.target as HTMLElement | null;
     const tag = target?.tagName;
     if (target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") return;
 
-    e.preventDefault();
-    if (e.shiftKey) {
-      handleRender();
-    } else {
-      handleQuickRender();
+    if (!(e.ctrlKey || e.metaKey)) return;
+
+    const key = e.key.toLowerCase();
+
+    if (key === "a" && e.shiftKey) {
+      if (!videoId || isRendering) return;
+      e.preventDefault();
+      if (isAnalyzing) {
+        handleCancelAnalyze();
+      } else {
+        handleAnalyze();
+      }
+      return;
     }
-  }, [videoId, hasAnalysis, isAnalyzing, isRendering, handleRender, handleQuickRender]);
+
+    if (e.key === "Enter") {
+      if (!videoId || !hasAnalysis || isAnalyzing || isRendering) return;
+      e.preventDefault();
+      if (e.shiftKey) {
+        handleRender();
+      } else {
+        handleQuickRender();
+      }
+    }
+  }, [
+    videoId,
+    hasAnalysis,
+    isAnalyzing,
+    isRendering,
+    handleAnalyze,
+    handleCancelAnalyze,
+    handleRender,
+    handleQuickRender,
+  ]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleTransportShortcuts);
@@ -295,10 +319,11 @@ export default function Home() {
           <>
             {/* Transport bar */}
             <div className="flex items-center gap-3 mb-2">
-              <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb."}>
+              <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb.\nShortcut: Ctrl/Cmd + Shift + A"}>
                 <button
                   onClick={isAnalyzing ? handleCancelAnalyze : handleAnalyze}
                   disabled={!videoId}
+                  aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
                   className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
                     isAnalyzing ? "retro-btn"
                       : videoId && !hasAnalysis ? "retro-btn-primary pulse-border"
