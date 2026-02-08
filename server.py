@@ -218,8 +218,16 @@ async def upload_video(file: UploadFile = File(...)):
 @app.get("/api/videos")
 async def list_videos():
     """List available input videos."""
+    def _sort_key(item: tuple[str, Path]) -> tuple[float, str]:
+        vid, path = item
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        return (-mtime, vid)
+
     result = []
-    for vid, path in sorted(_videos.items(), key=lambda item: item[0]):
+    for vid, path in sorted(_videos.items(), key=_sort_key):
         try:
             info = get_video_info(str(path))
         except (OSError, ValueError) as exc:

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -122,11 +123,13 @@ def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
     assert body["cached"] is True
 
 
-def test_list_videos_returns_stable_sorted_order(monkeypatch, tmp_path: Path):
+def test_list_videos_returns_recent_first(monkeypatch, tmp_path: Path):
     a_path = tmp_path / "a.mp4"
     b_path = tmp_path / "b.mp4"
     a_path.write_bytes(b"a")
     b_path.write_bytes(b"b")
+    os.utime(a_path, (1000, 1000))
+    os.utime(b_path, (2000, 2000))
 
     monkeypatch.setattr(server, "_videos", {"b": b_path, "a": a_path})
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
@@ -137,8 +140,8 @@ def test_list_videos_returns_stable_sorted_order(monkeypatch, tmp_path: Path):
 
     assert resp.status_code == 200
     body = resp.json()
-    assert [item["video_id"] for item in body] == ["a", "b"]
-    assert [item["cached"] for item in body] == [True, False]
+    assert [item["video_id"] for item in body] == ["b", "a"]
+    assert [item["cached"] for item in body] == [False, True]
 
 
 def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
