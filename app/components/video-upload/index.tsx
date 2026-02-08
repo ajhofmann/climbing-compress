@@ -67,9 +67,9 @@ function parseDurationLiteralSeconds(raw: string): number | null {
 }
 
 function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
-  const comparatorMatch = term.match(/^#out(<=|>=|!=|=|<|>)(\d+)$/);
+  const comparatorMatch = term.match(/^#out(<=|>=|!=|==|=|<|>)(\d+)$/);
   if (!comparatorMatch) return null;
-  const operator = comparatorMatch[1] as ComparatorOperator;
+  const operator = (comparatorMatch[1] === "==" ? "=" : comparatorMatch[1]) as ComparatorOperator;
   const value = Number(comparatorMatch[2]);
   if (!Number.isFinite(value)) return null;
   return { operator, value };
@@ -92,27 +92,27 @@ function parseByteLiteral(raw: string): number | null {
 }
 
 function parseSourceBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
-  const comparatorMatch = term.match(/^#src(<=|>=|!=|=|<|>)(.+)$/);
+  const comparatorMatch = term.match(/^#src(<=|>=|!=|==|=|<|>)(.+)$/);
   if (!comparatorMatch) return null;
-  const operator = comparatorMatch[1] as ComparatorOperator;
+  const operator = (comparatorMatch[1] === "==" ? "=" : comparatorMatch[1]) as ComparatorOperator;
   const valueBytes = parseByteLiteral(comparatorMatch[2]);
   if (valueBytes == null || !Number.isFinite(valueBytes)) return null;
   return { operator, valueBytes };
 }
 
 function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
-  const comparatorMatch = term.match(/^#mb(<=|>=|!=|=|<|>)(.+)$/);
+  const comparatorMatch = term.match(/^#mb(<=|>=|!=|==|=|<|>)(.+)$/);
   if (!comparatorMatch) return null;
-  const operator = comparatorMatch[1] as ComparatorOperator;
+  const operator = (comparatorMatch[1] === "==" ? "=" : comparatorMatch[1]) as ComparatorOperator;
   const valueBytes = parseByteLiteral(comparatorMatch[2]);
   if (valueBytes == null || !Number.isFinite(valueBytes)) return null;
   return { operator, valueBytes };
 }
 
 function parseDurationComparatorTerm(term: string): { operator: ComparatorOperator; valueSeconds: number } | null {
-  const comparatorMatch = term.match(/^#dur(<=|>=|!=|=|<|>)(.+)$/);
+  const comparatorMatch = term.match(/^#dur(<=|>=|!=|==|=|<|>)(.+)$/);
   if (!comparatorMatch) return null;
-  const operator = comparatorMatch[1] as ComparatorOperator;
+  const operator = (comparatorMatch[1] === "==" ? "=" : comparatorMatch[1]) as ComparatorOperator;
   const valueSeconds = parseDurationLiteralSeconds(comparatorMatch[2]);
   if (valueSeconds == null || !Number.isFinite(valueSeconds)) return null;
   return { operator, valueSeconds };
@@ -1762,6 +1762,11 @@ export function VideoUpload() {
                   onFocus={() => setRecentFilterFocused(true)}
                   onBlur={() => setRecentFilterFocused(false)}
                   onKeyDown={(e) => {
+                    if ((e.key === "Home" || e.key === "End") && recentTagSuggestions.length > 0) {
+                      e.preventDefault();
+                      setRecentTagCursorIdx(e.key === "Home" ? 0 : recentTagSuggestions.length - 1);
+                      return;
+                    }
                     if ((e.key === "ArrowDown" || e.key === "ArrowUp") && recentTagSuggestions.length > 0) {
                       e.preventDefault();
                       setRecentTagCursorIdx((prev) => {

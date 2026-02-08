@@ -87,6 +87,7 @@ Upload constraints are enforced by the backend:
 - recent module supports inline name filtering with dedicated `no matching clips` empty state, space-separated AND-term matching, and `-term` exclusions
 - filter query also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long` (plus exclusions like `-#out`)
 - output-count comparators are supported too (e.g. `#out>=1`, `#out=0`, `#out!=0`, `#out>2`)
+- comparator equality accepts both `=` and `==` forms (e.g. `#out==0`, `#dur==8`)
 - storage comparators are supported with byte units (e.g. `#src>3k`, `#src>3kb`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`)
 - duration comparator tags are supported too (e.g. `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur!=5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`, `#dur>1:30`, `#dur>0:00:01.8`, `#dur>1h2m`)
 - unknown `#tag` tokens are rendered as warning chips with an inline `unknown tag:*` message
