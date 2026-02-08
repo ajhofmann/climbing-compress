@@ -50,6 +50,7 @@ Upload notes:
 - Loaded clip bar surfaces the active clip filename for easier confirmation before delete/swap actions.
 - Loaded clip bar includes **RENAME** for quick relabeling of local clips.
 - Loaded clip bar includes **CLEAR LIB** to wipe the entire local library without ejecting first.
+- Loaded **SWAP** action is disabled while analyze/render/library-mutation jobs are active to prevent conflicting state changes.
 - Recent entries include **✎** (rename) and **X** (delete) actions to manage local library entries in-place.
 - Rename keeps supported video extensions (`.mov/.mp4/.avi/.mkv`) and auto-appends the current extension if omitted.
 - Rename inputs are validated client-side before request (empty/too-long/unsupported names are rejected immediately).
