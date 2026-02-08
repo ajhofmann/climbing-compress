@@ -195,6 +195,44 @@ export function TimelineEditor() {
     updateSettings({ editMode: "pins" });
   }, [analysis, settings, cruxPoints, curve, curveTimes, setPins, updateSettings]);
 
+  const convertPinsToKeyframes = useCallback(() => {
+    if (!pins.length) return;
+    const sorted = [...pins].sort((a, b) => a.time - b.time);
+    const deduped: { time: number; speed: number }[] = [];
+    for (const pin of sorted) {
+      const t = Number(pin.time.toFixed(2));
+      const s = Math.max(settings.minSpeed, Math.min(settings.maxSpeed, pin.speed));
+      const prev = deduped[deduped.length - 1];
+      if (!prev || Math.abs(prev.time - t) > 0.05) {
+        deduped.push({ time: t, speed: Number(s.toFixed(2)) });
+      } else if (Math.abs(prev.time - t) <= 0.05) {
+        prev.speed = Number(s.toFixed(2));
+      }
+    }
+    if (!deduped.length) return;
+    setKeyframes(deduped);
+    updateSettings({ editMode: "keyframes" });
+  }, [pins, settings.minSpeed, settings.maxSpeed, setKeyframes, updateSettings]);
+
+  const convertKeyframesToPins = useCallback(() => {
+    if (!keyframes.length) return;
+    const sorted = [...keyframes].sort((a, b) => a.time - b.time);
+    const deduped: { time: number; speed: number; radius: number }[] = [];
+    for (const kf of sorted) {
+      const t = Number(kf.time.toFixed(2));
+      const s = Math.max(settings.minSpeed, Math.min(settings.maxSpeed, kf.speed));
+      const prev = deduped[deduped.length - 1];
+      if (!prev || Math.abs(prev.time - t) > 0.05) {
+        deduped.push({ time: t, speed: Number(s.toFixed(2)), radius: 1.2 });
+      } else if (Math.abs(prev.time - t) <= 0.05) {
+        prev.speed = Number(s.toFixed(2));
+      }
+    }
+    if (!deduped.length) return;
+    setPins(deduped);
+    updateSettings({ editMode: "pins" });
+  }, [keyframes, settings.minSpeed, settings.maxSpeed, setPins, updateSettings]);
+
   if (!analysis) {
     return (
       <div className="rounded-lg bg-bg-card border border-border flex items-center justify-center h-24 text-text-muted text-xs font-pixel uppercase tracking-wider opacity-60">
@@ -259,6 +297,16 @@ export function TimelineEditor() {
               </button>
             </Tooltip>
           )}
+          {settings.editMode === "pins" && keyframes.length > 0 && (
+            <Tooltip text="Convert current keyframes into editable pins">
+              <button
+                onClick={convertKeyframesToPins}
+                className="text-cyan-300 hover:underline"
+              >
+                from keyframes
+              </button>
+            </Tooltip>
+          )}
           {settings.editMode === "keyframes" && cruxPoints.length > 0 && (
             <Tooltip text="Auto-generate keyframes from detected crux markers in the current trim range">
               <button
@@ -266,6 +314,16 @@ export function TimelineEditor() {
                 className="text-neon-magenta hover:underline"
               >
                 from crux
+              </button>
+            </Tooltip>
+          )}
+          {settings.editMode === "keyframes" && pins.length > 0 && (
+            <Tooltip text="Convert current pins into keyframes">
+              <button
+                onClick={convertPinsToKeyframes}
+                className="text-cyan-300 hover:underline"
+              >
+                from pins
               </button>
             </Tooltip>
           )}
