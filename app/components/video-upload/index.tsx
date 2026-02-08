@@ -229,6 +229,14 @@ export function VideoUpload() {
     }
     return item.filename.toLowerCase().includes(term);
   }, []);
+  const recentTagCounts = useMemo(() => (
+    Object.fromEntries(
+      RECENT_FILTER_TAGS.map((tag) => [
+        tag,
+        recentVideos.reduce((count, item) => count + (matchesRecentFilterTerm(item, tag) ? 1 : 0), 0),
+      ]),
+    ) as Record<(typeof RECENT_FILTER_TAGS)[number], number>
+  ), [recentVideos, matchesRecentFilterTerm]);
   const nameFilteredRecent = useMemo(() => (
     recentFilterTerms.length > 0
       ? recentVideos.filter((item) => {
@@ -1595,9 +1603,9 @@ export function VideoUpload() {
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => applyRecentTagSuggestion(tag)}
                     className="px-1.5 py-0.5 rounded border border-cyan-500/25 text-cyan-200/80 hover:text-white hover:border-cyan-400/80"
-                    aria-label={`Insert filter tag ${tag}`}
+                    aria-label={`Insert filter tag ${tag} (${recentTagCounts[tag]} matching clips)`}
                   >
-                    {tag}
+                    {`${tag}:${recentTagCounts[tag]}`}
                   </button>
                 ))}
               </div>

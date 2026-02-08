@@ -92,6 +92,7 @@ Upload constraints are enforced by the backend:
 - when tag suggestions are visible, `Enter` autocompletes first; a second `Enter` loads filtered clip
 - when tag suggestions are visible, `ArrowUp` / `ArrowDown` cycles suggestions before `Enter`/`Tab` apply
 - focusing an empty filter input shows quick one-click tag buttons for cached/output/duration tags
+- quick tag buttons show live match counts (`#tag:N`) but insert plain tag tokens when clicked
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
 - `Alt+Backspace` in recent filter input removes the last query term quickly
 - `Esc` clears active recent filter text and restores default preview
