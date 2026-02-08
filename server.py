@@ -61,6 +61,10 @@ _videos: dict[str, Path] = {}
 _file_hashes: dict[str, str] = {}
 # Video metadata cache (info + thumbnails) for fast local reloads
 _video_meta_cache: dict[str, dict[str, object]] = {}
+# Tracks source videos that failed decode for a given mtime
+_video_info_errors: dict[str, float] = {}
+# Tracks which unreadable videos have already been warned for current mtime
+_unreadable_warned: dict[str, float] = {}
 
 
 def _load_video_names() -> dict[str, str]:
@@ -199,7 +203,18 @@ def _get_video_info_cached(video_id: str, path: Path) -> dict:
         info = entry.get("info")
         if isinstance(info, dict):
             return info
-    info = get_video_info(str(path))
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    if _video_info_errors.get(video_id) == mtime:
+        raise ValueError(f"Cannot open video: {path}")
+    try:
+        info = get_video_info(str(path))
+    except (OSError, ValueError):
+        _video_info_errors[video_id] = mtime
+        raise
+    _video_info_errors.pop(video_id, None)
     _video_meta_cache.setdefault(video_id, {})["info"] = info
     return info
 
@@ -269,6 +284,8 @@ async def upload_video(file: UploadFile = File(...)):
         _videos[video_id] = dest
         _file_hashes[ch] = video_id
         _video_names[video_id] = display_name or dest.name
+        _video_info_errors.pop(video_id, None)
+        _unreadable_warned.pop(video_id, None)
         _persist_video_names()
         info = get_video_info(str(dest))
         thumbs = _encode_thumbnails(generate_thumbnails(str(dest), n=8))
@@ -304,8 +321,15 @@ async def list_videos():
         try:
             info = _get_video_info_cached(vid, path)
         except (OSError, ValueError) as exc:
-            logger.warning("Skipping unreadable video %s: %s", path, exc)
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            if _unreadable_warned.get(vid) != mtime:
+                logger.warning("Skipping unreadable video %s: %s", path, exc)
+                _unreadable_warned[vid] = mtime
             continue
+        _unreadable_warned.pop(vid, None)
         result.append({
             "video_id": vid,
             "filename": _display_filename(vid, path),
