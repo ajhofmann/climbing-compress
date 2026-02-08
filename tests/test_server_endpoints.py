@@ -124,7 +124,7 @@ def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(server, "_file_hashes", {"same-hash": "existing"})
     monkeypatch.setattr(server, "_video_hashes", {"existing": "same-hash"})
     monkeypatch.setattr(server, "_video_meta_cache", {})
-    monkeypatch.setattr(server, "_video_names", {})
+    monkeypatch.setattr(server, "_video_names", {"existing": "old_name.mp4"})
     monkeypatch.setattr(server, "_video_info_errors", {})
     monkeypatch.setattr(server, "_unreadable_warned", {})
     monkeypatch.setattr(server, "content_hash", lambda _path: "same-hash")
@@ -144,6 +144,7 @@ def test_upload_reuses_existing_content_hash(monkeypatch, tmp_path: Path):
     assert body["reused"] is True
     assert body["cached"] is True
     assert body["filename"] == "new.mp4"
+    assert server._video_names["existing"] == "new.mp4"
 
 
 def test_list_videos_returns_recent_first(monkeypatch, tmp_path: Path):

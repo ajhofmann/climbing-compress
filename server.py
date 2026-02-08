@@ -288,7 +288,7 @@ async def upload_video(file: UploadFile = File(...)):
                 tmp.unlink()
                 dest = _videos[existing_id]
                 _video_hashes[existing_id] = ch
-                if display_name and _video_names.get(existing_id, dest.name) == dest.name:
+                if display_name and _video_names.get(existing_id) != display_name:
                     _video_names[existing_id] = display_name
                     _persist_video_names()
                 info = _get_video_info_cached(existing_id, dest)
