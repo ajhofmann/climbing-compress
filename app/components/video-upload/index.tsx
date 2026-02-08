@@ -65,7 +65,9 @@ export function VideoUpload() {
     ? filteredRecent
     : [...filteredRecent].sort((a, b) => {
       if (recentSort === "name") return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
-      return b.info.duration - a.info.duration;
+      const byDuration = b.info.duration - a.info.duration;
+      if (Math.abs(byDuration) > 1e-6) return byDuration;
+      return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
     });
   const visibleRecent = showAllRecent
     ? sortedRecent
