@@ -72,6 +72,7 @@ Upload constraints are enforced by the backend:
 - recent module supports inline name filtering with dedicated `no matching clips` empty state
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
 - `Esc` clears active recent filter text and restores default preview
+- recent filter text is persisted across reloads with other recent-view preferences
 - stale/missing source files are automatically dropped from Recent on refresh
 - refresh action shows temporary loading label while list rescan is in progress
 - recent header displays a live item count (`Recent (N)`)

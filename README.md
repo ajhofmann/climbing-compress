@@ -91,6 +91,7 @@ Upload notes:
 - Press `R` in dropzone mode to refresh Recent clips + output counters without clicking `[refresh]`.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
+- Recent filter text now persists across reloads (alongside sort/show/scope preferences).
 - Missing/deleted source files are auto-pruned from Recent/library indexes during list refreshes.
 - Refresh control now shows a temporary loading state while rescanning local clips.
 - Recent header now includes a live clip count (`Recent (N)`).
