@@ -27,6 +27,7 @@ export function VideoUpload() {
   const [refreshingRecent, setRefreshingRecent] = useState(false);
   const [clearingLibrary, setClearingLibrary] = useState(false);
   const [showAllRecent, setShowAllRecent] = useState(false);
+  const [recentFilter, setRecentFilter] = useState("");
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -55,10 +56,14 @@ export function VideoUpload() {
     setShowAllRecent((prev) => (items.length > RECENT_PREVIEW_LIMIT ? prev : false));
   };
 
+  const normalizedRecentFilter = recentFilter.trim().toLowerCase();
+  const filteredRecent = normalizedRecentFilter
+    ? recentVideos.filter((item) => item.filename.toLowerCase().includes(normalizedRecentFilter))
+    : recentVideos;
   const visibleRecent = showAllRecent
-    ? recentVideos
-    : recentVideos.slice(0, RECENT_PREVIEW_LIMIT);
-  const hiddenRecentCount = Math.max(0, recentVideos.length - visibleRecent.length);
+    ? filteredRecent
+    : filteredRecent.slice(0, RECENT_PREVIEW_LIMIT);
+  const hiddenRecentCount = Math.max(0, filteredRecent.length - visibleRecent.length);
   const totalRecentDuration = recentVideos.reduce((sum, item) => sum + item.info.duration, 0);
 
   useEffect(() => {
@@ -325,7 +330,7 @@ export function VideoUpload() {
               >
                 {clearingLibrary ? "[clearing...]" : "[clear all]"}
               </button>
-              {recentVideos.length > RECENT_PREVIEW_LIMIT && (
+              {filteredRecent.length > RECENT_PREVIEW_LIMIT && (
                 <button
                   onClick={() => setShowAllRecent((prev) => !prev)}
                   disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
@@ -336,6 +341,26 @@ export function VideoUpload() {
                 </button>
               )}
             </div>
+            {recentVideos.length > 0 && (
+              <div className="flex items-center justify-center gap-1">
+                <input
+                  value={recentFilter}
+                  onChange={(e) => setRecentFilter(e.target.value)}
+                  placeholder="filter clips"
+                  aria-label="Filter recent clips by name"
+                  className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
+                />
+                {recentFilter && (
+                  <button
+                    onClick={() => setRecentFilter("")}
+                    className="text-[9px] font-pixel text-text-muted hover:text-white"
+                    aria-label="Clear recent clip filter"
+                  >
+                    [x]
+                  </button>
+                )}
+              </div>
+            )}
             {visibleRecent.length > 0 ? (
               <div className="flex flex-wrap justify-center gap-1">
                 {visibleRecent.map((item) => (
@@ -371,7 +396,9 @@ export function VideoUpload() {
                 ))}
               </div>
             ) : (
-              <span className="text-[10px] font-pixel text-text-muted/70 text-center">no local clips</span>
+              <span className="text-[10px] font-pixel text-text-muted/70 text-center">
+                {recentVideos.length > 0 ? "no matching clips" : "no local clips"}
+              </span>
             )}
             {hiddenRecentCount > 0 && !showAllRecent && (
               <span className="text-[9px] font-pixel text-text-muted/60 text-center">
