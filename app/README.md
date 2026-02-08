@@ -59,7 +59,9 @@ Upload constraints are enforced by the backend:
 - recent mini output-clear action shows inline per-clip output count (`◍N`) when available
 - recent output-scope toggle cycles all/with/none output presence filters for dropzone triage
 - output-scope toggle displays matching clip counts inline (`out:all:N`, `out:with:N`, `out:none:N`)
+- recent cache-scope toggle cycles all/cached/uncached analysis-state filters with inline counts
 - keyboard `O` cycles output-scope filters in dropzone mode (`all -> with -> none`)
+- keyboard `C` cycles cache-scope filters in dropzone mode (`all -> cached -> uncached`)
 - keyboard `S` cycles recent sort modes in dropzone (`recent -> name -> duration -> outputs -> size`)
 - keyboard `R` refreshes recent clips + output counts in dropzone mode without clicking `[refresh]`
 - keyboard shortcut `Ctrl/Cmd + Shift + O` clears outputs contextually (global in dropzone, clip-only in loaded toolbar)

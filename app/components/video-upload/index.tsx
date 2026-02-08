@@ -57,6 +57,7 @@ export function VideoUpload() {
   const [recentFilter, setRecentFilter] = useState("");
   const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration" | "outputs" | "size">("recent");
   const [recentOutputScope, setRecentOutputScope] = useState<"all" | "with" | "none">("all");
+  const [recentCacheScope, setRecentCacheScope] = useState<"all" | "cached" | "uncached">("all");
   const recentFilterInputRef = useRef<HTMLInputElement>(null);
 
   const cycleRecentSort = useCallback(() => {
@@ -73,7 +74,7 @@ export function VideoUpload() {
     try {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; outputScope?: string };
+      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; outputScope?: string; cacheScope?: string };
       if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration" || parsed.sort === "outputs" || parsed.sort === "size") {
         setRecentSort(parsed.sort);
       }
@@ -82,6 +83,9 @@ export function VideoUpload() {
       }
       if (parsed.outputScope === "all" || parsed.outputScope === "with" || parsed.outputScope === "none") {
         setRecentOutputScope(parsed.outputScope);
+      }
+      if (parsed.cacheScope === "all" || parsed.cacheScope === "cached" || parsed.cacheScope === "uncached") {
+        setRecentCacheScope(parsed.cacheScope);
       }
     } catch {
       // ignore malformed local preferences
@@ -94,11 +98,12 @@ export function VideoUpload() {
         sort: recentSort,
         showAll: showAllRecent,
         outputScope: recentOutputScope,
+        cacheScope: recentCacheScope,
       }));
     } catch {
       // ignore storage write failures
     }
-  }, [recentSort, showAllRecent, recentOutputScope]);
+  }, [recentSort, showAllRecent, recentOutputScope, recentCacheScope]);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -134,11 +139,17 @@ export function VideoUpload() {
       : recentVideos
   ), [recentVideos, normalizedRecentFilter]);
 
-  const filteredRecent = useMemo(() => {
+  const outputScopedRecent = useMemo(() => {
     if (recentOutputScope === "all") return nameFilteredRecent;
     if (recentOutputScope === "with") return nameFilteredRecent.filter((item) => item.output_count > 0);
     return nameFilteredRecent.filter((item) => item.output_count <= 0);
   }, [nameFilteredRecent, recentOutputScope]);
+
+  const filteredRecent = useMemo(() => {
+    if (recentCacheScope === "all") return outputScopedRecent;
+    if (recentCacheScope === "cached") return outputScopedRecent.filter((item) => item.cached);
+    return outputScopedRecent.filter((item) => !item.cached);
+  }, [outputScopedRecent, recentCacheScope]);
 
   const sortedRecent = useMemo(() => (
     recentSort === "recent"
@@ -179,6 +190,16 @@ export function VideoUpload() {
     : recentOutputScope === "with"
       ? clipsWithOutputs
       : clipsWithoutOutputs;
+  const clipsCached = useMemo(
+    () => recentVideos.reduce((count, item) => count + (item.cached ? 1 : 0), 0),
+    [recentVideos],
+  );
+  const clipsUncached = recentVideos.length - clipsCached;
+  const cacheScopeCount = recentCacheScope === "all"
+    ? recentVideos.length
+    : recentCacheScope === "cached"
+      ? clipsCached
+      : clipsUncached;
   const totalRecentDuration = useMemo(
     () => recentVideos.reduce((sum, item) => sum + item.info.duration, 0),
     [recentVideos],
@@ -323,6 +344,15 @@ export function VideoUpload() {
         });
         return;
       }
+      if (e.key.toLowerCase() === "c" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setRecentCacheScope((prev) => {
+          if (prev === "all") return "cached";
+          if (prev === "cached") return "uncached";
+          return "all";
+        });
+        return;
+      }
       if (e.key.toLowerCase() === "s" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (recentVideos.length <= 1) return;
         e.preventDefault();
@@ -352,6 +382,7 @@ export function VideoUpload() {
     refreshingRecent,
     clearingLibrary,
     clearingOutputs,
+    recentCacheScope,
     recentVideos.length,
     cycleRecentSort,
     refreshRecent,
@@ -754,7 +785,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / O S R"
+        aria-keyshortcuts="Enter Space / O C S R"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -859,6 +890,21 @@ export function VideoUpload() {
                 aria-keyshortcuts="O"
               >
                 [out:{recentOutputScope}:{outputScopeCount}]
+              </button>
+              <button
+                onClick={() => {
+                  setRecentCacheScope((prev) => {
+                    if (prev === "all") return "cached";
+                    if (prev === "cached") return "uncached";
+                    return "all";
+                  });
+                }}
+                disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`Filter recent clips by analysis cache state (currently ${recentCacheScope}, ${cacheScopeCount} clips)`}
+                aria-keyshortcuts="C"
+              >
+                [cache:{recentCacheScope}:{cacheScopeCount}]
               </button>
             </div>
             {recentVideos.length > 0 && (

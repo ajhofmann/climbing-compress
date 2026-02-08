@@ -81,7 +81,9 @@ Upload notes:
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state.
 - Recent section includes output-scope filtering (`[out:all]` / `[out:with]` / `[out:none]`) for output-housekeeping workflows.
 - Output-scope toggle now shows scope counts inline (`[out:all:N]`, `[out:with:N]`, `[out:none:N]`) for quick triage.
+- Recent section also includes cache-scope filtering (`[cache:all]` / `[cache:cached]` / `[cache:uncached]`) for warm/cold analysis triage.
 - Press `O` in dropzone mode to cycle output-scope filters (`all -> with -> none -> all`).
+- Press `C` in dropzone mode to cycle cache-scope filters (`all -> cached -> uncached -> all`).
 - Press `S` in dropzone mode to cycle Recent sort modes (`recent -> name -> duration -> outputs -> size`).
 - Press `R` in dropzone mode to refresh Recent clips + output counters without clicking `[refresh]`.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
