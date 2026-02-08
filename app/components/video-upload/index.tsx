@@ -11,6 +11,7 @@ const RECENT_PREF_KEY = "sendit.recentPrefs";
 
 export function VideoUpload() {
   const videoId = useStore((state) => state.videoId);
+  const outputId = useStore((state) => state.outputId);
   const videoName = useStore((state) => state.videoName);
   const videoInfo = useStore((state) => state.videoInfo);
   const setVideo = useStore((state) => state.setVideo);
@@ -165,6 +166,22 @@ export function VideoUpload() {
     };
   }, [videoId]);
 
+  useEffect(() => {
+    if (!outputId) return;
+    let cancelled = false;
+    void getLibraryStats()
+      .then((stats) => {
+        if (cancelled) return;
+        setOutputCount(stats.outputs);
+      })
+      .catch(() => {
+        // best-effort refresh only
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [outputId]);
+
   const refreshRecent = async () => {
     setRefreshingRecent(true);
     try {
@@ -270,9 +287,6 @@ export function VideoUpload() {
       const result = await deleteVideo(item.video_id);
       await refreshRecent();
       const outputs = result.deleted_outputs ?? 0;
-      if (outputs > 0) {
-        setOutputCount((prev) => (prev == null ? null : Math.max(0, prev - outputs)));
-      }
       const outputPart = outputs <= 0
         ? ""
         : outputs === 1
@@ -373,9 +387,6 @@ export function VideoUpload() {
       await refreshRecent();
       clearVideo();
       const outputs = result.deleted_outputs ?? 0;
-      if (outputs > 0) {
-        setOutputCount((prev) => (prev == null ? null : Math.max(0, prev - outputs)));
-      }
       const outputPart = outputs <= 0
         ? ""
         : outputs === 1

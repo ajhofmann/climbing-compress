@@ -53,6 +53,7 @@ Upload notes:
 - Loaded clip bar includes **CLEAR LIB** to wipe the entire local library without ejecting first.
 - Loaded clip bar includes **CLEAR OUT** to purge rendered outputs without removing the loaded source clip.
 - Loaded clip bar now shows `out:N` for current render-output count near clip metadata.
+- Loaded `out:N` counter now auto-refreshes after quick/full renders and clip deletion flows (no manual refresh needed).
 - Loaded **SWAP** action is disabled while analyze/render/library-mutation jobs are active to prevent conflicting state changes.
 - Recent entries include **✎** (rename) and **X** (delete) actions to manage local library entries in-place.
 - Rename keeps supported video extensions (`.mov/.mp4/.avi/.mkv`) and auto-appends the current extension if omitted.
@@ -63,6 +64,7 @@ Upload notes:
 - `[clear all]` / `CLEAR LIB` now also remove rendered output files and report both counts in status feedback.
 - Recent section now includes `[clear outputs]` for output-only cleanup while keeping local source clips.
 - Recent controls now show live render-output counter (`out:N`) and disable output cleanup when `out:0`.
+- Recent/output counters remain accurate after loaded-clip deletes (no stale double-decrement drift).
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
