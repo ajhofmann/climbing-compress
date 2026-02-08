@@ -1062,7 +1062,7 @@ export function VideoUpload() {
         void handleLoadAdjacent(1);
         return;
       }
-      if (key === "e") {
+      if (key === "x") {
         e.preventDefault();
         handleClearVideo();
       }
@@ -1347,7 +1347,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-9 quick load · O out · C cache · S sort · R refresh · A expand · V reset · loaded: Alt+P/N cycle, Alt+E eject
+                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-9 quick load · O out · C cache · S sort · R refresh · A expand · V reset · loaded: Alt+P/N cycle, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (
@@ -1451,7 +1451,7 @@ export function VideoUpload() {
           onClick={handleClearVideo}
           disabled={isAnalyzing || isRendering || clearingOutputs || pruningFiltered}
           className="text-[11px] font-pixel text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
-          aria-keyshortcuts="Alt+E"
+          aria-keyshortcuts="Alt+X"
         >
           [EJECT]
         </button>
