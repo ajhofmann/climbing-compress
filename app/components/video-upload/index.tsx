@@ -8,7 +8,7 @@ import { Tooltip } from "@/components/tooltip";
 const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
-const RECENT_FILTER_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
+const RECENT_FILTER_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#dur>5", "#dur<5"] as const;
 
 function formatBytesShort(bytes: number | null) {
   if (bytes == null || !Number.isFinite(bytes)) return "?";
@@ -188,6 +188,18 @@ export function VideoUpload() {
     [parsedRecentFilterTerms],
   );
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
+    const durationMatcher = term.match(/^#dur(<=|>=|=|<|>)(\d+(?:\.\d+)?)$/);
+    if (durationMatcher) {
+      const [, operator, rawValue] = durationMatcher;
+      const value = Number(rawValue);
+      if (!Number.isFinite(value)) return false;
+      const duration = item.info.duration;
+      if (operator === "<") return duration < value;
+      if (operator === "<=") return duration <= value;
+      if (operator === ">") return duration > value;
+      if (operator === ">=") return duration >= value;
+      return Math.abs(duration - value) < 0.05;
+    }
     if (term.startsWith("#")) {
       const tag = term.slice(1);
       if (tag === "cached") return item.cached;
