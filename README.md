@@ -89,6 +89,7 @@ Upload notes:
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, and `-term` exclusions.
 - Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long` (and exclusions like `-#out`).
 - Duration comparator tags are also supported (for example `#dur>5`, `#dur<2`, `#dur<=1.5`).
+- Unknown `#tag` tokens are highlighted in warning style and listed as `unknown tag:*` until corrected/removed.
 - Recent filter now renders active term chips (`+term` includes, `-term` excludes) to clarify parsed query semantics.
 - Click a filter term chip to remove that specific term from the query instantly.
 - Typing partial tag tokens (for example `#c`, `-#o`) shows tag suggestions; press `Tab` to autocomplete.

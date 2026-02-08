@@ -8,7 +8,9 @@ import { Tooltip } from "@/components/tooltip";
 const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
-const RECENT_FILTER_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#dur>5", "#dur<5"] as const;
+const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#dur>5", "#dur<5"] as const;
+const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 
 function formatBytesShort(bytes: number | null) {
   if (bytes == null || !Number.isFinite(bytes)) return "?";
@@ -187,6 +189,22 @@ export function VideoUpload() {
     () => parsedRecentFilterTerms.filter((item) => item.isExclude).map((item) => item.term),
     [parsedRecentFilterTerms],
   );
+  const isRecognizedRecentTagTerm = useCallback((term: string) => {
+    if (RECENT_FILTER_SIMPLE_TAGS.includes(term as typeof RECENT_FILTER_SIMPLE_TAGS[number])) return true;
+    return /^#dur(<=|>=|=|<|>)(\d+(?:\.\d+)?)$/.test(term);
+  }, []);
+  const unknownRecentTagTerms = useMemo(() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const item of parsedRecentFilterTerms) {
+      if (!item.term.startsWith("#")) continue;
+      if (isRecognizedRecentTagTerm(item.term)) continue;
+      if (seen.has(item.term)) continue;
+      seen.add(item.term);
+      out.push(item.term);
+    }
+    return out;
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
     const durationMatcher = term.match(/^#dur(<=|>=|=|<|>)(\d+(?:\.\d+)?)$/);
     if (durationMatcher) {
@@ -1586,22 +1604,32 @@ export function VideoUpload() {
             )}
             {parsedRecentFilterTerms.length > 0 && (
               <div className="flex flex-wrap justify-center items-center gap-1 text-[8px] font-pixel">
-                {parsedRecentFilterTerms.map((item) => (
-                  <button
-                    key={`term-${item.idx}-${item.raw}`}
-                    onClick={() => removeRecentFilterTerm(item.idx)}
-                    className={`px-1 py-0.5 rounded border hover:text-white ${
-                      item.isExclude
-                        ? "border-amber-500/30 text-amber-200/90 hover:border-amber-400/70"
-                        : "border-cyan-500/30 text-cyan-200/90 hover:border-cyan-400/70"
-                    }`}
-                    aria-label={`Remove ${item.isExclude ? "exclude" : "include"} term ${item.term} from filter`}
-                    title={`Remove ${item.isExclude ? "-" : "+"}${item.term} from filter`}
-                  >
-                    {item.isExclude ? "-" : "+"}
-                    {item.term}
-                  </button>
-                ))}
+                {parsedRecentFilterTerms.map((item) => {
+                  const isUnknownTag = item.term.startsWith("#") && !isRecognizedRecentTagTerm(item.term);
+                  return (
+                    <button
+                      key={`term-${item.idx}-${item.raw}`}
+                      onClick={() => removeRecentFilterTerm(item.idx)}
+                      className={`px-1 py-0.5 rounded border hover:text-white ${
+                        isUnknownTag
+                          ? "border-rose-500/45 text-rose-200/90 hover:border-rose-400/80"
+                          : item.isExclude
+                            ? "border-amber-500/30 text-amber-200/90 hover:border-amber-400/70"
+                            : "border-cyan-500/30 text-cyan-200/90 hover:border-cyan-400/70"
+                      }`}
+                      aria-label={`Remove ${item.isExclude ? "exclude" : "include"} term ${item.term} from filter`}
+                      title={`Remove ${item.isExclude ? "-" : "+"}${item.term} from filter`}
+                    >
+                      {item.isExclude ? "-" : "+"}
+                      {item.term}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {unknownRecentTagTerms.length > 0 && (
+              <div className="text-[8px] font-pixel text-rose-300/85 text-center">
+                unknown tag{unknownRecentTagTerms.length === 1 ? "" : "s"}: {unknownRecentTagTerms.join(", ")}
               </div>
             )}
             {showShortcutHelp && (
