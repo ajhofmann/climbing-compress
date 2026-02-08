@@ -41,6 +41,7 @@ Upload constraints are enforced by the backend:
 - stale/missing source files are automatically dropped from Recent on refresh
 - refresh action shows temporary loading label while list rescan is in progress
 - recent header displays a live item count (`Recent (N)`)
+- recent header also shows total local duration (`Recent (N · M:SS)`)
 - dropzone now shows inline feedback text for local library actions (rename/delete/clear results)
 
 ## Common scripts

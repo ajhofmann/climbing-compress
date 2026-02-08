@@ -60,6 +60,7 @@ Upload notes:
 - Missing/deleted source files are auto-pruned from Recent/library indexes during list refreshes.
 - Refresh control now shows a temporary loading state while rescanning local clips.
 - Recent header now includes a live clip count (`Recent (N)`).
+- Recent header now also shows aggregated local duration (`Recent (N · M:SS)`).
 - Dropzone now surfaces local-library action feedback inline (rename/delete/clear outcomes).
 
 ## Speed-ramp modes
