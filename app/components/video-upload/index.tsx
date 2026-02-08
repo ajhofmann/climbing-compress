@@ -59,6 +59,16 @@ export function VideoUpload() {
   const [recentOutputScope, setRecentOutputScope] = useState<"all" | "with" | "none">("all");
   const recentFilterInputRef = useRef<HTMLInputElement>(null);
 
+  const cycleRecentSort = useCallback(() => {
+    setRecentSort((prev) => {
+      if (prev === "recent") return "name";
+      if (prev === "name") return "duration";
+      if (prev === "duration") return "outputs";
+      if (prev === "outputs") return "size";
+      return "recent";
+    });
+  }, []);
+
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
@@ -313,6 +323,12 @@ export function VideoUpload() {
         });
         return;
       }
+      if (e.key.toLowerCase() === "s" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (recentVideos.length <= 1) return;
+        e.preventDefault();
+        cycleRecentSort();
+        return;
+      }
       if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs) return;
         e.preventDefault();
@@ -336,6 +352,8 @@ export function VideoUpload() {
     refreshingRecent,
     clearingLibrary,
     clearingOutputs,
+    recentVideos.length,
+    cycleRecentSort,
     refreshRecent,
   ]);
 
@@ -736,7 +754,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / O R"
+        aria-keyshortcuts="Enter Space / O S R"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -819,18 +837,11 @@ export function VideoUpload() {
                 </button>
               )}
               <button
-                onClick={() => {
-                  setRecentSort((prev) => {
-                    if (prev === "recent") return "name";
-                    if (prev === "name") return "duration";
-                    if (prev === "duration") return "outputs";
-                    if (prev === "outputs") return "size";
-                    return "recent";
-                  });
-                }}
+                onClick={cycleRecentSort}
                 disabled={recentVideos.length <= 1 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label={`Sort recent clips (currently ${recentSort})`}
+                aria-keyshortcuts="S"
               >
                 [sort:{recentSort}]
               </button>
