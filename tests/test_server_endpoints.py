@@ -173,7 +173,7 @@ def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(server, "_videos", {"source": source})
     monkeypatch.setattr(server, "_video_meta_cache", {})
-    monkeypatch.setattr(server, "_video_names", {})
+    monkeypatch.setattr(server, "_video_names", {"source": "session_send.mp4"})
     monkeypatch.setattr(server, "_video_info_errors", {})
     monkeypatch.setattr(server, "_unreadable_warned", {})
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 2.0, "fps": 30.0, "width": 20, "height": 10, "frame_count": 60})
@@ -187,6 +187,7 @@ def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
     assert resp.status_code == 200
     body = resp.json()
     assert body["video_id"] == "source"
+    assert body["filename"] == "session_send.mp4"
     assert body["thumbnails"] == ["thumb-url"]
     assert body["cached"] is True
 
@@ -235,7 +236,7 @@ def test_video_meta_caches_thumbnails_after_first_request(monkeypatch, tmp_path:
 
     monkeypatch.setattr(server, "_videos", {"source": source})
     monkeypatch.setattr(server, "_video_meta_cache", {})
-    monkeypatch.setattr(server, "_video_names", {})
+    monkeypatch.setattr(server, "_video_names", {"source": "cached_name.mp4"})
     monkeypatch.setattr(server, "_video_info_errors", {})
     monkeypatch.setattr(server, "_unreadable_warned", {})
     monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 2.0, "fps": 30.0, "width": 20, "height": 10, "frame_count": 60})
@@ -255,6 +256,7 @@ def test_video_meta_caches_thumbnails_after_first_request(monkeypatch, tmp_path:
 
     assert r1.status_code == 200
     assert r2.status_code == 200
+    assert r1.json()["filename"] == "cached_name.mp4"
     assert calls["thumbs"] == 1
 
 

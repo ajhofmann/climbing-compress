@@ -349,6 +349,7 @@ async def video_meta(video_id: str):
     thumbs = _get_thumbnails_cached(video_id, path, n=8)
     return {
         "video_id": video_id,
+        "filename": _display_filename(video_id, path),
         "info": info,
         "thumbnails": thumbs,
         "cached": has_cache(str(path)),

@@ -174,6 +174,7 @@ export interface VideoListItem {
 
 interface VideoMetaResult {
   video_id: string;
+  filename: string;
   info: VideoInfo;
   thumbnails: string[];
   cached: boolean;

@@ -9,6 +9,7 @@ const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 
 export function VideoUpload() {
   const videoId = useStore((state) => state.videoId);
+  const videoName = useStore((state) => state.videoName);
   const videoInfo = useStore((state) => state.videoInfo);
   const setVideo = useStore((state) => state.setVideo);
   const clearVideo = useStore((state) => state.clearVideo);
@@ -57,7 +58,7 @@ export function VideoUpload() {
     setProgress(0.05, "Uploading video...");
     try {
       const data = await uploadVideo(file);
-      setVideo(data.video_id, data.info, data.thumbnails);
+      setVideo(data.video_id, data.info, data.thumbnails, data.filename);
       const cacheHint = data.cached ? " (analysis cached)" : "";
       const label = data.filename || file.name;
       const status = data.reused ? `Loaded existing clip ${label}` : `Uploaded ${label}`;
@@ -73,8 +74,8 @@ export function VideoUpload() {
     setProgress(0.05, `Loading ${item.filename}...`);
     try {
       const meta = await getVideoMeta(item.video_id);
-      setVideo(meta.video_id, meta.info, meta.thumbnails);
-      setProgress(0, `Loaded ${item.filename}`);
+      setVideo(meta.video_id, meta.info, meta.thumbnails, meta.filename);
+      setProgress(0, `Loaded ${meta.filename}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Load failed";
       setProgress(0, `Load failed: ${msg}`);
@@ -117,7 +118,8 @@ export function VideoUpload() {
 
   const handleDeleteCurrent = async () => {
     if (!videoId || isAnalyzing || isRendering || deletingVideoId) return;
-    const confirmed = window.confirm("Remove the current clip from your local library?");
+    const label = videoName || "current clip";
+    const confirmed = window.confirm(`Remove ${label} from your local library?`);
     if (!confirmed) return;
     setDeletingVideoId(videoId);
     try {
@@ -219,6 +221,14 @@ export function VideoUpload() {
 
   return (
     <div className="flex items-center gap-2 shrink-0">
+      {videoName && (
+        <span
+          className="text-[11px] font-pixel text-text-muted max-w-[170px] truncate"
+          title={videoName}
+        >
+          {videoName}
+        </span>
+      )}
       <span className="text-[11px] font-retro led-text whitespace-nowrap">
         {videoInfo && `${videoInfo.duration.toFixed(0)}s / ${videoInfo.width}x${videoInfo.height} / ${videoInfo.fps.toFixed(0)}fps`}
       </span>
