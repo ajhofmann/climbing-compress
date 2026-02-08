@@ -406,8 +406,8 @@ export function VideoUpload() {
         setShowShortcutHelp((prev) => !prev);
         return;
       }
-      if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
-        const idx = Number(e.key) - 1;
+      if (/^[0-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        const idx = e.key === "0" ? 9 : Number(e.key) - 1;
         if (idx < 0 || idx >= visibleRecent.length) return;
         e.preventDefault();
         void handleLoadExisting(visibleRecent[idx]);
@@ -1118,7 +1118,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / Shift+/ O C S R V A 1 2 3 4 5 6 7 8 9 Control+Alt+O Meta+Alt+O"
+        aria-keyshortcuts="Enter Space / Shift+/ O C S R V A 1 2 3 4 5 6 7 8 9 0 Control+Alt+O Meta+Alt+O"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -1357,9 +1357,9 @@ export function VideoUpload() {
               <div className="flex flex-wrap justify-center gap-1">
                 {visibleRecent.map((item, idx) => (
                   <div key={item.video_id} className="flex items-center gap-0.5">
-                    {idx < 9 && (
+                    {idx < 10 && (
                       <span className="text-[8px] font-pixel text-cyan-300/80 px-0.5" aria-hidden>
-                        {idx + 1}
+                        {idx === 9 ? "0" : idx + 1}
                       </span>
                     )}
                     <button
@@ -1368,7 +1368,7 @@ export function VideoUpload() {
                       className={`retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed ${idx === recentCursorIdx ? "border-cyan-200 text-cyan-100 shadow-[0_0_0_1px_rgba(0,229,255,0.75),0_0_10px_rgba(0,229,255,0.45)]" : ""}`}
                       title={`${item.filename} · ${item.info.duration.toFixed(1)}s · src ${formatBytesVerbose(item.source_bytes)}${item.cached ? " · cached analysis" : ""} · ${item.output_count} output${item.output_count === 1 ? "" : "s"} (${formatBytesVerbose(item.output_bytes)})`}
                       aria-label={`${idx === recentCursorIdx ? "Selected: " : ""}Load ${item.filename}`}
-                      aria-keyshortcuts={idx < 9 ? String(idx + 1) : undefined}
+                      aria-keyshortcuts={idx < 10 ? (idx === 9 ? "0" : String(idx + 1)) : undefined}
                       aria-current={idx === recentCursorIdx ? "true" : undefined}
                     >
                       {idx === recentCursorIdx ? "▶ " : ""}
