@@ -1178,7 +1178,8 @@ export function VideoUpload() {
                       e.preventDefault();
                       setRecentCursorIdx((prev) => {
                         if (prev < 0) return 0;
-                        return Math.min(prev + 1, visibleRecent.length - 1);
+                        if (prev >= visibleRecent.length - 1) return 0;
+                        return prev + 1;
                       });
                       return;
                     }
@@ -1186,8 +1187,9 @@ export function VideoUpload() {
                       if (visibleRecent.length <= 0) return;
                       e.preventDefault();
                       setRecentCursorIdx((prev) => {
-                        if (prev < 0) return 0;
-                        return Math.max(prev - 1, 0);
+                        if (prev < 0) return visibleRecent.length - 1;
+                        if (prev <= 0) return visibleRecent.length - 1;
+                        return prev - 1;
                       });
                       return;
                     }
@@ -1232,9 +1234,12 @@ export function VideoUpload() {
                     <button
                       onClick={() => void handleLoadExisting(item)}
                       disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
-                      className={`retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed ${idx === recentCursorIdx ? "ring-1 ring-cyan-300/80" : ""}`}
+                      className={`retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed ${idx === recentCursorIdx ? "border-cyan-200 text-cyan-100 shadow-[0_0_0_1px_rgba(0,229,255,0.75),0_0_10px_rgba(0,229,255,0.45)]" : ""}`}
                       title={`${item.filename} · ${item.info.duration.toFixed(1)}s · src ${formatBytesVerbose(item.source_bytes)}${item.cached ? " · cached analysis" : ""} · ${item.output_count} output${item.output_count === 1 ? "" : "s"} (${formatBytesVerbose(item.output_bytes)})`}
+                      aria-label={`${idx === recentCursorIdx ? "Selected: " : ""}Load ${item.filename}`}
+                      aria-current={idx === recentCursorIdx ? "true" : undefined}
                     >
+                      {idx === recentCursorIdx ? "▶ " : ""}
                       {item.cached ? "⚡ " : ""}
                       {shortName(item.filename)}
                     </button>
