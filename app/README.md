@@ -52,6 +52,7 @@ Upload constraints are enforced by the backend:
 - recent mini output-clear action (`◍`) is clip-aware and disabled when that clip has no outputs
 - recent mini output-clear action shows inline per-clip output count (`◍N`) when available
 - recent output-scope toggle cycles all/with/none output presence filters for dropzone triage
+- output-scope toggle displays matching clip counts inline (`out:all:N`, `out:with:N`, `out:none:N`)
 - keyboard `O` cycles output-scope filters in dropzone mode (`all -> with -> none`)
 - keyboard shortcut `Ctrl/Cmd + Shift + O` clears outputs contextually (global in dropzone, clip-only in loaded toolbar)
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
