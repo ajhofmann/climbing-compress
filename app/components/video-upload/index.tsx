@@ -11,6 +11,7 @@ const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#dur>5", "#dur<5", "#dur>90s", "#dur>1m30s"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
+const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur>90s", "#dur>1m30s"] as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=";
 
@@ -282,10 +283,19 @@ export function VideoUpload() {
     }
     return out;
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
-  const hasUnknownDurationTagTerm = useMemo(
-    () => unknownRecentTagTerms.some((term) => term.startsWith("#dur")),
-    [unknownRecentTagTerms],
-  );
+  const unknownOutputHintConfig = useMemo(() => {
+    const unknownOutputTerms = parsedRecentFilterTerms.filter(
+      (item) => item.term.startsWith("#out") && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownOutputTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownOutputTerms[unknownOutputTerms.length - 1];
+    return {
+      termIndex: target.idx,
+      tags: target.isExclude
+        ? RECENT_OUTPUT_HINT_TAGS.map((tag) => `-${tag}`)
+        : [...RECENT_OUTPUT_HINT_TAGS],
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownTagReplacementHints = useMemo(() => {
     const unknownTagTerms = parsedRecentFilterTerms.filter(
       (item) => item.term.startsWith("#")
@@ -315,15 +325,18 @@ export function VideoUpload() {
       replacements: scored.map((entry) => (target.isExclude ? `-${entry.tag}` : entry.tag)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
-  const unknownDurationHintTags = useMemo(() => {
+  const unknownDurationHintConfig = useMemo(() => {
     const unknownDurationTerms = parsedRecentFilterTerms.filter(
       (item) => item.term.startsWith("#dur") && !isRecognizedRecentTagTerm(item.term),
     );
-    if (unknownDurationTerms.length <= 0) return [...RECENT_DURATION_HINT_TAGS] as string[];
-    const useExcludePrefix = unknownDurationTerms[unknownDurationTerms.length - 1].isExclude;
-    return useExcludePrefix
-      ? RECENT_DURATION_HINT_TAGS.map((tag) => `-${tag}`)
-      : [...RECENT_DURATION_HINT_TAGS];
+    if (unknownDurationTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownDurationTerms[unknownDurationTerms.length - 1];
+    return {
+      termIndex: target.idx,
+      tags: target.isExclude
+        ? RECENT_DURATION_HINT_TAGS.map((tag) => `-${tag}`)
+        : [...RECENT_DURATION_HINT_TAGS],
+    };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
     const outputComparator = parseOutputComparatorTerm(term);
@@ -1788,14 +1801,30 @@ export function VideoUpload() {
                     ))}
                   </div>
                 )}
-                {hasUnknownDurationTagTerm && (
+                {unknownOutputHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>output examples:</span>
+                    {unknownOutputHintConfig.tags.map((tag) => (
+                      <button
+                        key={`out-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownOutputHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed output filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {unknownDurationHintConfig && (
                   <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
                     <span>duration examples:</span>
-                    {unknownDurationHintTags.map((tag) => (
+                    {unknownDurationHintConfig.tags.map((tag) => (
                       <button
                         key={`dur-hint-${tag}`}
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => applyRecentTagSuggestion(tag)}
+                        onClick={() => replaceRecentFilterTerm(unknownDurationHintConfig.termIndex, tag)}
                         className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
                         aria-label={`Replace malformed duration filter with ${tag}`}
                       >
