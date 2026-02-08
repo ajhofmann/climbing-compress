@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from pipeline.cache import (
     load_analysis, has_cache, content_hash, load_flow_scores,
-    load_camera_motion,
+    load_camera_motion, clear_cache,
 )
 from pipeline.orchestrate import (
     run_analysis, run_render, compute_scores_and_curve, curve_stats, detect_crux_points,
@@ -351,6 +351,38 @@ async def video_meta(video_id: str):
         "thumbnails": thumbs,
         "cached": has_cache(str(path)),
     }
+
+
+@app.delete("/api/videos/{video_id}")
+async def delete_video(video_id: str):
+    """Delete a source video from local library + clear its cached analysis."""
+    path = _get_video_path(video_id)
+
+    if path.exists():
+        try:
+            path.unlink()
+        except OSError as exc:
+            raise HTTPException(500, f"Failed to delete video: {exc}") from exc
+
+    _videos.pop(video_id, None)
+    _video_meta_cache.pop(video_id, None)
+    _video_info_errors.pop(video_id, None)
+    _unreadable_warned.pop(video_id, None)
+
+    if _video_names.pop(video_id, None) is not None:
+        _persist_video_names()
+
+    # Drop any dedup hash references pointing to this video id.
+    for h, vid in list(_file_hashes.items()):
+        if vid == video_id:
+            _file_hashes.pop(h, None)
+
+    try:
+        clear_cache(str(path))
+    except OSError as exc:
+        logger.warning("Failed to clear cache for deleted video %s: %s", video_id, exc)
+
+    return {"video_id": video_id, "deleted": True}
 
 
 @app.post("/api/analyze")

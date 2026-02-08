@@ -354,3 +354,47 @@ def test_list_videos_memoizes_unreadable_sources_between_requests(monkeypatch, t
     assert r1.status_code == 200
     assert r2.status_code == 200
     assert calls["info"] == 1
+
+
+def test_delete_video_removes_file_and_indexes(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_file_hashes", {"hash1": "source"})
+    monkeypatch.setattr(server, "_video_meta_cache", {"source": {"info": {"duration": 1.0}}})
+    monkeypatch.setattr(server, "_video_names", {"source": "session_send.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {"source": 1.0})
+    monkeypatch.setattr(server, "_unreadable_warned", {"source": 1.0})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+    cache_calls: list[str] = []
+    monkeypatch.setattr(server, "clear_cache", lambda path: cache_calls.append(path))
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/videos/source")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["video_id"] == "source"
+    assert body["deleted"] is True
+    assert source.exists() is False
+    assert "source" not in server._videos
+    assert "source" not in server._video_meta_cache
+    assert "source" not in server._video_names
+    assert "source" not in server._video_info_errors
+    assert "source" not in server._unreadable_warned
+    assert "hash1" not in server._file_hashes
+    assert cache_calls == [str(source)]
+
+
+def test_delete_video_missing_returns_404(monkeypatch):
+    monkeypatch.setattr(server, "_videos", {})
+    monkeypatch.setattr(server, "_video_names", {})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/videos/missing")
+
+    assert resp.status_code == 404
