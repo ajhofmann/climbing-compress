@@ -397,6 +397,30 @@ def test_delete_video_removes_file_and_indexes(monkeypatch, tmp_path: Path):
     assert cache_state["source_exists_at_clear"] is True
 
 
+def test_delete_video_clears_cache_by_hash_when_source_missing(monkeypatch, tmp_path: Path):
+    source = tmp_path / "missing_source.mp4"
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_file_hashes", {"hash1": "source"})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+    clear_calls: list[str] = []
+    clear_hash_calls: list[str] = []
+    monkeypatch.setattr(server, "clear_cache", lambda path: clear_calls.append(path))
+    monkeypatch.setattr(server, "clear_cache_by_hash", lambda h: clear_hash_calls.append(h))
+
+    client = TestClient(server.app)
+    resp = client.delete("/api/videos/source")
+
+    assert resp.status_code == 200
+    assert clear_calls == []
+    assert clear_hash_calls == ["hash1"]
+    assert "hash1" not in server._file_hashes
+
+
 def test_delete_video_missing_returns_404(monkeypatch):
     monkeypatch.setattr(server, "_videos", {})
     monkeypatch.setattr(server, "_video_names", {})

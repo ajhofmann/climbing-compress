@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from pipeline.cache import (
     load_analysis, has_cache, content_hash, load_flow_scores,
-    load_camera_motion, clear_cache,
+    load_camera_motion, clear_cache, clear_cache_by_hash,
 )
 from pipeline.orchestrate import (
     run_analysis, run_render, compute_scores_and_curve, curve_stats, detect_crux_points,
@@ -360,11 +360,18 @@ async def delete_video(video_id: str):
     """Delete a source video from local library + clear its cached analysis."""
     path = _get_video_path(video_id)
 
+    hash_keys = [h for h, vid in _file_hashes.items() if vid == video_id]
     if path.exists():
         try:
             clear_cache(str(path))
         except OSError as exc:
             logger.warning("Failed to clear cache for deleted video %s: %s", video_id, exc)
+    else:
+        for cache_key in hash_keys:
+            try:
+                clear_cache_by_hash(cache_key)
+            except OSError as exc:
+                logger.warning("Failed to clear cache hash %s for %s: %s", cache_key, video_id, exc)
 
     if path.exists():
         try:
@@ -381,9 +388,8 @@ async def delete_video(video_id: str):
         _persist_video_names()
 
     # Drop any dedup hash references pointing to this video id.
-    for h, vid in list(_file_hashes.items()):
-        if vid == video_id:
-            _file_hashes.pop(h, None)
+    for h in hash_keys:
+        _file_hashes.pop(h, None)
 
     return {"video_id": video_id, "deleted": True}
 

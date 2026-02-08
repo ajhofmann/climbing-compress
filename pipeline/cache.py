@@ -221,3 +221,13 @@ def clear_cache(video_path: str):
     if cache.exists():
         for f in cache.iterdir():
             f.unlink()
+        cache.rmdir()
+
+
+def clear_cache_by_hash(cache_key: str):
+    """Remove all cache artifacts by content-hash key."""
+    cache = CACHE_DIR / cache_key
+    if cache.exists():
+        for f in cache.iterdir():
+            f.unlink()
+        cache.rmdir()
