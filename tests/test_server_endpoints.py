@@ -290,6 +290,29 @@ def test_list_videos_drops_missing_sources_from_state(monkeypatch, tmp_path: Pat
     assert "missing" not in server._video_names
 
 
+def test_list_videos_persists_name_index_once_for_multiple_missing(monkeypatch, tmp_path: Path):
+    missing_a = tmp_path / "missing_a.mp4"
+    missing_b = tmp_path / "missing_b.mp4"
+
+    monkeypatch.setattr(server, "_videos", {"a": missing_a, "b": missing_b})
+    monkeypatch.setattr(server, "_file_hashes", {"hash-a": "a", "hash-b": "b"})
+    monkeypatch.setattr(server, "_video_hashes", {"a": "hash-a", "b": "hash-b"})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"a": "a.mp4", "b": "b.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    persist_calls = {"count": 0}
+    monkeypatch.setattr(server, "_persist_video_names", lambda: persist_calls.__setitem__("count", persist_calls["count"] + 1))
+
+    client = TestClient(server.app)
+    resp = client.get("/api/videos")
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+    assert persist_calls["count"] == 1
+    assert server._video_names == {}
+
+
 def test_video_meta_caches_thumbnails_after_first_request(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")

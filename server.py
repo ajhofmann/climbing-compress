@@ -186,7 +186,12 @@ class RenameVideoRequest(BaseModel):
 
 # ---- Helpers ----
 
-def _drop_video_state(video_id: str, *, remove_name: bool) -> None:
+def _drop_video_state(
+    video_id: str,
+    *,
+    remove_name: bool,
+    persist_name_update: bool = True,
+) -> bool:
     _videos.pop(video_id, None)
     _video_meta_cache.pop(video_id, None)
     _video_info_errors.pop(video_id, None)
@@ -196,7 +201,10 @@ def _drop_video_state(video_id: str, *, remove_name: bool) -> None:
         if vid == video_id:
             _file_hashes.pop(h, None)
     if remove_name and _video_names.pop(video_id, None) is not None:
-        _persist_video_names()
+        if persist_name_update:
+            _persist_video_names()
+        return True
+    return False
 
 
 def _get_video_path(video_id: str, *, require_exists: bool = True) -> Path:
@@ -390,8 +398,12 @@ async def list_videos():
             "cached": _has_cached_analysis(vid, path),
         })
     if stale_missing:
+        name_changed = False
         for vid in stale_missing:
-            _drop_video_state(vid, remove_name=True)
+            if _drop_video_state(vid, remove_name=True, persist_name_update=False):
+                name_changed = True
+        if name_changed:
+            _persist_video_names()
     return result
 
 
