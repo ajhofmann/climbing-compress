@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { deleteAllVideos, deleteVideo, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
@@ -30,6 +30,7 @@ export function VideoUpload() {
   const [showAllRecent, setShowAllRecent] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
   const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration">("recent");
+  const recentFilterInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     try {
@@ -57,6 +58,20 @@ export function VideoUpload() {
       // ignore storage write failures
     }
   }, [recentSort, showAllRecent]);
+
+  useEffect(() => {
+    if (videoId || !recentFetchDone) return;
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+      e.preventDefault();
+      recentFilterInputRef.current?.focus();
+    };
+    window.addEventListener("keydown", onGlobalKeyDown, true);
+    return () => window.removeEventListener("keydown", onGlobalKeyDown, true);
+  }, [videoId, recentFetchDone]);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -322,6 +337,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
+        aria-keyshortcuts="Enter Space /"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -406,6 +422,7 @@ export function VideoUpload() {
             {recentVideos.length > 0 && (
               <div className="flex items-center justify-center gap-1">
                 <input
+                  ref={recentFilterInputRef}
                   value={recentFilter}
                   onChange={(e) => setRecentFilter(e.target.value)}
                   placeholder="filter clips"
