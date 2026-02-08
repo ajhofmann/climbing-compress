@@ -28,6 +28,7 @@ Upload constraints are enforced by the backend:
 - dedup re-uploads reuse the same clip id but refresh the displayed filename
 - loaded clip toolbar includes `[EJECT]` for returning to the dropzone + Recent list without reloading
 - loaded clip toolbar includes `[DELETE]` to remove the active clip from local library
+- delete feedback now includes rendered-output cleanup counts when related outputs are removed
 - loaded clip toolbar displays active filename to clarify swap/delete actions
 - loaded clip toolbar includes `[RENAME]` to relabel the active clip
 - loaded clip toolbar includes `[CLEAR LIB]` to wipe all local clips immediately

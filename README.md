@@ -47,6 +47,7 @@ Upload notes:
 - Re-uploading identical content updates the friendly display name (useful for quick local renaming without duplicate files).
 - Loaded clip bar now includes an **EJECT** action to jump back to the dropzone/recent picker without refreshing the page.
 - Loaded clip bar also includes **DELETE** to remove the currently loaded clip from local library in one step.
+- Loaded/recent delete feedback now reports rendered-output cleanup counts when matching outputs were removed.
 - Loaded clip bar surfaces the active clip filename for easier confirmation before delete/swap actions.
 - Loaded clip bar includes **RENAME** for quick relabeling of local clips.
 - Loaded clip bar includes **CLEAR LIB** to wipe the entire local library without ejecting first.
