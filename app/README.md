@@ -46,6 +46,8 @@ Upload constraints are enforced by the backend:
 - no-op renames are skipped when normalized target equals current filename
 - recent module shows explicit empty state (`no local clips`) and a `[refresh]` action to rescan local library
 - recent module includes `[clear all]` action for one-click local library wipe
+- recent module includes `[clear filtered]` to delete only clips matching active name/output/cache filters
+- `[clear filtered]` confirm pulls live per-clip output stats before prompt so output counts/sizes are accurate
 - clear-library actions now also purge rendered outputs and include both clip/output counts in feedback
 - recent module includes `[clear outputs]` for global output-only cleanup while keeping local clips
 - recent controls display live `out:N` render-output count and disable output cleanup when `out:0`

@@ -65,6 +65,8 @@ Upload notes:
 - Rename no-ops are ignored (if normalized target name matches current name).
 - Recent section now remains visible when empty (`no local clips`) and includes a manual `[refresh]` control.
 - Recent section includes `[clear all]` to wipe the local library in one step.
+- Recent section includes `[clear filtered]` to delete only currently filtered clips (name/output/cache scopes respected).
+- `[clear filtered]` confirmation uses live per-clip output stats, so rendered-output counts/sizes stay accurate even if outputs changed on disk.
 - `[clear all]` / `CLEAR LIB` now also remove rendered output files and report both counts in status feedback.
 - Recent section now includes `[clear outputs]` for global output-only cleanup while keeping local source clips.
 - Recent controls now show live render-output counter (`out:N`) and disable output cleanup when `out:0`.

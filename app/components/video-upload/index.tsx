@@ -47,6 +47,7 @@ export function VideoUpload() {
   const [refreshingRecent, setRefreshingRecent] = useState(false);
   const [clearingLibrary, setClearingLibrary] = useState(false);
   const [clearingOutputs, setClearingOutputs] = useState(false);
+  const [pruningFiltered, setPruningFiltered] = useState(false);
   const [clipBytes, setClipBytes] = useState<number | null>(null);
   const [currentSourceBytes, setCurrentSourceBytes] = useState<number | null>(null);
   const [outputCount, setOutputCount] = useState<number | null>(null);
@@ -204,6 +205,18 @@ export function VideoUpload() {
     () => filteredRecent.reduce((sum, item) => sum + item.info.duration, 0),
     [filteredRecent],
   );
+  const filteredSourceBytes = useMemo(
+    () => filteredRecent.reduce((sum, item) => sum + item.source_bytes, 0),
+    [filteredRecent],
+  );
+  const filteredOutputCount = useMemo(
+    () => filteredRecent.reduce((sum, item) => sum + item.output_count, 0),
+    [filteredRecent],
+  );
+  const filteredOutputBytes = useMemo(
+    () => filteredRecent.reduce((sum, item) => sum + item.output_bytes, 0),
+    [filteredRecent],
+  );
 
   useEffect(() => {
     if (videoId) return;
@@ -356,7 +369,7 @@ export function VideoUpload() {
         return;
       }
       if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        if (isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs) return;
+        if (isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
         e.preventDefault();
         void refreshRecent();
         return;
@@ -378,6 +391,7 @@ export function VideoUpload() {
     refreshingRecent,
     clearingLibrary,
     clearingOutputs,
+    pruningFiltered,
     recentCacheScope,
     recentVideos.length,
     cycleRecentSort,
@@ -408,7 +422,7 @@ export function VideoUpload() {
   };
 
   const handleLoadExisting = async (item: VideoListItem) => {
-    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     setProgress(0.05, `Loading ${item.filename}...`);
     try {
       const meta = await getVideoMeta(item.video_id);
@@ -459,12 +473,12 @@ export function VideoUpload() {
   };
 
   const handleRenameExisting = async (item: VideoListItem) => {
-    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     await runRename(item.video_id, item.filename);
   };
 
   const handleDeleteExisting = async (item: VideoListItem) => {
-    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     const confirmed = window.confirm(`Remove ${item.filename} from your local library?`);
     if (!confirmed) return;
     setDeletingVideoId(item.video_id);
@@ -490,7 +504,7 @@ export function VideoUpload() {
   };
 
   const handleClearOutputsForExisting = async (item: VideoListItem) => {
-    if (item.output_count <= 0 || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (item.output_count <= 0 || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     const confirmed = window.confirm(`Remove rendered outputs for ${item.filename} only?`);
     if (!confirmed) return;
     setClearingOutputs(true);
@@ -538,7 +552,7 @@ export function VideoUpload() {
   };
 
   const handleClearLibrary = async () => {
-    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     const clipSummary = `${recentVideos.length} local clip${recentVideos.length === 1 ? "" : "s"}, ${formatBytesVerbose(clipBytes)}`;
     const outputSummary = `${outputCount ?? 0} rendered output${outputCount === 1 ? "" : "s"}, ${formatBytesVerbose(outputBytes)}`;
     const confirmed = window.confirm(`Remove all local clips from this library? (${clipSummary}; ${outputSummary})`);
@@ -583,8 +597,71 @@ export function VideoUpload() {
     }
   };
 
+  const handleClearFiltered = async () => {
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    if (filteredRecent.length <= 0) {
+      setProgress(0, "No filtered clips to clear.");
+      return;
+    }
+    const clipSummary = `${filteredRecent.length} filtered clip${filteredRecent.length === 1 ? "" : "s"}, ${formatBytesVerbose(filteredSourceBytes)}`;
+    let confirmOutputCount = filteredOutputCount;
+    let confirmOutputBytes = filteredOutputBytes;
+    try {
+      const clipStats = await Promise.all(filteredRecent.map((item) => getLibraryStats(item.video_id)));
+      confirmOutputCount = clipStats.reduce((sum, stats) => sum + (stats.clip_outputs ?? 0), 0);
+      confirmOutputBytes = clipStats.reduce((sum, stats) => sum + (stats.clip_output_bytes ?? 0), 0);
+    } catch {
+      // Fall back to local aggregate if live stats lookup fails.
+    }
+    const outputSummary = `${confirmOutputCount} rendered output${confirmOutputCount === 1 ? "" : "s"}, ${formatBytesVerbose(confirmOutputBytes)}`;
+    const confirmed = window.confirm(`Remove filtered clips from local library? (${clipSummary}; ${outputSummary})`);
+    if (!confirmed) return;
+    setPruningFiltered(true);
+    setClearingLibrary(true);
+    try {
+      let deleted = 0;
+      let deletedOutputs = 0;
+      let deletedBytes = 0;
+      let deletedOutputBytes = 0;
+      let failed = 0;
+      const targets = [...filteredRecent];
+      for (const item of targets) {
+        try {
+          const result = await deleteVideo(item.video_id);
+          if (result.deleted) deleted += 1;
+          deletedOutputs += result.deleted_outputs ?? 0;
+          deletedBytes += result.deleted_bytes ?? 0;
+          deletedOutputBytes += result.deleted_output_bytes ?? 0;
+        } catch {
+          failed += 1;
+        }
+      }
+      await refreshRecent();
+      const clipPart = deleted <= 0
+        ? "No filtered clips were removed."
+        : deleted === 1
+          ? "Removed 1 filtered clip."
+          : `Removed ${deleted} filtered clips.`;
+      const clipBytesPart = deletedBytes > 0 ? ` Freed ${formatBytesVerbose(deletedBytes)} source media.` : "";
+      const outputPart = deletedOutputs <= 0
+        ? ""
+        : deletedOutputs === 1
+          ? ` Cleared 1 rendered output (${formatBytesVerbose(deletedOutputBytes)}).`
+          : ` Cleared ${deletedOutputs} rendered outputs (${formatBytesVerbose(deletedOutputBytes)}).`;
+      const failPart = failed <= 0
+        ? ""
+        : failed === 1
+          ? " 1 clip failed to delete."
+          : ` ${failed} clips failed to delete.`;
+      setProgress(0, `${clipPart}${clipBytesPart}${outputPart}${failPart}`);
+    } finally {
+      setPruningFiltered(false);
+      setClearingLibrary(false);
+    }
+  };
+
   const handleClearAllOutputs = useCallback(async () => {
-    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     const outputLabel = outputCount && outputCount > 0
       ? `${outputCount} rendered output${outputCount === 1 ? "" : "s"}, ${formatBytesVerbose(outputBytes)}`
       : "all rendered outputs";
@@ -623,6 +700,7 @@ export function VideoUpload() {
     renamingVideoId,
     clearingLibrary,
     clearingOutputs,
+    pruningFiltered,
     outputCount,
     outputBytes,
     videoId,
@@ -630,7 +708,7 @@ export function VideoUpload() {
   ]);
 
   const handleClearCurrentOutputs = useCallback(async () => {
-    if (!videoId || !clipOutputCount || clipOutputCount <= 0 || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (!videoId || !clipOutputCount || clipOutputCount <= 0 || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     const clipSummary = `${clipOutputCount} rendered output${clipOutputCount === 1 ? "" : "s"}, ${formatBytesVerbose(clipOutputBytes)}`;
     const confirmed = window.confirm(`Remove rendered outputs for this clip only? (${clipSummary})`);
     if (!confirmed) return;
@@ -688,6 +766,7 @@ export function VideoUpload() {
     renamingVideoId,
     clearingLibrary,
     clearingOutputs,
+    pruningFiltered,
     clipOutputBytes,
     setProgress,
   ]);
@@ -711,7 +790,7 @@ export function VideoUpload() {
   };
 
   const handleDeleteCurrent = async () => {
-    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     const label = videoName || "current clip";
     const confirmed = window.confirm(`Remove ${label} from your local library?`);
     if (!confirmed) return;
@@ -740,7 +819,7 @@ export function VideoUpload() {
   };
 
   const handleRenameCurrent = async () => {
-    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
     await runRename(videoId, videoName || "clip.mp4");
   };
 
@@ -756,13 +835,13 @@ export function VideoUpload() {
         void handleClearCurrentOutputs();
         return;
       }
-      if (!recentFetchDone || !outputCount || outputCount <= 0) return;
+      if (pruningFiltered || !recentFetchDone || !outputCount || outputCount <= 0) return;
       e.preventDefault();
       void handleClearAllOutputs();
     };
     window.addEventListener("keydown", onOutputShortcut, true);
     return () => window.removeEventListener("keydown", onOutputShortcut, true);
-  }, [videoId, clipOutputCount, outputCount, recentFetchDone, handleClearCurrentOutputs, handleClearAllOutputs]);
+  }, [videoId, clipOutputCount, outputCount, recentFetchDone, pruningFiltered, handleClearCurrentOutputs, handleClearAllOutputs]);
 
   if (!videoId) {
     return (
@@ -829,7 +908,7 @@ export function VideoUpload() {
               </span>
               <button
                 onClick={() => void refreshRecent()}
-                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label="Refresh local clip library"
                 aria-keyshortcuts="R"
@@ -838,15 +917,23 @@ export function VideoUpload() {
               </button>
               <button
                 onClick={() => void handleClearLibrary()}
-                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || recentVideos.length === 0}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || recentVideos.length === 0}
                 className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label="Clear all local clips"
               >
                 {clearingLibrary ? "[clearing...]" : "[clear all]"}
               </button>
               <button
+                onClick={() => void handleClearFiltered()}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || filteredRecent.length === 0}
+                className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`Clear ${filteredRecent.length} filtered clip${filteredRecent.length === 1 ? "" : "s"}`}
+              >
+                {pruningFiltered ? "[clearing filt...]" : "[clear filtered]"}
+              </button>
+              <button
                 onClick={() => void handleClearAllOutputs()}
-                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || outputCount === 0}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || outputCount === 0}
                 className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label="Clear all rendered outputs"
                 aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
@@ -856,7 +943,7 @@ export function VideoUpload() {
               {filteredRecent.length > RECENT_PREVIEW_LIMIT && (
                 <button
                   onClick={() => setShowAllRecent((prev) => !prev)}
-                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
                   className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                   aria-label={showAllRecent ? "Show fewer recent clips" : "Show all recent clips"}
                 >
@@ -865,7 +952,7 @@ export function VideoUpload() {
               )}
               <button
                 onClick={cycleRecentSort}
-                disabled={recentVideos.length <= 1 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
+                disabled={recentVideos.length <= 1 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label={`Sort recent clips (currently ${recentSort})`}
                 aria-keyshortcuts="S"
@@ -880,7 +967,7 @@ export function VideoUpload() {
                     return "all";
                   });
                 }}
-                disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
+                disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label={`Filter recent clips by output count (currently ${recentOutputScope}, ${outputScopeCount} clips)`}
                 aria-keyshortcuts="O"
@@ -895,7 +982,7 @@ export function VideoUpload() {
                     return "all";
                   });
                 }}
-                disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs}
+                disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                 aria-label={`Filter recent clips by analysis cache state (currently ${recentCacheScope}, ${cacheScopeCount} clips)`}
                 aria-keyshortcuts="C"
