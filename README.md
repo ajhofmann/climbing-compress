@@ -99,6 +99,7 @@ Upload notes:
 - Press `A` in dropzone mode to toggle recent preview expansion (`[show all]` / `[show less]`) when overflow exists.
 - Press `1-9` in dropzone mode to load matching visible recent clip slots instantly.
 - Press `?` (Shift + `/`) in dropzone mode (or click `[keys:on/off]`) to toggle shortcut help text.
+- `[keys:on/off]` shortcut-help visibility persists across reloads with other Recent view preferences.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
 - Press `Enter` in the recent filter input to load the first matching clip instantly.
