@@ -86,6 +86,7 @@ Upload constraints are enforced by the backend:
 - filter query also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout` (plus exclusions like `-#out`)
 - active filter chips are shown for parsed terms (`+term` includes, `-term` excludes)
 - clicking a filter chip removes that term from the query immediately
+- partial tag input (like `#c` / `-#o`) shows suggestions, and `Tab` autocompletes the first suggestion
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
 - `Alt+Backspace` in recent filter input removes the last query term quickly
 - `Esc` clears active recent filter text and restores default preview
