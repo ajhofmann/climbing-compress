@@ -33,7 +33,8 @@ Upload constraints are enforced by the backend:
 - loaded clip toolbar includes `[RENAME]` to relabel the active clip
 - loaded clip toolbar includes `[CLEAR LIB]` to wipe all local clips immediately
 - loaded clip toolbar includes `[CLEAR OUT]` to purge rendered outputs for the loaded clip only
-- loaded clip toolbar includes `[PREV]` / `[NEXT]` to cycle through recent clips in-place (wrap-around)
+- loaded clip toolbar includes `[PREV]` / `[NEXT]` to cycle clips in-place (wrap-around) using current Recent view when filters/sort are active
+- loaded clip toolbar shows `[nav:view]` / `[nav:all]` to indicate adjacent-navigation source scope
 - loaded clip toolbar shows `out:C/T` (clip/global output counts) near clip metadata for quick housekeeping visibility
 - loaded clip toolbar shows `src:C/T` (current clip bytes / total library bytes) for local-storage context
 - loaded clip toolbar also shows `mb:C/T` (clip/global output bytes) for local disk-usage awareness
@@ -79,7 +80,7 @@ Upload constraints are enforced by the backend:
 - `[keys:on/off]` help visibility state persists across reloads with Recent preferences
 - keyboard shortcut `Ctrl/Cmd + Shift + O` clears outputs contextually (global in dropzone, clip-only in loaded toolbar)
 - keyboard shortcut `Ctrl/Cmd + Alt + O` clears outputs for the active filtered subset in dropzone
-- keyboard shortcuts `Alt+P` / `Alt+N` cycle previous/next recent clip while a clip is loaded
+- keyboard shortcuts `Alt+P` / `Alt+N` cycle previous/next loaded clip using current `[nav:*]` scope
 - keyboard shortcut `Alt+X` ejects the loaded clip back to the dropzone selector
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
 - recent module supports inline name filtering with dedicated `no matching clips` empty state, space-separated AND-term matching, and `-term` exclusions
@@ -102,6 +103,7 @@ Upload constraints are enforced by the backend:
 - when tag suggestions are visible, `ArrowUp` / `ArrowDown` cycles suggestions before `Enter`/`Tab` apply
 - focusing an empty filter input shows quick one-click tag buttons for cached/output/duration tags
 - quick tag buttons show live match counts (`#tag:N`) but insert plain tag tokens when clicked
+- zero-match quick tags are collapsed by default and can be expanded via `[+N zero]` (`[hide 0s]` when expanded)
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
 - `Alt+Backspace` in recent filter input removes the last query term quickly
 - `Esc` clears active recent filter text and restores default preview

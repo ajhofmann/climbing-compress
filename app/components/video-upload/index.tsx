@@ -172,6 +172,7 @@ export function VideoUpload() {
   const [clipOutputBytes, setClipOutputBytes] = useState<number | null>(null);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [showAllRecent, setShowAllRecent] = useState(false);
+  const [showZeroQuickTags, setShowZeroQuickTags] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
   const [recentFilterFocused, setRecentFilterFocused] = useState(false);
   const [recentCursorIdx, setRecentCursorIdx] = useState(-1);
@@ -202,6 +203,7 @@ export function VideoUpload() {
     setRecentSort("recent");
     setRecentSortReversed(false);
     setShowAllRecent(false);
+    setShowZeroQuickTags(false);
     setShowShortcutHelp(false);
     setRecentCursorIdx(-1);
   }, [resetRecentView]);
@@ -210,7 +212,7 @@ export function VideoUpload() {
     try {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; outputScope?: string; cacheScope?: string; filter?: string; shortcutHelp?: boolean; sortReverse?: boolean };
+      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; showZeroQuickTags?: boolean; outputScope?: string; cacheScope?: string; filter?: string; shortcutHelp?: boolean; sortReverse?: boolean };
       if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration" || parsed.sort === "outputs" || parsed.sort === "size") {
         setRecentSort(parsed.sort);
       }
@@ -219,6 +221,9 @@ export function VideoUpload() {
       }
       if (typeof parsed.showAll === "boolean") {
         setShowAllRecent(parsed.showAll);
+      }
+      if (typeof parsed.showZeroQuickTags === "boolean") {
+        setShowZeroQuickTags(parsed.showZeroQuickTags);
       }
       if (parsed.outputScope === "all" || parsed.outputScope === "with" || parsed.outputScope === "none") {
         setRecentOutputScope(parsed.outputScope);
@@ -243,6 +248,7 @@ export function VideoUpload() {
         sort: recentSort,
         sortReverse: recentSortReversed,
         showAll: showAllRecent,
+        showZeroQuickTags,
         outputScope: recentOutputScope,
         cacheScope: recentCacheScope,
         filter: recentFilter,
@@ -251,7 +257,7 @@ export function VideoUpload() {
     } catch {
       // ignore storage write failures
     }
-  }, [recentSort, recentSortReversed, showAllRecent, recentOutputScope, recentCacheScope, recentFilter, showShortcutHelp]);
+  }, [recentSort, recentSortReversed, showAllRecent, showZeroQuickTags, recentOutputScope, recentCacheScope, recentFilter, showShortcutHelp]);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -448,6 +454,14 @@ export function VideoUpload() {
       ]),
     ) as Record<(typeof RECENT_FILTER_TAGS)[number], number>
   ), [recentVideos, matchesRecentFilterTerm]);
+  const zeroQuickTagCount = useMemo(
+    () => RECENT_FILTER_TAGS.reduce((count, tag) => count + (recentTagCounts[tag] <= 0 ? 1 : 0), 0),
+    [recentTagCounts],
+  );
+  const visibleQuickTags = useMemo(
+    () => RECENT_FILTER_TAGS.filter((tag) => showZeroQuickTags || recentTagCounts[tag] > 0),
+    [showZeroQuickTags, recentTagCounts],
+  );
   const nameFilteredRecent = useMemo(() => (
     recentFilterTerms.length > 0
       ? recentVideos.filter((item) => {
@@ -621,7 +635,12 @@ export function VideoUpload() {
     [filteredRecent],
   );
   const hasActiveRecentSubset = normalizedRecentFilter.length > 0 || recentOutputScope !== "all" || recentCacheScope !== "all";
-  const hasAnyRecentCustomization = hasActiveRecentSubset || recentSort !== "recent" || recentSortReversed || showAllRecent || showShortcutHelp;
+  const isRecentNavViewScoped = hasActiveRecentSubset || recentSort !== "recent" || recentSortReversed;
+  const recentNavSource = useMemo(
+    () => (isRecentNavViewScoped ? sortedRecent : recentVideos),
+    [isRecentNavViewScoped, sortedRecent, recentVideos],
+  );
+  const hasAnyRecentCustomization = hasActiveRecentSubset || recentSort !== "recent" || recentSortReversed || showAllRecent || showZeroQuickTags || showShortcutHelp;
 
   useEffect(() => {
     if (videoId) return;
@@ -1387,8 +1406,8 @@ export function VideoUpload() {
 
   const handleLoadAdjacent = useCallback(async (direction: -1 | 1) => {
     if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
-    let source = recentVideos;
-    if (source.length <= 1) {
+    let source = recentNavSource;
+    if (!isRecentNavViewScoped && source.length <= 1) {
       try {
         const fresh = await listVideos();
         source = fresh;
@@ -1398,7 +1417,11 @@ export function VideoUpload() {
       }
     }
     if (source.length <= 1) {
-      setProgress(0, source.length === 0 ? "No recent clips available." : "Only one clip available in Recent.");
+      if (source.length <= 0) {
+        setProgress(0, isRecentNavViewScoped ? "No clips available in current recent view." : "No recent clips available.");
+      } else {
+        setProgress(0, isRecentNavViewScoped ? "Only one clip available in current recent view." : "Only one clip available in Recent.");
+      }
       return;
     }
     let currentIndex = source.findIndex((item) => item.video_id === videoId);
@@ -1423,7 +1446,8 @@ export function VideoUpload() {
     clearingLibrary,
     clearingOutputs,
     pruningFiltered,
-    recentVideos,
+    recentNavSource,
+    isRecentNavViewScoped,
     videoName,
     applyRecent,
     setProgress,
@@ -1812,7 +1836,7 @@ export function VideoUpload() {
             )}
             {recentFilterFocused && recentFilter.trim().length === 0 && recentTagSuggestions.length === 0 && (
               <div className="flex flex-wrap justify-center items-center gap-1 text-[9px] font-pixel">
-                {RECENT_FILTER_TAGS.map((tag) => (
+                {visibleQuickTags.map((tag) => (
                   <button
                     key={`quick-${tag}`}
                     onMouseDown={(e) => e.preventDefault()}
@@ -1823,6 +1847,16 @@ export function VideoUpload() {
                     {`${tag}:${recentTagCounts[tag]}`}
                   </button>
                 ))}
+                {zeroQuickTagCount > 0 && (
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setShowZeroQuickTags((prev) => !prev)}
+                    className="px-1.5 py-0.5 rounded border border-cyan-500/20 text-cyan-300/75 hover:text-white hover:border-cyan-400/80"
+                    aria-label={showZeroQuickTags ? "Hide zero-match quick tags" : `Show ${zeroQuickTagCount} zero-match quick tags`}
+                  >
+                    {showZeroQuickTags ? "[hide 0s]" : `[+${zeroQuickTagCount} zero]`}
+                  </button>
+                )}
               </div>
             )}
             {parsedRecentFilterTerms.length > 0 && (
@@ -1923,7 +1957,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · ↑↓ select · #tag + Tab/Enter complete (↑↓ picks suggestion) · Alt+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · ↑↓ select · #tag + Tab/Enter complete (↑↓ picks suggestion) · Alt+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (
@@ -2032,7 +2066,13 @@ export function VideoUpload() {
           [EJECT]
         </button>
       </Tooltip>
-      <Tooltip text="Load previous recent clip">
+      <span
+        className="text-[9px] font-pixel text-cyan-200/70 whitespace-nowrap uppercase"
+        title={isRecentNavViewScoped ? "Adjacent navigation follows current recent filters/sort." : "Adjacent navigation follows full recent list."}
+      >
+        {`[nav:${isRecentNavViewScoped ? "view" : "all"}]`}
+      </span>
+      <Tooltip text={isRecentNavViewScoped ? "Load previous clip from current recent view" : "Load previous recent clip"}>
         <button
           onClick={() => void handleLoadAdjacent(-1)}
           disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
@@ -2042,7 +2082,7 @@ export function VideoUpload() {
           [PREV]
         </button>
       </Tooltip>
-      <Tooltip text="Load next recent clip">
+      <Tooltip text={isRecentNavViewScoped ? "Load next clip from current recent view" : "Load next recent clip"}>
         <button
           onClick={() => void handleLoadAdjacent(1)}
           disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}

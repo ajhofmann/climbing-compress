@@ -52,7 +52,8 @@ Upload notes:
 - Loaded clip bar includes **RENAME** for quick relabeling of local clips.
 - Loaded clip bar includes **CLEAR LIB** to wipe the entire local library without ejecting first.
 - Loaded clip bar includes **CLEAR OUT** to purge rendered outputs for the loaded clip only.
-- Loaded clip bar includes **PREV/NEXT** to cycle recent clips in-place (wrap-around) without ejecting.
+- Loaded clip bar includes **PREV/NEXT** to cycle clips in-place (wrap-around) using current Recent view when filters/sort are active.
+- Loaded clip bar shows `[nav:view]` / `[nav:all]` to indicate adjacent-navigation source scope.
 - Loaded clip bar now shows `out:clip/total` (`out:C/T`) near clip metadata for per-clip vs global output visibility.
 - Loaded clip bar now also shows source storage footprint (`src:clip/total`) for current-clip vs library-size context.
 - Loaded clip bar also shows output storage footprint (`mb:clip/total`) for quick disk-usage checks.
@@ -83,7 +84,7 @@ Upload notes:
 - Recent mini output-clear action now displays clip output count inline (`◍N`) when outputs exist.
 - Keyboard: `Ctrl/Cmd + Shift + O` triggers output cleanup (global in dropzone, clip-specific when a clip is loaded).
 - Keyboard: `Ctrl/Cmd + Alt + O` clears outputs for the current filtered subset in dropzone mode.
-- Keyboard: `Alt + P` / `Alt + N` cycle previous/next recent clip from loaded mode.
+- Keyboard: `Alt + P` / `Alt + N` cycle previous/next loaded clip using current `[nav:*]` scope.
 - Keyboard: `Alt + X` ejects the currently loaded clip back to dropzone mode.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, and `-term` exclusions.
@@ -106,6 +107,7 @@ Upload notes:
 - While tag suggestions are visible, `↑` / `↓` cycles suggestion selection before `Enter`/`Tab` apply.
 - Focusing an empty filter input shows quick tag buttons (`#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`) for one-click insertion.
 - Quick tag buttons include live match counts (`#tag:N`) while still inserting plain tag tokens.
+- Zero-match quick tags are hidden by default with a `[+N zero]` toggle (`[hide 0s]` when expanded).
 - Recent section includes output-scope filtering (`[out:all]` / `[out:with]` / `[out:none]`) for output-housekeeping workflows.
 - Output-scope toggle now shows scope counts inline (`[out:all:N]`, `[out:with:N]`, `[out:none:N]`) for quick triage.
 - Recent section also includes cache-scope filtering (`[cache:all]` / `[cache:cached]` / `[cache:uncached]`) for warm/cold analysis triage.
