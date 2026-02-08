@@ -60,6 +60,7 @@ export function VideoUpload() {
   const [recentFilter, setRecentFilter] = useState("");
   const [recentCursorIdx, setRecentCursorIdx] = useState(-1);
   const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration" | "outputs" | "size">("recent");
+  const [recentSortReversed, setRecentSortReversed] = useState(false);
   const [recentOutputScope, setRecentOutputScope] = useState<"all" | "with" | "none">("all");
   const [recentCacheScope, setRecentCacheScope] = useState<"all" | "cached" | "uncached">("all");
   const recentFilterInputRef = useRef<HTMLInputElement>(null);
@@ -84,9 +85,12 @@ export function VideoUpload() {
     try {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; outputScope?: string; cacheScope?: string; filter?: string; shortcutHelp?: boolean };
+      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; outputScope?: string; cacheScope?: string; filter?: string; shortcutHelp?: boolean; sortReverse?: boolean };
       if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration" || parsed.sort === "outputs" || parsed.sort === "size") {
         setRecentSort(parsed.sort);
+      }
+      if (typeof parsed.sortReverse === "boolean") {
+        setRecentSortReversed(parsed.sortReverse);
       }
       if (typeof parsed.showAll === "boolean") {
         setShowAllRecent(parsed.showAll);
@@ -112,6 +116,7 @@ export function VideoUpload() {
     try {
       window.localStorage.setItem(RECENT_PREF_KEY, JSON.stringify({
         sort: recentSort,
+        sortReverse: recentSortReversed,
         showAll: showAllRecent,
         outputScope: recentOutputScope,
         cacheScope: recentCacheScope,
@@ -121,7 +126,7 @@ export function VideoUpload() {
     } catch {
       // ignore storage write failures
     }
-  }, [recentSort, showAllRecent, recentOutputScope, recentCacheScope, recentFilter, showShortcutHelp]);
+  }, [recentSort, recentSortReversed, showAllRecent, recentOutputScope, recentCacheScope, recentFilter, showShortcutHelp]);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
@@ -182,7 +187,7 @@ export function VideoUpload() {
     return outputScopedRecent.filter((item) => !item.cached);
   }, [outputScopedRecent, recentCacheScope]);
 
-  const sortedRecent = useMemo(() => (
+  const sortedRecentBase = useMemo(() => (
     recentSort === "recent"
       ? filteredRecent
       : [...filteredRecent].sort((a, b) => {
@@ -204,6 +209,9 @@ export function VideoUpload() {
         return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
       })
   ), [filteredRecent, recentSort]);
+  const sortedRecent = useMemo(() => (
+    recentSortReversed ? [...sortedRecentBase].reverse() : sortedRecentBase
+  ), [sortedRecentBase, recentSortReversed]);
 
   const visibleRecent = useMemo(() => (
     showAllRecent
@@ -212,7 +220,7 @@ export function VideoUpload() {
   ), [showAllRecent, sortedRecent]);
   useEffect(() => {
     setRecentCursorIdx(-1);
-  }, [normalizedRecentFilter, recentOutputScope, recentCacheScope, recentSort, showAllRecent]);
+  }, [normalizedRecentFilter, recentOutputScope, recentCacheScope, recentSort, recentSortReversed, showAllRecent]);
   useEffect(() => {
     setRecentCursorIdx((prev) => {
       if (visibleRecent.length <= 0) return -1;
@@ -442,6 +450,12 @@ export function VideoUpload() {
         if (recentVideos.length <= 1) return;
         e.preventDefault();
         cycleRecentSort();
+        return;
+      }
+      if (e.key.toLowerCase() === "d" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (recentVideos.length <= 1) return;
+        e.preventDefault();
+        setRecentSortReversed((prev) => !prev);
         return;
       }
       if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -1125,7 +1139,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / Shift+/ O C S R V A 1 2 3 4 5 6 7 8 9 0 Control+Alt+O Meta+Alt+O"
+        aria-keyshortcuts="Enter Space / Shift+/ O C S D R V A 1 2 3 4 5 6 7 8 9 0 Control+Alt+O Meta+Alt+O"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -1244,6 +1258,15 @@ export function VideoUpload() {
                 [sort:{recentSort}]
               </button>
               <button
+                onClick={() => setRecentSortReversed((prev) => !prev)}
+                disabled={recentVideos.length <= 1 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`Toggle reverse order for recent clips (currently ${recentSortReversed ? "on" : "off"})`}
+                aria-keyshortcuts="D"
+              >
+                [rev:{recentSortReversed ? "on" : "off"}]
+              </button>
+              <button
                 onClick={() => {
                   setRecentOutputScope((prev) => {
                     if (prev === "all") return "with";
@@ -1357,7 +1380,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-0 quick load (0=10th) · O out · C cache · S sort · R refresh · A expand · V reset · loaded: Alt+P/N cycle, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset · loaded: Alt+P/N cycle, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (
