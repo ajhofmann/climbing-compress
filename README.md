@@ -98,6 +98,7 @@ Upload notes:
 - Press `D` in dropzone mode to toggle Recent sort reversal (`[rev:off]` / `[rev:on]`).
 - Press `R` in dropzone mode to refresh Recent clips + output counters without clicking `[refresh]`.
 - Press `V` in dropzone mode (or click `[reset view]`) to clear name/output/cache subset filters back to all.
+- Press `Shift + V` in dropzone mode (or click `[reset all]`) to restore full Recent view defaults (sort, reverse, filters, expansion, keys help).
 - Press `A` in dropzone mode to toggle recent preview expansion (`[show all]` / `[show less]`) when overflow exists.
 - Press `1-0` in dropzone mode to load matching visible recent clip slots instantly (`0` targets slot 10).
 - Press `?` (Shift + `/`) in dropzone mode (or click `[keys:on/off]`) to toggle shortcut help text.

@@ -72,6 +72,7 @@ Upload constraints are enforced by the backend:
 - keyboard `D` toggles recent sort reversal (`[rev:off]` / `[rev:on]`)
 - keyboard `R` refreshes recent clips + output counts in dropzone mode without clicking `[refresh]`
 - keyboard `V` (or `[reset view]`) resets name/output/cache subset filters back to default all-state
+- keyboard `Shift+V` (or `[reset all]`) restores full Recent defaults (sort/reverse/filter/expansion/keys-help)
 - keyboard `A` toggles recent preview expansion between `[show all]` and `[show less]` when overflow exists
 - number keys `1-0` in dropzone load corresponding visible recent clip slots (`0` loads slot 10)
 - `?` (Shift + `/`) or `[keys:on/off]` toggles inline dropzone shortcut help text

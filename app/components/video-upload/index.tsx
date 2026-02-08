@@ -80,6 +80,14 @@ export function VideoUpload() {
     setRecentOutputScope("all");
     setRecentCacheScope("all");
   }, []);
+  const resetRecentViewAll = useCallback(() => {
+    resetRecentView();
+    setRecentSort("recent");
+    setRecentSortReversed(false);
+    setShowAllRecent(false);
+    setShowShortcutHelp(false);
+    setRecentCursorIdx(-1);
+  }, [resetRecentView]);
 
   useEffect(() => {
     try {
@@ -274,6 +282,7 @@ export function VideoUpload() {
     [filteredRecent],
   );
   const hasActiveRecentSubset = normalizedRecentFilter.length > 0 || recentOutputScope !== "all" || recentCacheScope !== "all";
+  const hasAnyRecentCustomization = hasActiveRecentSubset || recentSort !== "recent" || recentSortReversed || showAllRecent || showShortcutHelp;
 
   useEffect(() => {
     if (videoId) return;
@@ -473,7 +482,13 @@ export function VideoUpload() {
         void refreshRecent();
         return;
       }
-      if (e.key.toLowerCase() === "v" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (e.key.toLowerCase() === "v" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (!hasAnyRecentCustomization) return;
+        e.preventDefault();
+        resetRecentViewAll();
+        return;
+      }
+      if (e.key.toLowerCase() === "v" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (!hasActiveRecentSubset) return;
         e.preventDefault();
         resetRecentView();
@@ -504,12 +519,14 @@ export function VideoUpload() {
     clearingOutputs,
     pruningFiltered,
     hasActiveRecentSubset,
+    hasAnyRecentCustomization,
     recentCacheScope,
     recentVideos.length,
     filteredRecent.length,
     visibleRecent,
     cycleRecentSort,
     resetRecentView,
+    resetRecentViewAll,
     refreshRecent,
     handleLoadExisting,
   ]);
@@ -1148,7 +1165,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / Shift+/ O C S D R V A 1 2 3 4 5 6 7 8 9 0 Control+Alt+O Meta+Alt+O"
+        aria-keyshortcuts="Enter Space / Shift+/ O C S D R V Shift+V A 1 2 3 4 5 6 7 8 9 0 Control+Alt+O Meta+Alt+O"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -1325,6 +1342,17 @@ export function VideoUpload() {
                   [reset view]
                 </button>
               )}
+              {hasAnyRecentCustomization && (
+                <button
+                  onClick={resetRecentViewAll}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                  className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                  aria-label="Reset recent view, sort, and expansion preferences to defaults"
+                  aria-keyshortcuts="Shift+V"
+                >
+                  [reset all]
+                </button>
+              )}
             </div>
             {recentVideos.length > 0 && (
               <div className="flex items-center justify-center gap-1">
@@ -1411,7 +1439,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset · loaded: Alt+P/N cycle, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (
