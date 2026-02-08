@@ -217,6 +217,22 @@ def _get_video_path(video_id: str, *, require_exists: bool = True) -> Path:
     return path
 
 
+def _clear_output_videos() -> int:
+    """Remove rendered output videos from local output directory."""
+    deleted = 0
+    for path in OUTPUT_DIR.iterdir():
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        try:
+            path.unlink()
+            deleted += 1
+        except OSError as exc:
+            raise HTTPException(500, f"Failed to delete output video: {exc}") from exc
+    return deleted
+
+
 def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
     """Encode thumbnail arrays as base64 data URLs."""
     from PIL import Image
@@ -525,8 +541,13 @@ async def delete_all_videos():
         _video_names.clear()
         _persist_video_names()
 
+    deleted_outputs = _clear_output_videos()
     removed_ids.sort()
-    return {"deleted": len(removed_ids), "video_ids": removed_ids}
+    return {
+        "deleted": len(removed_ids),
+        "video_ids": removed_ids,
+        "deleted_outputs": deleted_outputs,
+    }
 
 
 @app.post("/api/analyze")
