@@ -8,7 +8,7 @@ import { Tooltip } from "@/components/tooltip";
 const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
-const RECENT_FILTER_TAGS = ["#cached", "#uncached", "#out", "#noout"] as const;
+const RECENT_FILTER_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
 
 function formatBytesShort(bytes: number | null) {
   if (bytes == null || !Number.isFinite(bytes)) return "?";
@@ -193,6 +193,8 @@ export function VideoUpload() {
       if (tag === "uncached") return !item.cached;
       if (tag === "out") return item.output_count > 0;
       if (tag === "noout") return item.output_count <= 0;
+      if (tag === "short") return item.info.duration <= 5;
+      if (tag === "long") return item.info.duration > 5;
     }
     return item.filename.toLowerCase().includes(term);
   }, []);
