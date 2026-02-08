@@ -201,6 +201,14 @@ export function VideoUpload() {
     setRecentCursorIdx(-1);
     recentFilterInputRef.current?.focus();
   }, [recentFilter]);
+  const popRecentFilterTerm = useCallback(() => {
+    const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
+    if (sourceTerms.length <= 0) return;
+    sourceTerms.pop();
+    setRecentFilter(sourceTerms.join(" "));
+    setRecentCursorIdx(-1);
+    recentFilterInputRef.current?.focus();
+  }, [recentFilter]);
 
   const outputScopedRecent = useMemo(() => {
     if (recentOutputScope === "all") return nameFilteredRecent;
@@ -1377,6 +1385,11 @@ export function VideoUpload() {
                   value={recentFilter}
                   onChange={(e) => setRecentFilter(e.target.value)}
                   onKeyDown={(e) => {
+                    if (e.key === "Backspace" && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                      e.preventDefault();
+                      popRecentFilterTerm();
+                      return;
+                    }
                     if (e.key === "ArrowDown") {
                       if (visibleRecent.length <= 0) return;
                       e.preventDefault();
@@ -1418,6 +1431,7 @@ export function VideoUpload() {
                   }}
                   placeholder="filter clips (+term -term)"
                   aria-label="Filter recent clips by name (space-separated terms, prefix with dash to exclude)"
+                  aria-keyshortcuts="Alt+Backspace"
                   className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
                 />
                 {recentFilter && (
@@ -1453,7 +1467,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · ↑↓ select · Alt+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (

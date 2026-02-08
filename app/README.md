@@ -86,6 +86,7 @@ Upload constraints are enforced by the backend:
 - active filter chips are shown for parsed terms (`+term` includes, `-term` excludes)
 - clicking a filter chip removes that term from the query immediately
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
+- `Alt+Backspace` in recent filter input removes the last query term quickly
 - `Esc` clears active recent filter text and restores default preview
 - pressing `Enter` in recent filter input loads the first matching clip immediately
 - `ArrowUp` / `ArrowDown` in recent filter input moves a visible-clip cursor with wrap-around; `Enter` loads that highlighted clip
