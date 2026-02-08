@@ -31,6 +31,7 @@ Upload constraints are enforced by the backend:
 - loaded clip toolbar displays active filename to clarify swap/delete actions
 - loaded clip toolbar includes `[RENAME]` to relabel the active clip
 - each recent pill has `✎` (rename) and `X` (delete) actions for local library cleanup
+- rename actions preserve allowed video extensions and auto-append current extension when omitted
 
 ## Common scripts
 
