@@ -1455,6 +1455,10 @@ export function VideoUpload() {
                     }
                     if (e.key === "Enter") {
                       e.preventDefault();
+                      if (recentTagSuggestions.length > 0 && !recentFilter.endsWith(" ")) {
+                        applyRecentTagSuggestion(recentTagSuggestions[0]);
+                        return;
+                      }
                       if (visibleRecent.length <= 0) {
                         setProgress(0, "No matching clips to load.");
                         return;

@@ -91,6 +91,7 @@ Upload notes:
 - Recent filter now renders active term chips (`+term` includes, `-term` excludes) to clarify parsed query semantics.
 - Click a filter term chip to remove that specific term from the query instantly.
 - Typing partial tag tokens (for example `#c`, `-#o`) shows tag suggestions; press `Tab` to autocomplete.
+- While tag suggestions are visible, `Enter` first autocompletes the top suggestion; pressing `Enter` again loads the filtered clip.
 - Recent section includes output-scope filtering (`[out:all]` / `[out:with]` / `[out:none]`) for output-housekeeping workflows.
 - Output-scope toggle now shows scope counts inline (`[out:all:N]`, `[out:with:N]`, `[out:none:N]`) for quick triage.
 - Recent section also includes cache-scope filtering (`[cache:all]` / `[cache:cached]` / `[cache:uncached]`) for warm/cold analysis triage.
