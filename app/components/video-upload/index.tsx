@@ -1161,6 +1161,15 @@ export function VideoUpload() {
                   value={recentFilter}
                   onChange={(e) => setRecentFilter(e.target.value)}
                   onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (visibleRecent.length <= 0) {
+                        setProgress(0, "No matching clips to load.");
+                        return;
+                      }
+                      void handleLoadExisting(visibleRecent[0]);
+                      return;
+                    }
                     if (e.key === "Escape") {
                       e.preventDefault();
                       setRecentFilter("");
