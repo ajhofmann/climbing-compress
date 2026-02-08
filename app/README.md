@@ -88,6 +88,7 @@ Upload constraints are enforced by the backend:
 - clicking a filter chip removes that term from the query immediately
 - partial tag input (like `#c` / `-#o`) shows suggestions, and `Tab` autocompletes the first suggestion
 - when tag suggestions are visible, `Enter` autocompletes first; a second `Enter` loads filtered clip
+- focusing an empty filter input shows quick one-click tag buttons for cached/output/duration tags
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
 - `Alt+Backspace` in recent filter input removes the last query term quickly
 - `Esc` clears active recent filter text and restores default preview

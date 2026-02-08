@@ -1493,16 +1493,31 @@ export function VideoUpload() {
               </div>
             )}
             {recentTagSuggestions.length > 0 && (
-              <div className="flex flex-wrap justify-center items-center gap-1 text-[8px] font-pixel">
+              <div className="flex flex-wrap justify-center items-center gap-1 text-[9px] font-pixel">
                 {recentTagSuggestions.map((suggestion) => (
                   <button
                     key={`sugg-${suggestion}`}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => applyRecentTagSuggestion(suggestion)}
-                    className="px-1 py-0.5 rounded border border-cyan-500/25 text-cyan-200/85 hover:text-white hover:border-cyan-400/70"
+                    className="px-1.5 py-0.5 rounded border border-cyan-500/30 text-cyan-200/90 hover:text-white hover:border-cyan-400/80"
                     aria-label={`Apply tag suggestion ${suggestion}`}
                   >
                     {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+            {recentFilterFocused && recentFilter.trim().length === 0 && recentTagSuggestions.length === 0 && (
+              <div className="flex flex-wrap justify-center items-center gap-1 text-[9px] font-pixel">
+                {RECENT_FILTER_TAGS.map((tag) => (
+                  <button
+                    key={`quick-${tag}`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyRecentTagSuggestion(tag)}
+                    className="px-1.5 py-0.5 rounded border border-cyan-500/25 text-cyan-200/80 hover:text-white hover:border-cyan-400/80"
+                    aria-label={`Insert filter tag ${tag}`}
+                  >
+                    {tag}
                   </button>
                 ))}
               </div>
