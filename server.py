@@ -251,6 +251,13 @@ def _clear_output_videos_for_source(video_id: str) -> int:
     return deleted
 
 
+def _safe_file_size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
 def _output_video_totals() -> tuple[int, int]:
     """Return rendered output count + bytes across all source clips."""
     if not OUTPUT_DIR.exists():
@@ -263,10 +270,7 @@ def _output_video_totals() -> tuple[int, int]:
         if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
             continue
         total += 1
-        try:
-            total_bytes += path.stat().st_size
-        except OSError:
-            continue
+        total_bytes += _safe_file_size(path)
     return total, total_bytes
 
 
@@ -284,10 +288,7 @@ def _output_video_totals_for_source(video_id: str) -> tuple[int, int]:
         if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
             continue
         total += 1
-        try:
-            total_bytes += path.stat().st_size
-        except OSError:
-            continue
+        total_bytes += _safe_file_size(path)
     return total, total_bytes
 
 
@@ -322,10 +323,7 @@ def _existing_clip_stats() -> tuple[int, int]:
     for vid, path in list(_videos.items()):
         if path.exists():
             total += 1
-            try:
-                total_bytes += path.stat().st_size
-            except OSError:
-                continue
+            total_bytes += _safe_file_size(path)
         else:
             stale.append(vid)
     if stale:
@@ -552,6 +550,8 @@ async def video_meta(video_id: str):
 async def delete_video(video_id: str):
     """Delete a source video from local library + clear its cached analysis."""
     path = _get_video_path(video_id, require_exists=False)
+    deleted_bytes = _safe_file_size(path) if path.exists() else 0
+    expected_outputs, expected_output_bytes = _output_video_totals_for_source(video_id)
 
     hash_keys = []
     if video_id in _video_hashes:
@@ -581,21 +581,36 @@ async def delete_video(video_id: str):
     deleted_outputs = _clear_output_videos_for_source(video_id)
     _drop_video_state(video_id, remove_name=True)
 
-    return {"video_id": video_id, "deleted": True, "deleted_outputs": deleted_outputs}
+    return {
+        "video_id": video_id,
+        "deleted": True,
+        "deleted_outputs": deleted_outputs,
+        "deleted_bytes": deleted_bytes,
+        "deleted_output_bytes": expected_output_bytes if expected_outputs > 0 else 0,
+    }
 
 
 @app.delete("/api/outputs")
 async def delete_all_outputs():
     """Delete all rendered output videos while keeping source clips."""
+    expected_outputs, expected_output_bytes = _output_video_totals()
     deleted_outputs = _clear_output_videos()
-    return {"deleted_outputs": deleted_outputs}
+    return {
+        "deleted_outputs": deleted_outputs,
+        "deleted_output_bytes": expected_output_bytes if expected_outputs > 0 else 0,
+    }
 
 
 @app.delete("/api/outputs/{video_id}")
 async def delete_outputs_for_video(video_id: str):
     """Delete rendered outputs for one source video id."""
+    expected_outputs, expected_output_bytes = _output_video_totals_for_source(video_id)
     deleted_outputs = _clear_output_videos_for_source(video_id)
-    return {"video_id": video_id, "deleted_outputs": deleted_outputs}
+    return {
+        "video_id": video_id,
+        "deleted_outputs": deleted_outputs,
+        "deleted_output_bytes": expected_output_bytes if expected_outputs > 0 else 0,
+    }
 
 
 @app.get("/api/library-stats")
@@ -650,6 +665,7 @@ async def rename_video(video_id: str, req: RenameVideoRequest):
 async def delete_all_videos():
     """Delete all local source videos and clear related cached state."""
     removed_ids: list[str] = []
+    deleted_bytes = 0
 
     for video_id, path in list(_videos.items()):
         hash_keys = []
@@ -672,6 +688,7 @@ async def delete_all_videos():
                 logger.warning("Failed to clear cache for %s: %s", video_id, exc)
 
         if path.exists():
+            deleted_bytes += _safe_file_size(path)
             try:
                 path.unlink()
             except OSError as exc:
@@ -684,12 +701,15 @@ async def delete_all_videos():
         _video_names.clear()
         _persist_video_names()
 
+    expected_outputs, expected_output_bytes = _output_video_totals()
     deleted_outputs = _clear_output_videos()
     removed_ids.sort()
     return {
         "deleted": len(removed_ids),
         "video_ids": removed_ids,
         "deleted_outputs": deleted_outputs,
+        "deleted_bytes": deleted_bytes,
+        "deleted_output_bytes": expected_output_bytes if expected_outputs > 0 else 0,
     }
 
 

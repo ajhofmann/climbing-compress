@@ -47,6 +47,7 @@ export function VideoUpload() {
   const [refreshingRecent, setRefreshingRecent] = useState(false);
   const [clearingLibrary, setClearingLibrary] = useState(false);
   const [clearingOutputs, setClearingOutputs] = useState(false);
+  const [clipBytes, setClipBytes] = useState<number | null>(null);
   const [outputCount, setOutputCount] = useState<number | null>(null);
   const [outputBytes, setOutputBytes] = useState<number | null>(null);
   const [clipOutputCount, setClipOutputCount] = useState<number | null>(null);
@@ -181,9 +182,11 @@ export function VideoUpload() {
           applyRecent([]);
         }
         if (statsRes.status === "fulfilled") {
+          setClipBytes(statsRes.value.clip_bytes);
           setOutputCount(statsRes.value.outputs);
           setOutputBytes(statsRes.value.output_bytes);
         } else {
+          setClipBytes(null);
           setOutputCount(null);
           setOutputBytes(null);
         }
@@ -206,6 +209,7 @@ export function VideoUpload() {
     void getLibraryStats(videoId)
       .then((stats) => {
         if (cancelled) return;
+        setClipBytes(stats.clip_bytes);
         setOutputCount(stats.outputs);
         setOutputBytes(stats.output_bytes);
         setClipOutputCount(typeof stats.clip_outputs === "number" ? stats.clip_outputs : null);
@@ -227,6 +231,7 @@ export function VideoUpload() {
     void getLibraryStats(videoId ?? undefined)
       .then((stats) => {
         if (cancelled) return;
+        setClipBytes(stats.clip_bytes);
         setOutputCount(stats.outputs);
         setOutputBytes(stats.output_bytes);
         if (videoId) {
@@ -254,9 +259,11 @@ export function VideoUpload() {
         applyRecent([]);
       }
       if (statsRes.status === "fulfilled") {
+        setClipBytes(statsRes.value.clip_bytes);
         setOutputCount(statsRes.value.outputs);
         setOutputBytes(statsRes.value.output_bytes);
       } else {
+        setClipBytes(null);
         setOutputCount(null);
         setOutputBytes(null);
       }
@@ -264,6 +271,7 @@ export function VideoUpload() {
       setClipOutputBytes(null);
     } catch {
       applyRecent([]);
+      setClipBytes(null);
       setOutputCount(null);
       setOutputBytes(null);
       setClipOutputCount(null);
@@ -408,12 +416,15 @@ export function VideoUpload() {
       const result = await deleteVideo(item.video_id);
       await refreshRecent();
       const outputs = result.deleted_outputs ?? 0;
+      const clipBytesFreed = result.deleted_bytes ?? 0;
+      const outputBytesFreed = result.deleted_output_bytes ?? 0;
+      const clipPart = clipBytesFreed > 0 ? ` Freed ${formatBytesVerbose(clipBytesFreed)} source media.` : "";
       const outputPart = outputs <= 0
         ? ""
         : outputs === 1
-          ? " Cleared 1 rendered output."
-          : ` Cleared ${outputs} rendered outputs.`;
-      setProgress(0, `Removed ${item.filename}.${outputPart}`);
+          ? ` Cleared 1 rendered output (${formatBytesVerbose(outputBytesFreed)}).`
+          : ` Cleared ${outputs} rendered outputs (${formatBytesVerbose(outputBytesFreed)}).`;
+      setProgress(0, `Removed ${item.filename}.${clipPart}${outputPart}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Delete failed";
       setProgress(0, `Delete failed: ${msg}`);
@@ -430,6 +441,7 @@ export function VideoUpload() {
     try {
       const result = await deleteOutputsForVideo(item.video_id);
       const outputs = result.deleted_outputs ?? 0;
+      const outputBytesRemoved = result.deleted_output_bytes ?? 0;
       if (videoId === item.video_id) setClipOutputCount(0);
       if (videoId === item.video_id) setClipOutputBytes(0);
       setRecentVideos((prev) => prev.map((row) => (
@@ -439,6 +451,7 @@ export function VideoUpload() {
       )));
       try {
         const stats = await getLibraryStats();
+        setClipBytes(stats.clip_bytes);
         setOutputCount(stats.outputs);
         setOutputBytes(stats.output_bytes);
       } catch {
@@ -447,13 +460,18 @@ export function VideoUpload() {
           if (prev == null) return null;
           return Math.max(0, prev - outputs);
         });
+        setOutputBytes((prev) => {
+          if (prev == null) return null;
+          return Math.max(0, prev - outputBytesRemoved);
+        });
       }
+      const freedPart = outputBytesRemoved > 0 ? ` Freed ${formatBytesVerbose(outputBytesRemoved)}.` : "";
       if (outputs <= 0) {
         setProgress(0, `No rendered outputs found for ${item.filename}.`);
       } else if (outputs === 1) {
-        setProgress(0, `Cleared 1 rendered output for ${item.filename}.`);
+        setProgress(0, `Cleared 1 rendered output for ${item.filename}.${freedPart}`);
       } else {
-        setProgress(0, `Cleared ${outputs} rendered outputs for ${item.filename}.`);
+        setProgress(0, `Cleared ${outputs} rendered outputs for ${item.filename}.${freedPart}`);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Clear outputs failed";
@@ -465,7 +483,9 @@ export function VideoUpload() {
 
   const handleClearLibrary = async () => {
     if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs) return;
-    const confirmed = window.confirm("Remove all local clips from this library?");
+    const clipSummary = `${recentVideos.length} local clip${recentVideos.length === 1 ? "" : "s"}, ${formatBytesVerbose(clipBytes)}`;
+    const outputSummary = `${outputCount ?? 0} rendered output${outputCount === 1 ? "" : "s"}, ${formatBytesVerbose(outputBytes)}`;
+    const confirmed = window.confirm(`Remove all local clips from this library? (${clipSummary}; ${outputSummary})`);
     if (!confirmed) return;
     const shouldClearCurrent = Boolean(videoId);
     setClearingLibrary(true);
@@ -474,6 +494,7 @@ export function VideoUpload() {
       setRecentVideos([]);
       setShowAllRecent(false);
       setRecentFetchDone(true);
+      setClipBytes(0);
       setOutputCount(0);
       setOutputBytes(0);
       setClipOutputCount(0);
@@ -481,17 +502,22 @@ export function VideoUpload() {
       if (shouldClearCurrent) clearVideo();
       const count = result.deleted ?? 0;
       const outputs = result.deleted_outputs ?? 0;
+      const clipBytesFreed = result.deleted_bytes ?? 0;
+      const outputBytesFreed = result.deleted_output_bytes ?? 0;
       const clipPart = count <= 0
         ? "Local library already empty."
         : count === 1
           ? "Removed 1 local clip."
           : `Removed ${count} local clips.`;
+      const clipBytesPart = clipBytesFreed > 0
+        ? ` Freed ${formatBytesVerbose(clipBytesFreed)} source media.`
+        : "";
       const outputPart = outputs <= 0
         ? ""
         : outputs === 1
-          ? " Cleared 1 rendered output."
-          : ` Cleared ${outputs} rendered outputs.`;
-      setProgress(0, `${clipPart}${outputPart}`);
+          ? ` Cleared 1 rendered output (${formatBytesVerbose(outputBytesFreed)}).`
+          : ` Cleared ${outputs} rendered outputs (${formatBytesVerbose(outputBytesFreed)}).`;
+      setProgress(0, `${clipPart}${clipBytesPart}${outputPart}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Clear failed";
       setProgress(0, `Clear failed: ${msg}`);
@@ -511,14 +537,14 @@ export function VideoUpload() {
     try {
       const result = await deleteAllOutputs();
       const outputs = result.deleted_outputs ?? 0;
-      const bytesBefore = outputBytes;
+      const bytesRemoved = result.deleted_output_bytes ?? 0;
       setOutputCount(0);
       setOutputBytes(0);
       if (videoId) setClipOutputCount(0);
       if (videoId) setClipOutputBytes(0);
       setRecentVideos((prev) => prev.map((item) => ({ ...item, output_count: 0 })));
-      const freedPart = bytesBefore != null && outputs > 0
-        ? ` Freed ${formatBytesVerbose(bytesBefore)}.`
+      const freedPart = bytesRemoved > 0
+        ? ` Freed ${formatBytesVerbose(bytesRemoved)}.`
         : "";
       if (outputs <= 0) {
         setProgress(0, "No rendered outputs to clear.");
@@ -555,7 +581,7 @@ export function VideoUpload() {
     try {
       const result = await deleteOutputsForVideo(videoId);
       const outputs = result.deleted_outputs ?? 0;
-      const bytesBefore = clipOutputBytes;
+      const outputBytesRemoved = result.deleted_output_bytes ?? 0;
       setClipOutputCount(0);
       setClipOutputBytes(0);
       setRecentVideos((prev) => prev.map((item) => (
@@ -565,6 +591,7 @@ export function VideoUpload() {
       )));
       try {
         const stats = await getLibraryStats(videoId);
+        setClipBytes(stats.clip_bytes);
         setOutputCount(stats.outputs);
         setOutputBytes(stats.output_bytes);
         setClipOutputCount(typeof stats.clip_outputs === "number" ? stats.clip_outputs : 0);
@@ -574,9 +601,13 @@ export function VideoUpload() {
           if (prev == null) return null;
           return Math.max(0, prev - outputs);
         });
+        setOutputBytes((prev) => {
+          if (prev == null) return null;
+          return Math.max(0, prev - outputBytesRemoved);
+        });
       }
-      const freedPart = bytesBefore != null && outputs > 0
-        ? ` Freed ${formatBytesVerbose(bytesBefore)}.`
+      const freedPart = outputBytesRemoved > 0
+        ? ` Freed ${formatBytesVerbose(outputBytesRemoved)}.`
         : "";
       if (outputs <= 0) {
         setProgress(0, "No rendered outputs found for current clip.");
@@ -632,12 +663,15 @@ export function VideoUpload() {
       await refreshRecent();
       clearVideo();
       const outputs = result.deleted_outputs ?? 0;
+      const clipBytesFreed = result.deleted_bytes ?? 0;
+      const outputBytesFreed = result.deleted_output_bytes ?? 0;
+      const clipPart = clipBytesFreed > 0 ? ` Freed ${formatBytesVerbose(clipBytesFreed)} source media.` : "";
       const outputPart = outputs <= 0
         ? ""
         : outputs === 1
-          ? " Cleared 1 rendered output."
-          : ` Cleared ${outputs} rendered outputs.`;
-      setProgress(0, `Removed ${label} from local library.${outputPart}`);
+          ? ` Cleared 1 rendered output (${formatBytesVerbose(outputBytesFreed)}).`
+          : ` Cleared ${outputs} rendered outputs (${formatBytesVerbose(outputBytesFreed)}).`;
+      setProgress(0, `Removed ${label} from local library.${clipPart}${outputPart}`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Delete failed";
       setProgress(0, `Delete failed: ${msg}`);
@@ -732,7 +766,7 @@ export function VideoUpload() {
                   : `Recent (${recentVideos.length} · ${formatDuration(totalRecentDuration)})`}
               </span>
               <span className="text-[9px] font-pixel text-text-muted/70 text-center">
-                out:{outputCount ?? "?"} · mb:{formatBytesShort(outputBytes)}
+                lib:{formatBytesShort(clipBytes)} · out:{outputCount ?? "?"} · mb:{formatBytesShort(outputBytes)}
               </span>
               <button
                 onClick={() => void refreshRecent()}

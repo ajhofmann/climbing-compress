@@ -49,7 +49,9 @@ Upload constraints are enforced by the backend:
 - recent module includes `[clear outputs]` for global output-only cleanup while keeping local clips
 - recent controls display live `out:N` render-output count and disable output cleanup when `out:0`
 - recent controls display compact output storage (`mb:X`) beside `out:N`
+- recent controls also display compact source-library storage (`lib:X`) beside output counters
 - clear-output confirms include output count + size summaries before deleting renders
+- delete/clear status messages now include freed source/output sizes where available
 - recent/library output count remains consistent after loaded delete operations (no extra decrement drift)
 - recent clip rows include a mini output-clear action (`◍`) for per-clip render cleanup directly from dropzone
 - recent mini output-clear action (`◍`) is clip-aware and disabled when that clip has no outputs

@@ -260,6 +260,8 @@ export interface DeleteVideoResult {
   video_id: string;
   deleted: boolean;
   deleted_outputs: number;
+  deleted_bytes: number;
+  deleted_output_bytes: number;
 }
 
 export interface LibraryStats {
@@ -277,19 +279,29 @@ export async function deleteVideo(videoId: string): Promise<DeleteVideoResult> {
   return res.json();
 }
 
-export async function deleteAllVideos(): Promise<{ deleted: number; video_ids: string[]; deleted_outputs: number }> {
+export async function deleteAllVideos(): Promise<{
+  deleted: number;
+  video_ids: string[];
+  deleted_outputs: number;
+  deleted_bytes: number;
+  deleted_output_bytes: number;
+}> {
   const res = await fetch(`${API}/api/videos`, { method: "DELETE" });
   if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();
 }
 
-export async function deleteAllOutputs(): Promise<{ deleted_outputs: number }> {
+export async function deleteAllOutputs(): Promise<{ deleted_outputs: number; deleted_output_bytes: number }> {
   const res = await fetch(`${API}/api/outputs`, { method: "DELETE" });
   if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();
 }
 
-export async function deleteOutputsForVideo(videoId: string): Promise<{ video_id: string; deleted_outputs: number }> {
+export async function deleteOutputsForVideo(videoId: string): Promise<{
+  video_id: string;
+  deleted_outputs: number;
+  deleted_output_bytes: number;
+}> {
   const res = await fetch(`${API}/api/outputs/${videoId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();

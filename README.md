@@ -68,7 +68,9 @@ Upload notes:
 - Recent section now includes `[clear outputs]` for global output-only cleanup while keeping local source clips.
 - Recent controls now show live render-output counter (`out:N`) and disable output cleanup when `out:0`.
 - Recent controls now show compact output storage (`mb:X`) next to `out:N`.
+- Recent controls now also show compact source-library storage (`lib:X`) for quick local disk checks.
 - Output-clear confirmations now include count + size summaries (for example: `2 rendered outputs, 12 B`).
+- Delete/clear status feedback now includes freed source/output byte sizes when available.
 - Recent/output counters remain accurate after loaded-clip deletes (no stale double-decrement drift).
 - Each Recent clip row now includes a mini output-clear action (`◍`) for clip-scoped render cleanup without loading the clip first.
 - Recent mini output-clear action (`◍`) is now clip-aware and disabled when that specific clip has zero rendered outputs.

@@ -555,6 +555,8 @@ def test_delete_video_removes_file_and_indexes(monkeypatch, tmp_path: Path):
     assert body["video_id"] == "source"
     assert body["deleted"] is True
     assert body["deleted_outputs"] == 1
+    assert body["deleted_bytes"] == 5
+    assert body["deleted_output_bytes"] == 8
     assert source.exists() is False
     assert rendered.exists() is False
     assert "source" not in server._videos
@@ -593,6 +595,8 @@ def test_delete_video_clears_cache_by_hash_when_source_missing(monkeypatch, tmp_
 
     assert resp.status_code == 200
     assert resp.json()["deleted_outputs"] == 1
+    assert resp.json()["deleted_bytes"] == 0
+    assert resp.json()["deleted_output_bytes"] == 8
     assert clear_calls == []
     assert clear_hash_calls == ["hash1"]
     assert "hash1" not in server._file_hashes
@@ -627,7 +631,7 @@ def test_delete_all_outputs_removes_only_render_videos(monkeypatch, tmp_path: Pa
     resp = client.delete("/api/outputs")
 
     assert resp.status_code == 200
-    assert resp.json() == {"deleted_outputs": 2}
+    assert resp.json() == {"deleted_outputs": 2, "deleted_output_bytes": 2}
     assert keep.exists()
     assert not (out_dir / "render_a.mp4").exists()
     assert not (out_dir / "render_b.mov").exists()
@@ -643,7 +647,7 @@ def test_delete_all_outputs_when_empty(monkeypatch, tmp_path: Path):
     resp = client.delete("/api/outputs")
 
     assert resp.status_code == 200
-    assert resp.json() == {"deleted_outputs": 0}
+    assert resp.json() == {"deleted_outputs": 0, "deleted_output_bytes": 0}
 
 
 def test_delete_outputs_for_video_removes_only_matching_stem(monkeypatch, tmp_path: Path):
@@ -662,7 +666,7 @@ def test_delete_outputs_for_video_removes_only_matching_stem(monkeypatch, tmp_pa
     resp = client.delete("/api/outputs/source")
 
     assert resp.status_code == 200
-    assert resp.json() == {"video_id": "source", "deleted_outputs": 1}
+    assert resp.json() == {"video_id": "source", "deleted_outputs": 1, "deleted_output_bytes": 1}
     assert not matching.exists()
     assert unrelated.exists()
     assert keep.exists()
@@ -679,7 +683,7 @@ def test_delete_outputs_for_video_when_no_match(monkeypatch, tmp_path: Path):
     resp = client.delete("/api/outputs/source")
 
     assert resp.status_code == 200
-    assert resp.json() == {"video_id": "source", "deleted_outputs": 0}
+    assert resp.json() == {"video_id": "source", "deleted_outputs": 0, "deleted_output_bytes": 0}
     assert (out_dir / "other.mp4").exists()
 
 
@@ -824,6 +828,8 @@ def test_delete_video_keeps_unrelated_outputs(monkeypatch, tmp_path: Path):
 
     assert resp.status_code == 200
     assert resp.json()["deleted_outputs"] == 0
+    assert resp.json()["deleted_bytes"] == 5
+    assert resp.json()["deleted_output_bytes"] == 0
     assert unrelated.exists()
 
 
@@ -859,6 +865,8 @@ def test_delete_all_videos_clears_library_and_indexes(monkeypatch, tmp_path: Pat
     assert body["deleted"] == 2
     assert set(body["video_ids"]) == {"a", "b"}
     assert body["deleted_outputs"] == 2
+    assert body["deleted_bytes"] == 2
+    assert body["deleted_output_bytes"] == 14
     assert not source_a.exists()
     assert not source_b.exists()
     assert list(out_dir.iterdir()) == []
@@ -897,6 +905,8 @@ def test_delete_all_videos_handles_missing_sources(monkeypatch, tmp_path: Path):
     assert body["deleted"] == 1
     assert body["video_ids"] == ["missing"]
     assert body["deleted_outputs"] == 0
+    assert body["deleted_bytes"] == 0
+    assert body["deleted_output_bytes"] == 0
     assert server._videos == {}
     assert server._file_hashes == {}
     assert server._video_hashes == {}
@@ -913,12 +923,19 @@ def test_delete_all_videos_empty_library(monkeypatch):
     monkeypatch.setattr(server, "_video_info_errors", {})
     monkeypatch.setattr(server, "_unreadable_warned", {})
     monkeypatch.setattr(server, "_clear_output_videos", lambda: 0)
+    monkeypatch.setattr(server, "_output_video_totals", lambda: (0, 0))
 
     client = TestClient(server.app)
     resp = client.delete("/api/videos")
 
     assert resp.status_code == 200
-    assert resp.json() == {"deleted": 0, "video_ids": [], "deleted_outputs": 0}
+    assert resp.json() == {
+        "deleted": 0,
+        "video_ids": [],
+        "deleted_outputs": 0,
+        "deleted_bytes": 0,
+        "deleted_output_bytes": 0,
+    }
 
 
 def test_delete_all_videos_returns_sorted_ids(monkeypatch, tmp_path: Path):
@@ -936,12 +953,15 @@ def test_delete_all_videos_returns_sorted_ids(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(server, "_unreadable_warned", {})
     monkeypatch.setattr(server, "clear_cache_by_hash", lambda _: None)
     monkeypatch.setattr(server, "_clear_output_videos", lambda: 0)
+    monkeypatch.setattr(server, "_output_video_totals", lambda: (0, 0))
 
     client = TestClient(server.app)
     resp = client.delete("/api/videos")
 
     assert resp.status_code == 200
     assert resp.json()["video_ids"] == ["a", "b"]
+    assert resp.json()["deleted_bytes"] == 2
+    assert resp.json()["deleted_output_bytes"] == 0
 
 
 def test_delete_all_videos_removes_output_videos_only(monkeypatch, tmp_path: Path):
@@ -968,6 +988,7 @@ def test_delete_all_videos_removes_output_videos_only(monkeypatch, tmp_path: Pat
 
     assert resp.status_code == 200
     assert resp.json()["deleted_outputs"] == 2
+    assert resp.json()["deleted_output_bytes"] == 2
     assert keep.exists()
     assert not video_a.exists()
     assert not video_b.exists()
