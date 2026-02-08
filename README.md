@@ -89,10 +89,12 @@ Upload notes:
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, and `-term` exclusions.
 - Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long` (and exclusions like `-#out`).
 - Output-count comparators are supported too (for example `#out>=1`, `#out=0`, `#out>2`).
+- Storage comparators are supported with byte units (for example `#src>3k`, `#src>10m`, `#mb>0b`, `#mb>1m`).
 - Duration comparator tags are also supported (for example `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`).
 - Unknown `#tag` tokens are highlighted in warning style and listed as `unknown tag:*` until corrected/removed.
 - Unknown non-duration tags also surface `did you mean` replacement buttons (for example `#cachedd` → `#cached`) with one-click repair.
 - Malformed `#out...` comparator tags now surface clickable output examples (`#out>=1`, `#out=0`) with include/exclude prefix preservation.
+- Malformed `#src...` / `#mb...` comparator tags now surface clickable storage examples (`#src>10m`, `#mb>10m`) with include/exclude prefix preservation.
 - Unknown `#dur...` comparator tags now also surface inline duration-format examples (seconds/minutes syntax).
 - Duration-format examples are clickable to replace malformed `#dur` tokens instantly.
 - If the malformed token is exclude-form (`-#dur...`), clickable replacements preserve the exclude prefix.

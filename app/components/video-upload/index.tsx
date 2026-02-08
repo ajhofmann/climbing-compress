@@ -9,9 +9,10 @@ const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
-const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#dur>5", "#dur<5", "#dur>90s", "#dur>1m30s"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#src>10m", "#mb>10m", "#dur>5", "#dur<5", "#dur>90s", "#dur>1m30s"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0"] as const;
+const RECENT_STORAGE_HINT_TAGS = ["#src>10m", "#mb>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur>90s", "#dur>1m30s"] as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=";
 
@@ -47,6 +48,40 @@ function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator
   const value = Number(comparatorMatch[2]);
   if (!Number.isFinite(value)) return null;
   return { operator, value };
+}
+
+function parseByteLiteral(raw: string): number | null {
+  const match = raw.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)(b|k|m|g)?$/);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return null;
+  const unit = match[2] ?? "b";
+  const multiplier = unit === "k"
+    ? 1024
+    : unit === "m"
+      ? 1024 * 1024
+      : unit === "g"
+        ? 1024 * 1024 * 1024
+        : 1;
+  return amount * multiplier;
+}
+
+function parseSourceBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
+  const comparatorMatch = term.match(/^#src(<=|>=|=|<|>)(.+)$/);
+  if (!comparatorMatch) return null;
+  const operator = comparatorMatch[1] as ComparatorOperator;
+  const valueBytes = parseByteLiteral(comparatorMatch[2]);
+  if (valueBytes == null || !Number.isFinite(valueBytes)) return null;
+  return { operator, valueBytes };
+}
+
+function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
+  const comparatorMatch = term.match(/^#mb(<=|>=|=|<|>)(.+)$/);
+  if (!comparatorMatch) return null;
+  const operator = comparatorMatch[1] as ComparatorOperator;
+  const valueBytes = parseByteLiteral(comparatorMatch[2]);
+  if (valueBytes == null || !Number.isFinite(valueBytes)) return null;
+  return { operator, valueBytes };
 }
 
 function parseDurationComparatorTerm(term: string): { operator: ComparatorOperator; valueSeconds: number } | null {
@@ -268,6 +303,8 @@ export function VideoUpload() {
   );
   const isRecognizedRecentTagTerm = useCallback((term: string) => {
     if (RECENT_FILTER_SIMPLE_TAGS.includes(term as typeof RECENT_FILTER_SIMPLE_TAGS[number])) return true;
+    if (parseSourceBytesComparatorTerm(term) !== null) return true;
+    if (parseOutputBytesComparatorTerm(term) !== null) return true;
     if (parseOutputComparatorTerm(term) !== null) return true;
     return parseDurationComparatorTerm(term) !== null;
   }, []);
@@ -294,6 +331,19 @@ export function VideoUpload() {
       tags: target.isExclude
         ? RECENT_OUTPUT_HINT_TAGS.map((tag) => `-${tag}`)
         : [...RECENT_OUTPUT_HINT_TAGS],
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownStorageHintConfig = useMemo(() => {
+    const unknownStorageTerms = parsedRecentFilterTerms.filter(
+      (item) => (item.term.startsWith("#src") || item.term.startsWith("#mb")) && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownStorageTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownStorageTerms[unknownStorageTerms.length - 1];
+    return {
+      termIndex: target.idx,
+      tags: target.isExclude
+        ? RECENT_STORAGE_HINT_TAGS.map((tag) => `-${tag}`)
+        : [...RECENT_STORAGE_HINT_TAGS],
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownTagReplacementHints = useMemo(() => {
@@ -339,6 +389,26 @@ export function VideoUpload() {
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
+    const sourceBytesComparator = parseSourceBytesComparatorTerm(term);
+    if (sourceBytesComparator) {
+      const { operator, valueBytes } = sourceBytesComparator;
+      const sourceBytes = item.source_bytes;
+      if (operator === "<") return sourceBytes < valueBytes;
+      if (operator === "<=") return sourceBytes <= valueBytes;
+      if (operator === ">") return sourceBytes > valueBytes;
+      if (operator === ">=") return sourceBytes >= valueBytes;
+      return sourceBytes === valueBytes;
+    }
+    const outputBytesComparator = parseOutputBytesComparatorTerm(term);
+    if (outputBytesComparator) {
+      const { operator, valueBytes } = outputBytesComparator;
+      const outputBytesForClip = item.output_bytes;
+      if (operator === "<") return outputBytesForClip < valueBytes;
+      if (operator === "<=") return outputBytesForClip <= valueBytes;
+      if (operator === ">") return outputBytesForClip > valueBytes;
+      if (operator === ">=") return outputBytesForClip >= valueBytes;
+      return outputBytesForClip === valueBytes;
+    }
     const outputComparator = parseOutputComparatorTerm(term);
     if (outputComparator) {
       const { operator, value } = outputComparator;
@@ -1811,6 +1881,22 @@ export function VideoUpload() {
                         onClick={() => replaceRecentFilterTerm(unknownOutputHintConfig.termIndex, tag)}
                         className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
                         aria-label={`Replace malformed output filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {unknownStorageHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>storage examples:</span>
+                    {unknownStorageHintConfig.tags.map((tag) => (
+                      <button
+                        key={`storage-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownStorageHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed storage filter with ${tag}`}
                       >
                         {tag}
                       </button>
