@@ -216,6 +216,30 @@ def test_list_videos_output_count_ignores_non_video_files(monkeypatch, tmp_path:
     assert body[0]["output_count"] == 1
 
 
+def test_list_videos_output_count_defaults_to_zero_when_output_dir_missing(monkeypatch, tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    out_dir = tmp_path / "missing-out"
+
+    monkeypatch.setattr(server, "_videos", {"source": source})
+    monkeypatch.setattr(server, "_video_hashes", {"source": "hash-source"})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"source": "source.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "OUTPUT_DIR", out_dir)
+    monkeypatch.setattr(server, "get_video_info", lambda _path: {"duration": 1.0, "fps": 24.0, "width": 10, "height": 10, "frame_count": 24})
+    monkeypatch.setattr(server, "has_cache_by_hash", lambda _key: False)
+
+    client = TestClient(server.app)
+    resp = client.get("/api/videos")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body[0]["video_id"] == "source"
+    assert body[0]["output_count"] == 0
+
+
 def test_video_meta_returns_thumbnails_and_cache(monkeypatch, tmp_path: Path):
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
