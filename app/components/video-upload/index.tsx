@@ -5,6 +5,8 @@ import { useStore } from "@/lib/store";
 import { getVideoMeta, listVideos, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
 
+const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
+
 export function VideoUpload() {
   const videoId = useStore((state) => state.videoId);
   const videoInfo = useStore((state) => state.videoInfo);
@@ -38,6 +40,11 @@ export function VideoUpload() {
   }, [videoId]);
 
   const handleFile = async (file: File) => {
+    const ext = file.name.includes(".") ? `.${file.name.split(".").pop()?.toLowerCase()}` : "";
+    if (!SUPPORTED_VIDEO_EXTS.includes(ext as typeof SUPPORTED_VIDEO_EXTS[number])) {
+      setProgress(0, `Unsupported file type (${ext || "unknown"}). Use ${SUPPORTED_VIDEO_EXTS.join(", ")}`);
+      return;
+    }
     setProgress(0.05, "Uploading video...");
     try {
       const data = await uploadVideo(file);
@@ -64,7 +71,7 @@ export function VideoUpload() {
   const openPicker = () => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "video/*";
+    input.accept = SUPPORTED_VIDEO_EXTS.join(",");
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) handleFile(file);
