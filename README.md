@@ -62,6 +62,7 @@ Upload notes:
 The timeline supports two edit modes:
 
 - **Pins** — point overrides with adjustable influence radius (scroll to resize).
+- **Pins (numeric panel)** — direct `time / speed / radius` inputs for precision tweaks.
 - **Keyframes** — explicit speed envelope points with direct numeric editing.
 - Keyboard precision shortcuts on hovered points:
   - `Delete` / `Backspace` remove hovered pin/keyframe
