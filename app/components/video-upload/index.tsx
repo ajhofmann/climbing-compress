@@ -289,6 +289,7 @@ export function VideoUpload() {
                 onClick={() => void refreshRecent()}
                 disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary}
                 className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label="Refresh local clip library"
               >
                 {refreshingRecent ? "[refreshing...]" : "[refresh]"}
               </button>
@@ -296,6 +297,7 @@ export function VideoUpload() {
                 onClick={() => void handleClearLibrary()}
                 disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || recentVideos.length === 0}
                 className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label="Clear all local clips"
               >
                 {clearingLibrary ? "[clearing...]" : "[clear all]"}
               </button>
