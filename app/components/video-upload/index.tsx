@@ -1350,7 +1350,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-9 quick load · O out · C cache · S sort · R refresh · A expand · V reset · loaded: Alt+P/N cycle, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · ↑↓ select · 1-0 quick load (0=10th) · O out · C cache · S sort · R refresh · A expand · V reset · loaded: Alt+P/N cycle, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (
