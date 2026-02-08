@@ -440,7 +440,7 @@ async def delete_video(video_id: str):
 
 @app.patch("/api/videos/{video_id}")
 async def rename_video(video_id: str, req: RenameVideoRequest):
-    path = _get_video_path(video_id, require_exists=False)
+    _get_video_path(video_id)
     filename = Path(req.filename.strip()).name
     if not filename:
         raise HTTPException(400, "Filename cannot be empty")
@@ -453,7 +453,6 @@ async def rename_video(video_id: str, req: RenameVideoRequest):
     return {
         "video_id": video_id,
         "filename": filename,
-        "exists": path.exists(),
     }
 
 

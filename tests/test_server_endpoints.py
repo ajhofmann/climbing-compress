@@ -516,3 +516,25 @@ def test_rename_video_rejects_empty_name(monkeypatch, tmp_path: Path):
     resp = client.patch("/api/videos/source", json={"filename": "   "})
 
     assert resp.status_code == 400
+
+
+def test_rename_video_missing_source_returns_404_and_cleans_state(monkeypatch, tmp_path: Path):
+    missing_path = tmp_path / "missing.mp4"
+
+    monkeypatch.setattr(server, "_videos", {"missing": missing_path})
+    monkeypatch.setattr(server, "_file_hashes", {"hash-missing": "missing"})
+    monkeypatch.setattr(server, "_video_hashes", {"missing": "hash-missing"})
+    monkeypatch.setattr(server, "_video_meta_cache", {})
+    monkeypatch.setattr(server, "_video_names", {"missing": "missing.mp4"})
+    monkeypatch.setattr(server, "_video_info_errors", {})
+    monkeypatch.setattr(server, "_unreadable_warned", {})
+    monkeypatch.setattr(server, "VIDEO_NAME_INDEX", tmp_path / "_video_names.json")
+
+    client = TestClient(server.app)
+    resp = client.patch("/api/videos/missing", json={"filename": "new_name.mp4"})
+
+    assert resp.status_code == 404
+    assert "missing" not in server._videos
+    assert "missing" not in server._video_hashes
+    assert "hash-missing" not in server._file_hashes
+    assert "missing" not in server._video_names

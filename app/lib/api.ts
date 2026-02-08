@@ -183,7 +183,6 @@ interface VideoMetaResult {
 interface RenameVideoResult {
   video_id: string;
   filename: string;
-  exists: boolean;
 }
 
 export async function renderVideo(
