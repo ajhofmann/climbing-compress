@@ -8,6 +8,19 @@ type SseProgress = {
   done?: boolean;
 };
 
+async function readErrorMessage(res: Response): Promise<string> {
+  const text = await res.text();
+  if (!text) return `${res.status} ${res.statusText}`;
+  try {
+    const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown };
+    if (typeof parsed.detail === "string") return parsed.detail;
+    if (typeof parsed.message === "string") return parsed.message;
+  } catch {
+    // Fall through to raw text.
+  }
+  return text;
+}
+
 async function consumeSseJson<T>(
   res: Response,
   onProgress: (progress: number, message: string) => void,
@@ -60,7 +73,7 @@ export async function uploadVideo(file: File) {
   const form = new FormData();
   form.append("file", file);
   const res = await fetch(`${API}/api/upload`, { method: "POST", body: form });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();
 }
 
@@ -88,7 +101,7 @@ export async function analyzeVideo(
     }),
   });
 
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await readErrorMessage(res));
   return consumeSseJson<AnalysisData>(res, onProgress);
 }
 
@@ -127,7 +140,7 @@ export async function solveCurve(
       keyframes,
     }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();
 }
 
@@ -195,7 +208,7 @@ export async function renderVideo(
     }),
   });
 
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await readErrorMessage(res));
   return consumeSseJson<RenderResult>(res, onProgress);
 }
 

@@ -18,8 +18,9 @@ export function VideoUpload() {
       const data = await uploadVideo(file);
       setVideo(data.video_id, data.info, data.thumbnails);
       setProgress(0, `Uploaded ${file.name}`);
-    } catch {
-      setProgress(0, "Upload failed :(");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Upload failed";
+      setProgress(0, `Upload failed: ${msg}`);
     }
   };
 
