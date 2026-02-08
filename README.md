@@ -95,6 +95,7 @@ Upload notes:
 - Press `S` in dropzone mode to cycle Recent sort modes (`recent -> name -> duration -> outputs -> size`).
 - Press `R` in dropzone mode to refresh Recent clips + output counters without clicking `[refresh]`.
 - Press `V` in dropzone mode (or click `[reset view]`) to clear name/output/cache subset filters back to all.
+- Press `A` in dropzone mode to toggle recent preview expansion (`[show all]` / `[show less]`) when overflow exists.
 - Press `1-9` in dropzone mode to load matching visible recent clip slots instantly.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.

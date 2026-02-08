@@ -439,6 +439,12 @@ export function VideoUpload() {
         resetRecentView();
         return;
       }
+      if (e.key.toLowerCase() === "a" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (filteredRecent.length <= RECENT_PREVIEW_LIMIT) return;
+        e.preventDefault();
+        setShowAllRecent((prev) => !prev);
+        return;
+      }
       if (e.key !== "/") return;
       e.preventDefault();
       recentFilterInputRef.current?.focus();
@@ -460,6 +466,7 @@ export function VideoUpload() {
     hasActiveRecentSubset,
     recentCacheScope,
     recentVideos.length,
+    filteredRecent.length,
     visibleRecent,
     cycleRecentSort,
     resetRecentView,
@@ -1090,7 +1097,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / O C S R V 1 2 3 4 5 6 7 8 9 Control+Alt+O Meta+Alt+O"
+        aria-keyshortcuts="Enter Space / O C S R V A 1 2 3 4 5 6 7 8 9 Control+Alt+O Meta+Alt+O"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -1194,6 +1201,7 @@ export function VideoUpload() {
                   disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
                   className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
                   aria-label={showAllRecent ? "Show fewer recent clips" : "Show all recent clips"}
+                  aria-keyshortcuts="A"
                 >
                   {showAllRecent ? "[show less]" : "[show all]"}
                 </button>
