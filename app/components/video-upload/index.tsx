@@ -84,7 +84,7 @@ export function VideoUpload() {
     try {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; outputScope?: string; cacheScope?: string; filter?: string };
+      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; outputScope?: string; cacheScope?: string; filter?: string; shortcutHelp?: boolean };
       if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration" || parsed.sort === "outputs" || parsed.sort === "size") {
         setRecentSort(parsed.sort);
       }
@@ -100,6 +100,9 @@ export function VideoUpload() {
       if (typeof parsed.filter === "string") {
         setRecentFilter(parsed.filter.slice(0, 120));
       }
+      if (typeof parsed.shortcutHelp === "boolean") {
+        setShowShortcutHelp(parsed.shortcutHelp);
+      }
     } catch {
       // ignore malformed local preferences
     }
@@ -113,11 +116,12 @@ export function VideoUpload() {
         outputScope: recentOutputScope,
         cacheScope: recentCacheScope,
         filter: recentFilter,
+        shortcutHelp: showShortcutHelp,
       }));
     } catch {
       // ignore storage write failures
     }
-  }, [recentSort, showAllRecent, recentOutputScope, recentCacheScope, recentFilter]);
+  }, [recentSort, showAllRecent, recentOutputScope, recentCacheScope, recentFilter, showShortcutHelp]);
 
   const shortName = (name: string) => {
     if (name.length <= 14) return name;
