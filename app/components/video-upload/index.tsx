@@ -1051,18 +1051,17 @@ export function VideoUpload() {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select" || tag === "button" || target?.isContentEditable) return;
-      const key = e.key.toLowerCase();
-      if (key === "p") {
+      if (e.code === "KeyP") {
         e.preventDefault();
         void handleLoadAdjacent(-1);
         return;
       }
-      if (key === "n") {
+      if (e.code === "KeyN") {
         e.preventDefault();
         void handleLoadAdjacent(1);
         return;
       }
-      if (key === "x") {
+      if (e.code === "KeyX") {
         e.preventDefault();
         handleClearVideo();
       }
