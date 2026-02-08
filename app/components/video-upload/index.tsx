@@ -548,7 +548,18 @@ export function VideoUpload() {
     const isIncludeTag = tail.startsWith("#");
     if (!isExcludeTag && !isIncludeTag) return [] as string[];
     const normalizedTail = isExcludeTag ? tail.slice(1) : tail;
-    const base = RECENT_FILTER_TAGS.filter((tag) => tag.startsWith(normalizedTail));
+    const direct = RECENT_FILTER_TAGS.filter((tag) => tag.startsWith(normalizedTail));
+    const base = direct.length > 0
+      ? direct
+      : normalizedTail.startsWith("#out")
+        ? RECENT_FILTER_TAGS.filter((tag) => tag.startsWith("#out"))
+        : normalizedTail.startsWith("#src")
+          ? RECENT_FILTER_TAGS.filter((tag) => tag.startsWith("#src"))
+          : normalizedTail.startsWith("#mb")
+            ? RECENT_FILTER_TAGS.filter((tag) => tag.startsWith("#mb"))
+            : normalizedTail.startsWith("#dur")
+              ? RECENT_FILTER_TAGS.filter((tag) => tag.startsWith("#dur"))
+              : [];
     return isExcludeTag ? base.map((tag) => `-${tag}`) : [...base];
   }, [recentFilter, recentFilterFocused]);
   useEffect(() => {
