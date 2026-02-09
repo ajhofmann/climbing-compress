@@ -92,12 +92,14 @@ Upload constraints are enforced by the backend:
 - comparator typo aliases are accepted (`=>` as `>=`, `=<` as `<=`, `<>` as `!=`)
 - storage comparators are supported with byte units (e.g. `#src>3k`, `#src>3kb`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`)
 - duration comparator tags are supported too (e.g. `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur!=5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`, `#dur>1:30`, `#dur>0:00:01.8`, `#dur>1h2m`)
+- video metadata comparators are supported for fps/width/height too (e.g. `#fps<=24`, `#fps=24..60`, `#w=..1080`, `#h>=1080`)
 - unknown `#tag` tokens are rendered as warning chips with an inline `unknown tag:*` message
 - unknown non-duration tags include `did you mean` replacement buttons for typo repair (e.g. `#cachedd` -> `#cached`)
 - comparator-family typos are suggested too (e.g. `#dru>5` -> `#dur>5`, `-#srd>3k` -> `-#src>3k`)
 - malformed comparator example rows are hidden whenever a direct `did you mean` replacement is available
 - malformed `#out...` comparator tags show clickable output examples (`#out>=1`, `#out=0`) and preserve include/exclude prefix
 - malformed `#src...` / `#mb...` comparator tags show clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) and preserve include/exclude prefix
+- malformed `#fps...` / `#w...` / `#h...` comparator tags show clickable video-meta examples (`#fps>=24`, `#fps=24..60`, `#w>=1080`, `#h>=1080`)
 - malformed range comparators show clickable range examples (`#dur=1..2`, `#dur=..2`, `#src=2k..4k`, `#src=2k..`, `#out=0..2`)
 - malformed `#dur...` comparator tags also show inline duration-format examples (`#dur>90s`, `#dur>1m30s`)
 - duration-format example tags are clickable to replace malformed `#dur` tokens immediately
@@ -105,7 +107,7 @@ Upload constraints are enforced by the backend:
 - active filter chips are shown for parsed terms (`+term` includes, `-term` excludes)
 - clicking a filter chip removes that term from the query immediately
 - partial tag input (like `#c` / `-#o`) shows suggestions, and `Tab` autocompletes the first suggestion
-- comparator fragments like `#src=` / `#out=` / `#dur=` keep root suggestions visible for fast correction (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`)
+- comparator fragments like `#src=` / `#out=` / `#dur=` / `#fps=` / `#w=` / `#h=` keep root suggestions visible for fast correction (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#fps=24..60`)
 - duration suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`)
 - when tag suggestions are visible, `Enter` autocompletes first; a second `Enter` loads filtered clip, while `Shift+Enter` bypasses autocomplete to load immediately
 - when tag suggestions are visible, `ArrowUp` / `ArrowDown` cycles suggestions before `Enter`/`Tab` apply

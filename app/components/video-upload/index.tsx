@@ -11,18 +11,23 @@ const RECENT_CURSOR_PAGE_STEP = 5;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2"] as const;
-const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur"] as const;
+const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
   "#out": ["#out=0..2", "#out=..0"],
   "#src": ["#src=2k..4k", "#src=2k.."],
   "#mb": ["#mb=0b..1m", "#mb=..1m"],
   "#dur": ["#dur=1..2", "#dur=..2", "#dur=0:01..0:06"],
+  "#fps": ["#fps=24..60", "#fps=..30"],
+  "#w": ["#w=720..1920", "#w=..1080"],
+  "#h": ["#h=720..1920", "#h=..1920"],
 };
 const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2"] as const;
+const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
+const RECENT_VIDEO_META_HINT_TAGS = ["#fps>=24", "#fps=24..60", "#w>=1080", "#h>=1080"] as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 type NumericRangeFilter = { min: number | null; max: number | null };
 
@@ -98,6 +103,41 @@ function parseDurationLiteralSeconds(raw: string): number | null {
   return minutes * 60 + seconds;
 }
 
+function parseDecimalLiteral(raw: string): number | null {
+  const token = raw.trim();
+  if (!/^\d+(?:\.\d+)?$/.test(token)) return null;
+  const value = Number(token);
+  return Number.isFinite(value) ? value : null;
+}
+
+function parseIntegerLiteral(raw: string): number | null {
+  const token = raw.trim();
+  if (!/^\d+$/.test(token)) return null;
+  const value = Number(token);
+  return Number.isFinite(value) ? value : null;
+}
+
+function parseOpenRangeParts(
+  leftRaw: string,
+  rightRaw: string,
+  parseValue: (token: string) => number | null,
+): NumericRangeFilter | null {
+  const leftToken = leftRaw.trim();
+  const rightToken = rightRaw.trim();
+  const hasLeft = leftToken.length > 0;
+  const hasRight = rightToken.length > 0;
+  if (!hasLeft && !hasRight) return null;
+  const left = hasLeft ? parseValue(leftToken) : null;
+  const right = hasRight ? parseValue(rightToken) : null;
+  if ((left != null && !Number.isFinite(left)) || (right != null && !Number.isFinite(right))) return null;
+  if (hasLeft && left == null) return null;
+  if (hasRight && right == null) return null;
+  if (left != null && right != null) return normalizeNumericRange(left, right);
+  if (left != null) return { min: left, max: null };
+  if (right != null) return { min: null, max: right };
+  return null;
+}
+
 function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
   const comparatorMatch = term.match(/^#out(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
   if (!comparatorMatch) return null;
@@ -109,39 +149,15 @@ function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator
 }
 
 function parseOutputRangeTerm(term: string): NumericRangeFilter | null {
-  const rangeMatch = term.match(/^#out(?:==|=)(\d*)\.\.(\d*)$/);
+  const rangeMatch = term.match(/^#out(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
-  const leftRaw = rangeMatch[1];
-  const rightRaw = rangeMatch[2];
-  const hasLeft = leftRaw.length > 0;
-  const hasRight = rightRaw.length > 0;
-  if (!hasLeft && !hasRight) return null;
-  const left = hasLeft ? Number(leftRaw) : null;
-  const right = hasRight ? Number(rightRaw) : null;
-  if ((left != null && !Number.isFinite(left)) || (right != null && !Number.isFinite(right))) return null;
-  if (left != null && right != null) return normalizeNumericRange(left, right);
-  if (left != null) return { min: left, max: null };
-  if (right != null) return { min: null, max: right };
-  return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
 }
 
 function parseSourceBytesRangeTerm(term: string): NumericRangeFilter | null {
   const rangeMatch = term.match(/^#src(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
-  const leftRaw = rangeMatch[1].trim();
-  const rightRaw = rangeMatch[2].trim();
-  const hasLeft = leftRaw.length > 0;
-  const hasRight = rightRaw.length > 0;
-  if (!hasLeft && !hasRight) return null;
-  const left = hasLeft ? parseByteLiteral(leftRaw) : null;
-  const right = hasRight ? parseByteLiteral(rightRaw) : null;
-  if ((left != null && !Number.isFinite(left)) || (right != null && !Number.isFinite(right))) return null;
-  if (hasLeft && left == null) return null;
-  if (hasRight && right == null) return null;
-  if (left != null && right != null) return normalizeNumericRange(left, right);
-  if (left != null) return { min: left, max: null };
-  if (right != null) return { min: null, max: right };
-  return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseByteLiteral);
 }
 
 function parseByteLiteral(raw: string): number | null {
@@ -183,20 +199,7 @@ function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOpe
 function parseOutputBytesRangeTerm(term: string): NumericRangeFilter | null {
   const rangeMatch = term.match(/^#mb(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
-  const leftRaw = rangeMatch[1].trim();
-  const rightRaw = rangeMatch[2].trim();
-  const hasLeft = leftRaw.length > 0;
-  const hasRight = rightRaw.length > 0;
-  if (!hasLeft && !hasRight) return null;
-  const left = hasLeft ? parseByteLiteral(leftRaw) : null;
-  const right = hasRight ? parseByteLiteral(rightRaw) : null;
-  if ((left != null && !Number.isFinite(left)) || (right != null && !Number.isFinite(right))) return null;
-  if (hasLeft && left == null) return null;
-  if (hasRight && right == null) return null;
-  if (left != null && right != null) return normalizeNumericRange(left, right);
-  if (left != null) return { min: left, max: null };
-  if (right != null) return { min: null, max: right };
-  return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseByteLiteral);
 }
 
 function parseDurationComparatorTerm(term: string): { operator: ComparatorOperator; valueSeconds: number } | null {
@@ -212,20 +215,55 @@ function parseDurationComparatorTerm(term: string): { operator: ComparatorOperat
 function parseDurationRangeTerm(term: string): NumericRangeFilter | null {
   const rangeMatch = term.match(/^#dur(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
-  const leftRaw = rangeMatch[1].trim();
-  const rightRaw = rangeMatch[2].trim();
-  const hasLeft = leftRaw.length > 0;
-  const hasRight = rightRaw.length > 0;
-  if (!hasLeft && !hasRight) return null;
-  const left = hasLeft ? parseDurationLiteralSeconds(leftRaw) : null;
-  const right = hasRight ? parseDurationLiteralSeconds(rightRaw) : null;
-  if ((left != null && !Number.isFinite(left)) || (right != null && !Number.isFinite(right))) return null;
-  if (hasLeft && left == null) return null;
-  if (hasRight && right == null) return null;
-  if (left != null && right != null) return normalizeNumericRange(left, right);
-  if (left != null) return { min: left, max: null };
-  if (right != null) return { min: null, max: right };
-  return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseDurationLiteralSeconds);
+}
+
+function parseFpsComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#fps(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+(?:\.\d+)?)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parseDecimalLiteral(comparatorMatch[2]);
+  if (value == null) return null;
+  return { operator, value };
+}
+
+function parseFpsRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#fps(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseDecimalLiteral);
+}
+
+function parseWidthComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#w(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parseIntegerLiteral(comparatorMatch[2]);
+  if (value == null) return null;
+  return { operator, value };
+}
+
+function parseWidthRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#w(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
+}
+
+function parseHeightComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#h(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parseIntegerLiteral(comparatorMatch[2]);
+  if (value == null) return null;
+  return { operator, value };
+}
+
+function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#h(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
 }
 
 function normalizeRecentFilterTerms(sourceTerms: string[]): string[] {
@@ -451,7 +489,13 @@ export function VideoUpload() {
     if (parseOutputRangeTerm(term) !== null) return true;
     if (parseOutputComparatorTerm(term) !== null) return true;
     if (parseDurationRangeTerm(term) !== null) return true;
-    return parseDurationComparatorTerm(term) !== null;
+    if (parseDurationComparatorTerm(term) !== null) return true;
+    if (parseFpsRangeTerm(term) !== null) return true;
+    if (parseFpsComparatorTerm(term) !== null) return true;
+    if (parseWidthRangeTerm(term) !== null) return true;
+    if (parseWidthComparatorTerm(term) !== null) return true;
+    if (parseHeightRangeTerm(term) !== null) return true;
+    return parseHeightComparatorTerm(term) !== null;
   }, []);
   const unknownRecentTagTerms = useMemo(() => {
     const out: string[] = [];
@@ -576,6 +620,19 @@ export function VideoUpload() {
         : [...RECENT_DURATION_HINT_TAGS],
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownVideoMetaHintConfig = useMemo(() => {
+    const unknownMetaTerms = parsedRecentFilterTerms.filter(
+      (item) => (item.term.startsWith("#fps") || item.term.startsWith("#w") || item.term.startsWith("#h")) && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownMetaTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownMetaTerms[unknownMetaTerms.length - 1];
+    return {
+      termIndex: target.idx,
+      tags: target.isExclude
+        ? RECENT_VIDEO_META_HINT_TAGS.map((tag) => `-${tag}`)
+        : [...RECENT_VIDEO_META_HINT_TAGS],
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
     const sourceBytesRange = parseSourceBytesRangeTerm(term);
     if (sourceBytesRange) {
@@ -636,6 +693,51 @@ export function VideoUpload() {
       if (operator === ">=") return duration >= valueSeconds;
       if (operator === "!=") return Math.abs(duration - valueSeconds) >= 0.05;
       return Math.abs(duration - valueSeconds) < 0.05;
+    }
+    const fpsRange = parseFpsRangeTerm(term);
+    if (fpsRange) {
+      return matchesNumericRange(item.info.fps, fpsRange);
+    }
+    const fpsComparator = parseFpsComparatorTerm(term);
+    if (fpsComparator) {
+      const { operator, value } = fpsComparator;
+      const fps = item.info.fps;
+      if (operator === "<") return fps < value;
+      if (operator === "<=") return fps <= value;
+      if (operator === ">") return fps > value;
+      if (operator === ">=") return fps >= value;
+      if (operator === "!=") return Math.abs(fps - value) >= 0.01;
+      return Math.abs(fps - value) < 0.01;
+    }
+    const widthRange = parseWidthRangeTerm(term);
+    if (widthRange) {
+      return matchesNumericRange(item.info.width, widthRange);
+    }
+    const widthComparator = parseWidthComparatorTerm(term);
+    if (widthComparator) {
+      const { operator, value } = widthComparator;
+      const width = item.info.width;
+      if (operator === "<") return width < value;
+      if (operator === "<=") return width <= value;
+      if (operator === ">") return width > value;
+      if (operator === ">=") return width >= value;
+      if (operator === "!=") return width !== value;
+      return width === value;
+    }
+    const heightRange = parseHeightRangeTerm(term);
+    if (heightRange) {
+      return matchesNumericRange(item.info.height, heightRange);
+    }
+    const heightComparator = parseHeightComparatorTerm(term);
+    if (heightComparator) {
+      const { operator, value } = heightComparator;
+      const height = item.info.height;
+      if (operator === "<") return height < value;
+      if (operator === "<=") return height <= value;
+      if (operator === ">") return height > value;
+      if (operator === ">=") return height >= value;
+      if (operator === "!=") return height !== value;
+      return height === value;
     }
     if (term.startsWith("#")) {
       const tag = term.slice(1);
@@ -708,7 +810,7 @@ export function VideoUpload() {
     const isIncludeTag = tail.startsWith("#");
     if (!isExcludeTag && !isIncludeTag) return [] as string[];
     const normalizedTail = isExcludeTag ? tail.slice(1) : tail;
-    const suggestionCandidates = [...RECENT_FILTER_TAGS, ...RECENT_FILTER_RANGE_SUGGESTIONS]
+    const suggestionCandidates = [...RECENT_FILTER_TAGS, ...RECENT_FILTER_RANGE_SUGGESTIONS, ...RECENT_FILTER_META_SUGGESTIONS]
       .filter((tag, idx, arr) => arr.indexOf(tag) === idx);
     const direct = suggestionCandidates.filter((tag) => tag.startsWith(normalizedTail));
     const base = direct.length > 0
@@ -721,6 +823,12 @@ export function VideoUpload() {
             ? suggestionCandidates.filter((tag) => tag.startsWith("#mb"))
             : normalizedTail.startsWith("#dur")
               ? suggestionCandidates.filter((tag) => tag.startsWith("#dur"))
+              : normalizedTail.startsWith("#fps")
+                ? suggestionCandidates.filter((tag) => tag.startsWith("#fps"))
+                : normalizedTail.startsWith("#w")
+                  ? suggestionCandidates.filter((tag) => tag.startsWith("#w"))
+                  : normalizedTail.startsWith("#h")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#h"))
               : [];
     return isExcludeTag ? base.map((tag) => `-${tag}`) : [...base];
   }, [recentFilter, recentFilterFocused]);
@@ -2191,6 +2299,22 @@ export function VideoUpload() {
                         onClick={() => replaceRecentFilterTerm(unknownStorageHintConfig.termIndex, tag)}
                         className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
                         aria-label={`Replace malformed storage filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownVideoMetaHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>video examples:</span>
+                    {unknownVideoMetaHintConfig.tags.map((tag) => (
+                      <button
+                        key={`meta-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownVideoMetaHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed video filter with ${tag}`}
                       >
                         {tag}
                       </button>
