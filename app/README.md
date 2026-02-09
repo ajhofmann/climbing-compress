@@ -85,7 +85,7 @@ Upload constraints are enforced by the backend:
 - keyboard shortcut `Alt+X` ejects the loaded clip back to the dropzone selector
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
 - recent module supports inline name filtering with dedicated `no matching clips` empty state, space-separated AND-term matching, and `-term` exclusions
-- filter query also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long` (plus exclusions like `-#out`)
+- filter query also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (plus exclusions like `-#out`)
 - output-count comparators are supported too (e.g. `#out>=1`, `#out=0`, `#out!=0`, `#out>2`)
 - comparator ranges are supported using `..`, including open-ended bounds (e.g. `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`)
 - comparator equality accepts both `=` and `==` forms (e.g. `#out==0`, `#dur==8`)
@@ -111,7 +111,7 @@ Upload constraints are enforced by the backend:
 - duration suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`)
 - when tag suggestions are visible, `Enter` autocompletes first; a second `Enter` loads filtered clip, while `Shift+Enter` bypasses autocomplete to load immediately
 - when tag suggestions are visible, `ArrowUp` / `ArrowDown` cycles suggestions before `Enter`/`Tab` apply
-- focusing an empty filter input shows quick one-click tag buttons for simple tags plus comparator/range presets (e.g. `#cached`, `#out>=1`, `#src=2k..`, `#dur=..2`)
+- focusing an empty filter input shows quick one-click tag buttons for simple tags plus comparator/range presets (e.g. `#cached`, `#landscape`, `#out>=1`, `#src=2k..`, `#dur=..2`)
 - quick tag buttons show live match counts (`#tag:N`) but insert plain tag tokens when clicked
 - zero-match quick tags are collapsed by default and can be expanded via `[+N zero]` (`[hide 0s]` when expanded)
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded

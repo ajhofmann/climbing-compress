@@ -9,7 +9,7 @@ const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_CURSOR_PAGE_STEP = 5;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
-const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
+const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
@@ -750,6 +750,9 @@ export function VideoUpload() {
       if (tag === "noout") return item.output_count <= 0;
       if (tag === "short") return item.info.duration <= 5;
       if (tag === "long") return item.info.duration > 5;
+      if (tag === "portrait") return item.info.height > item.info.width;
+      if (tag === "landscape") return item.info.width > item.info.height;
+      if (tag === "square") return item.info.width === item.info.height;
     }
     return item.filename.toLowerCase().includes(term);
   }, []);

@@ -88,7 +88,7 @@ Upload notes:
 - Keyboard: `Alt + X` ejects the currently loaded clip back to dropzone mode.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, and `-term` exclusions.
-- Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long` (and exclusions like `-#out`).
+- Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (and exclusions like `-#out`).
 - Output-count comparators are supported too (for example `#out>=1`, `#out=0`, `#out!=0`, `#out>2`).
 - Comparator ranges are supported with `..`, including open-ended bounds (for example `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`).
 - Comparator equality accepts both `=` and `==` forms (for example `#out==0`, `#dur==8`).
@@ -114,7 +114,7 @@ Upload notes:
 - Duration tag suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`) for faster comparator input.
 - While tag suggestions are visible, `Enter` first autocompletes the top suggestion; pressing `Enter` again loads the filtered clip, and `Shift+Enter` bypasses autocomplete to load immediately.
 - While tag suggestions are visible, `↑` / `↓` cycles suggestion selection before `Enter`/`Tab` apply.
-- Focusing an empty filter input shows quick tag buttons for simple tags plus comparator/range presets (for example `#cached`, `#out>=1`, `#src=2k..`, `#dur=..2`).
+- Focusing an empty filter input shows quick tag buttons for simple tags plus comparator/range presets (for example `#cached`, `#landscape`, `#out>=1`, `#src=2k..`, `#dur=..2`).
 - Quick tag buttons include live match counts (`#tag:N`) while still inserting plain tag tokens.
 - Zero-match quick tags are hidden by default with a `[+N zero]` toggle (`[hide 0s]` when expanded).
 - Recent section includes output-scope filtering (`[out:all]` / `[out:with]` / `[out:none]`) for output-housekeeping workflows.
