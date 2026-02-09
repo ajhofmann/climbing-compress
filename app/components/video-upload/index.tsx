@@ -27,7 +27,11 @@ const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_T
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
-const RECENT_VIDEO_META_HINT_TAGS = ["#fps>=24", "#fps=24..60", "#w>=1080", "#h>=1080"] as const;
+const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
+  "#fps": ["#fps>=24", "#fps=24..60"],
+  "#w": ["#w>=1080", "#w=..1080"],
+  "#h": ["#h>=1080", "#h=..1920"],
+} as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 type NumericRangeFilter = { min: number | null; max: number | null };
 
@@ -264,6 +268,17 @@ function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
   const rangeMatch = term.match(/^#(?:h|height)(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
   return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
+}
+
+function remapVideoMetaAliasForTarget(tag: string, targetTerm: string): string {
+  const normalizedTarget = targetTerm.toLowerCase();
+  if (normalizedTarget.startsWith("#width") && tag.startsWith("#w")) {
+    return `#width${tag.slice(2)}`;
+  }
+  if (normalizedTarget.startsWith("#height") && tag.startsWith("#h")) {
+    return `#height${tag.slice(2)}`;
+  }
+  return tag;
 }
 
 function normalizeRecentFilterTerms(sourceTerms: string[]): string[] {
@@ -545,7 +560,8 @@ export function VideoUpload() {
     const target = unknownRangeTerms[unknownRangeTerms.length - 1];
     const family = RECENT_COMPARATOR_FAMILIES.find((entry) => target.term.startsWith(entry));
     if (!family) return null;
-    const base = [...RECENT_RANGE_HINT_TAGS_BY_FAMILY[family]];
+    const base = [...RECENT_RANGE_HINT_TAGS_BY_FAMILY[family]]
+      .map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
       tags: target.isExclude ? base.map((tag) => `-${tag}`) : base,
@@ -625,15 +641,31 @@ export function VideoUpload() {
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownVideoMetaHintConfig = useMemo(() => {
     const unknownMetaTerms = parsedRecentFilterTerms.filter(
-      (item) => (item.term.startsWith("#fps") || item.term.startsWith("#w") || item.term.startsWith("#h")) && !isRecognizedRecentTagTerm(item.term),
+      (item) => (
+        item.term.startsWith("#fps")
+        || item.term.startsWith("#w")
+        || item.term.startsWith("#h")
+        || item.term.startsWith("#width")
+        || item.term.startsWith("#height")
+      ) && !isRecognizedRecentTagTerm(item.term),
     );
     if (unknownMetaTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
     const target = unknownMetaTerms[unknownMetaTerms.length - 1];
+    const family = target.term.startsWith("#fps")
+      ? "#fps"
+      : target.term.startsWith("#w") || target.term.startsWith("#width")
+        ? "#w"
+        : target.term.startsWith("#h") || target.term.startsWith("#height")
+          ? "#h"
+          : null;
+    if (!family) return null;
+    const base = [...RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY[family]]
+      .map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
       tags: target.isExclude
-        ? RECENT_VIDEO_META_HINT_TAGS.map((tag) => `-${tag}`)
-        : [...RECENT_VIDEO_META_HINT_TAGS],
+        ? base.map((tag) => `-${tag}`)
+        : base,
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
@@ -836,7 +868,8 @@ export function VideoUpload() {
                   : normalizedTail.startsWith("#h")
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#h"))
               : [];
-    return isExcludeTag ? base.map((tag) => `-${tag}`) : [...base];
+    const aliasAdjustedBase = base.map((tag) => remapVideoMetaAliasForTarget(tag, normalizedTail));
+    return isExcludeTag ? aliasAdjustedBase.map((tag) => `-${tag}`) : aliasAdjustedBase;
   }, [recentFilter, recentFilterFocused]);
   useEffect(() => {
     if (recentTagSuggestions.length <= 0) {

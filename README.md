@@ -102,8 +102,8 @@ Upload notes:
 - Specific malformed comparator example rows are suppressed when a direct `did you mean` replacement is available, reducing hint clutter.
 - Malformed `#out...` comparator tags now surface clickable output examples (`#out>=1`, `#out=0`) with include/exclude prefix preservation.
 - Malformed `#src...` / `#mb...` comparator tags now surface clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) with include/exclude prefix preservation.
-- Malformed `#fps...` / `#w...` / `#h...` comparator tags now surface clickable video-meta examples (`#fps>=24`, `#fps=24..60`, `#w>=1080`, `#h>=1080`).
-- Malformed range comparators now surface clickable range examples (for example `#dur=1..2`, `#dur=..2`, `#src=2k..4k`, `#src=2k..`, `#out=0..2`).
+- Malformed `#fps...` / `#w...` / `#h...` comparator tags now surface clickable video-meta examples (`#fps>=24`, `#fps=24..60`, `#w>=1080`, `#h>=1080`), preserving long-form aliases when typed (`#width...`, `#height...`).
+- Malformed range comparators now surface clickable range examples (for example `#dur=1..2`, `#dur=..2`, `#src=2k..4k`, `#src=2k..`, `#out=0..2`), preserving long aliases like `#height=..x` -> `#height=..1920`.
 - Unknown `#dur...` comparator tags now also surface inline duration-format examples (seconds/minutes syntax).
 - Duration-format examples are clickable to replace malformed `#dur` tokens instantly.
 - If the malformed token is exclude-form (`-#dur...`), clickable replacements preserve the exclude prefix.
