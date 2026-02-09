@@ -101,6 +101,7 @@ Upload notes:
 - Resolution comparators accept `x`, `×`, `*`, or `:` separators (for example `#res=1920x1080`, `#res=1920*1080`, `#res=16:9`).
 - Extension comparators are supported as equality checks too (for example `#ext=mp4`, `#ext=mp4,mov`, `#ext!=mov`), including long alias `#format...`.
 - Filename comparators are supported as exact/pattern checks too (for example `#name=clip.mp4`, `#name=clip.mp4,other.mp4`, `#name!=clip.mp4`, `#name*=clip`, `#name^=recent_`, `#name$=.mp4`), including aliases `#file...` and `#filename...`.
+- Video-id comparators are supported for quick clip targeting too (for example `#id=c9b07510d5`, `#id*=c9b0`, `#id^=c9`, `#id$=510d5`), including aliases `#video...` and `#vid...`.
 - Unknown `#tag` tokens are highlighted in warning style and listed as `unknown tag:*` until corrected/removed.
 - Unknown non-duration tags also surface `did you mean` replacement buttons (for example `#cachedd` → `#cached`) with one-click repair.
 - Comparator-family typos are auto-suggested too (for example `#dru>5` → `#dur>5`, `-#srd>3k` → `-#src>3k`, `#filname=clip.mp4` → `#filename=clip.mp4`, `#reslution=320x240` → `#resolution=320x240`).
@@ -109,6 +110,7 @@ Upload notes:
 - Malformed `#src...` / `#mb...` comparator tags now surface clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) with include/exclude prefix preservation.
 - Malformed `#ext...` / `#format...` comparator tags now surface clickable extension examples (`#ext=mp4`, `#ext=mp4,mov`, `#ext!=mp4`) with include/exclude prefix preservation and long-alias preservation.
 - Malformed `#name...` / `#file...` / `#filename...` comparator tags now surface clickable filename examples (`#name=clip.mp4`, `#name=clip.mp4,other.mp4`, `#name!=clip.mp4`, `#name*=clip`) with include/exclude prefix + alias preservation.
+- Malformed `#id...` / `#video...` / `#vid...` comparator tags now surface clickable id examples (`#id*=abc`, `#id^=c9b0`, `#id=deadbeef00`) with include/exclude prefix + alias preservation.
 - Malformed `#fps...` / `#w...` / `#h...` / `#ar...` / `#fc...` / `#res...` comparator tags now surface clickable video-meta examples (`#fps>=24`, `#fps=24..60`, `#w>=1080`, `#h>=1080`, `#ar>=1.3`, `#fc>=25`, `#res=1920x1080`), preserving long-form aliases when typed (`#framerate...`, `#width...`, `#height...`, `#aspect...`, `#ratio...`, `#frames...`, `#resolution...`).
 - Malformed range comparators now surface clickable range examples (for example `#dur=1..2`, `#dur=..2`, `#src=2k..4k`, `#src=2k..`, `#out=0..2`, `#ar=1.3..1.8`, `#fc=25..200`), preserving long aliases like `#height=..x` -> `#height=..1920`.
 - Unknown `#dur...` / `#time...` / `#duration...` comparator tags now also surface inline duration-format examples (seconds/minutes syntax).
@@ -117,7 +119,7 @@ Upload notes:
 - Recent filter now renders active term chips (`+term` includes, `-term`/`!term` excludes) to clarify parsed query semantics.
 - Click a filter term chip to remove that specific term from the query instantly.
 - Typing partial tag tokens (for example `#c`, `-#o`) shows tag suggestions; press `Tab` to autocomplete.
-- Comparator fragments like `#src=` / `#out=` / `#dur=` / `#fps=` / `#w=` / `#h=` / `#ar=` / `#fc=` / `#res=` / `#ext=` / `#name=` (plus long forms like `#time=` / `#duration=` / `#framerate=` / `#width=` / `#height=` / `#aspect=` / `#ratio=` / `#frames=` / `#resolution=` / `#format=` / `#file=` / `#filename=`) also keep root-level suggestions visible for quick recovery (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#fps=24..60`, `#ar=1.3..1.8`, `#fc=25..200`).
+- Comparator fragments like `#src=` / `#out=` / `#dur=` / `#fps=` / `#w=` / `#h=` / `#ar=` / `#fc=` / `#res=` / `#ext=` / `#name=` / `#id=` (plus long forms like `#time=` / `#duration=` / `#framerate=` / `#width=` / `#height=` / `#aspect=` / `#ratio=` / `#frames=` / `#resolution=` / `#format=` / `#file=` / `#filename=` / `#video=` / `#vid=`) also keep root-level suggestions visible for quick recovery (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#fps=24..60`, `#ar=1.3..1.8`, `#fc=25..200`).
 - Duration tag suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`) for faster comparator input.
 - While tag suggestions are visible, `Enter` first autocompletes the top suggestion; pressing `Enter` again loads the filtered clip, and `Shift+Enter` bypasses autocomplete to load immediately.
 - While tag suggestions are visible, `↑` / `↓` cycles suggestion selection before `Enter`/`Tab` apply.
