@@ -296,7 +296,7 @@ function parseExtensionComparatorTerm(term: string): ExtensionComparatorTerm | n
 }
 
 function parseResolutionComparatorTerm(term: string): { operator: ResolutionComparatorOperator; width: number; height: number } | null {
-  const comparatorMatch = term.match(/^#(?:res|resolution)(==|=|!=|<>)(\d{2,5})\s*x\s*(\d{2,5})$/i);
+  const comparatorMatch = term.match(/^#(?:res|resolution)(==|=|!=|<>)(\d{2,5})\s*(?:x|×|\*|:)\s*(\d{2,5})$/i);
   if (!comparatorMatch) return null;
   const operator: ResolutionComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "==" ? "=" : "!=";
   const width = parseIntegerLiteral(comparatorMatch[2]);

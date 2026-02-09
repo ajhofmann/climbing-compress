@@ -94,6 +94,7 @@ Upload constraints are enforced by the backend:
 - storage comparators are supported with byte units (e.g. `#src>3k`, `#src>3kb`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`)
 - duration comparator tags are supported too (e.g. `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur!=5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`, `#dur>1:30`, `#dur>0:00:01.8`, `#dur>1h2m`)
 - video metadata comparators are supported for fps/width/height/aspect/frame-count/resolution too (e.g. `#fps<=24`, `#fps=24..60`, `#w=..1080`, `#h>=1080`, `#ar=1.3..1.8`, `#ar>=16:9`, `#fc<=30`, `#res=1920x1080`), including long aliases `#framerate...`, `#width...`, `#height...`, `#frames...`, and `#resolution...`
+- resolution comparators accept separators `x`, `×`, `*`, or `:` (e.g. `#res=1920x1080`, `#res=1920*1080`, `#res=16:9`)
 - extension comparators are supported as equality checks too (e.g. `#ext=mp4`, `#ext=mp4,mov`, `#ext!=mov`), including long alias `#format...`
 - filename comparators are supported as exact/pattern checks too (e.g. `#name=clip.mp4`, `#name!=clip.mp4`, `#name*=clip`, `#name^=recent_`, `#name$=.mp4`), including aliases `#file...` and `#filename...`
 - unknown `#tag` tokens are rendered as warning chips with an inline `unknown tag:*` message
