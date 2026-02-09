@@ -96,7 +96,7 @@ Upload notes:
 - Comparator ranges are supported with `..`, including open-ended bounds (for example `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`).
 - Comparator equality accepts both `=` and `==` forms (for example `#out==0`, `#dur==8`).
 - Comparator typo aliases are accepted too (`=>` as `>=`, `=<` as `<=`, `<>` as `!=`) for faster forgiving input.
-- Storage comparators are supported with byte units (for example `#src>3k`, `#src>3kb`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`), including alias `#source...`.
+- Storage comparators are supported with byte units (for example `#src>3k`, `#src>3kb`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`), including aliases `#source...` (source bytes) and `#render...` / `#outputbytes...` (rendered-output bytes).
 - Duration comparator tags are also supported (for example `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur!=5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`, `#dur>1:30`, `#dur>0:00:01.8`, `#dur>1h2m`), including aliases `#time...` and `#duration...`.
 - Video metadata comparators are supported for FPS/width/height/aspect/frame-count/resolution too (for example `#fps<=24`, `#fps=24..60`, `#w=..1080`, `#h>=1080`, `#ar=1.3..1.8`, `#ar>=16:9`, `#fc<=30`, `#res=1920x1080`), including long aliases `#framerate...`, `#width...`, `#height...`, `#aspect...`, `#ratio...`, `#frames...`, and `#resolution...`.
 - Resolution comparators accept `x`, `×`, `*`, or `:` separators (for example `#res=1920x1080`, `#res=1920*1080`, `#res=16:9`).
@@ -108,7 +108,7 @@ Upload notes:
 - Comparator-family typos are auto-suggested too (for example `#dru>5` → `#dur>5`, `-#srd>3k` → `-#src>3k`, `#filname=clip.mp4` → `#filename=clip.mp4`, `#reslution=320x240` → `#resolution=320x240`).
 - Specific malformed comparator example rows are suppressed when a direct `did you mean` replacement is available, reducing hint clutter.
 - Malformed `#out...` / `#outputs...` comparator tags now surface clickable output examples (`#out>=1`, `#out=0`) with include/exclude prefix preservation + alias preservation.
-- Malformed `#src...` / `#source...` / `#mb...` comparator tags now surface clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) with include/exclude prefix preservation + alias preservation.
+- Malformed `#src...` / `#source...` / `#mb...` / `#render...` / `#outputbytes...` comparator tags now surface clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) with include/exclude prefix preservation + alias preservation.
 - Malformed `#ext...` / `#format...` comparator tags now surface clickable extension examples (`#ext=mp4`, `#ext=mp4,mov`, `#ext!=mp4`) with include/exclude prefix preservation and long-alias preservation.
 - Malformed `#name...` / `#file...` / `#filename...` comparator tags now surface clickable filename examples (`#name=clip.mp4`, `#name=clip.mp4,other.mp4`, `#name!=clip.mp4`, `#name*=clip`) with include/exclude prefix + alias preservation.
 - Malformed `#id...` / `#video...` / `#vid...` comparator tags now surface clickable id examples (`#id*=abc`, `#id^=c9b0`, `#id=deadbeef00`, `#id=abc123,def456`) with include/exclude prefix + alias preservation.
@@ -120,7 +120,7 @@ Upload notes:
 - Recent filter now renders active term chips (`+term` includes, `-term`/`!term` excludes) to clarify parsed query semantics.
 - Click a filter term chip to remove that specific term from the query instantly.
 - Typing partial tag tokens (for example `#c`, `-#o`) shows tag suggestions; press `Tab` to autocomplete.
-- Comparator fragments like `#src=` / `#out=` / `#dur=` / `#fps=` / `#w=` / `#h=` / `#ar=` / `#fc=` / `#res=` / `#ext=` / `#name=` / `#id=` (plus long forms like `#source=` / `#outputs=` / `#time=` / `#duration=` / `#framerate=` / `#width=` / `#height=` / `#aspect=` / `#ratio=` / `#frames=` / `#resolution=` / `#format=` / `#file=` / `#filename=` / `#video=` / `#vid=`) also keep root-level suggestions visible for quick recovery (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#fps=24..60`, `#ar=1.3..1.8`, `#fc=25..200`).
+- Comparator fragments like `#src=` / `#mb=` / `#out=` / `#dur=` / `#fps=` / `#w=` / `#h=` / `#ar=` / `#fc=` / `#res=` / `#ext=` / `#name=` / `#id=` (plus long forms like `#source=` / `#render=` / `#outputbytes=` / `#outputs=` / `#time=` / `#duration=` / `#framerate=` / `#width=` / `#height=` / `#aspect=` / `#ratio=` / `#frames=` / `#resolution=` / `#format=` / `#file=` / `#filename=` / `#video=` / `#vid=`) also keep root-level suggestions visible for quick recovery (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#fps=24..60`, `#ar=1.3..1.8`, `#fc=25..200`).
 - Duration tag suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`) for faster comparator input.
 - While tag suggestions are visible, `Enter` first autocompletes the top suggestion; pressing `Enter` again loads the filtered clip, and `Shift+Enter` bypasses autocomplete to load immediately.
 - While tag suggestions are visible, `↑` / `↓` cycles suggestion selection before `Enter`/`Tab` apply.
