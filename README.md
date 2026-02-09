@@ -108,7 +108,7 @@ Upload notes:
 - Recent filter now renders active term chips (`+term` includes, `-term` excludes) to clarify parsed query semantics.
 - Click a filter term chip to remove that specific term from the query instantly.
 - Typing partial tag tokens (for example `#c`, `-#o`) shows tag suggestions; press `Tab` to autocomplete.
-- Comparator fragments like `#src=` / `#out=` / `#dur=` also keep root-level suggestions visible for quick recovery.
+- Comparator fragments like `#src=` / `#out=` / `#dur=` also keep root-level suggestions visible for quick recovery (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`).
 - Duration tag suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`) for faster comparator input.
 - While tag suggestions are visible, `Enter` first autocompletes the top suggestion; pressing `Enter` again loads the filtered clip, and `Shift+Enter` bypasses autocomplete to load immediately.
 - While tag suggestions are visible, `↑` / `↓` cycles suggestion selection before `Enter`/`Tab` apply.

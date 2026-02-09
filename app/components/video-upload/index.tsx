@@ -18,6 +18,7 @@ const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIE
   "#mb": ["#mb=0b..1m"],
   "#dur": ["#dur=1..2", "#dur=0:01..0:06"],
 };
+const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
@@ -707,17 +708,19 @@ export function VideoUpload() {
     const isIncludeTag = tail.startsWith("#");
     if (!isExcludeTag && !isIncludeTag) return [] as string[];
     const normalizedTail = isExcludeTag ? tail.slice(1) : tail;
-    const direct = RECENT_FILTER_TAGS.filter((tag) => tag.startsWith(normalizedTail));
+    const suggestionCandidates = [...RECENT_FILTER_TAGS, ...RECENT_FILTER_RANGE_SUGGESTIONS]
+      .filter((tag, idx, arr) => arr.indexOf(tag) === idx);
+    const direct = suggestionCandidates.filter((tag) => tag.startsWith(normalizedTail));
     const base = direct.length > 0
       ? direct
       : normalizedTail.startsWith("#out")
-        ? RECENT_FILTER_TAGS.filter((tag) => tag.startsWith("#out"))
+        ? suggestionCandidates.filter((tag) => tag.startsWith("#out"))
         : normalizedTail.startsWith("#src")
-          ? RECENT_FILTER_TAGS.filter((tag) => tag.startsWith("#src"))
+          ? suggestionCandidates.filter((tag) => tag.startsWith("#src"))
           : normalizedTail.startsWith("#mb")
-            ? RECENT_FILTER_TAGS.filter((tag) => tag.startsWith("#mb"))
+            ? suggestionCandidates.filter((tag) => tag.startsWith("#mb"))
             : normalizedTail.startsWith("#dur")
-              ? RECENT_FILTER_TAGS.filter((tag) => tag.startsWith("#dur"))
+              ? suggestionCandidates.filter((tag) => tag.startsWith("#dur"))
               : [];
     return isExcludeTag ? base.map((tag) => `-${tag}`) : [...base];
   }, [recentFilter, recentFilterFocused]);

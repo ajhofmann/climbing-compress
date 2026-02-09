@@ -105,7 +105,7 @@ Upload constraints are enforced by the backend:
 - active filter chips are shown for parsed terms (`+term` includes, `-term` excludes)
 - clicking a filter chip removes that term from the query immediately
 - partial tag input (like `#c` / `-#o`) shows suggestions, and `Tab` autocompletes the first suggestion
-- comparator fragments like `#src=` / `#out=` / `#dur=` keep root suggestions visible for fast correction
+- comparator fragments like `#src=` / `#out=` / `#dur=` keep root suggestions visible for fast correction (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`)
 - duration suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`)
 - when tag suggestions are visible, `Enter` autocompletes first; a second `Enter` loads filtered clip, while `Shift+Enter` bypasses autocomplete to load immediately
 - when tag suggestions are visible, `ArrowUp` / `ArrowDown` cycles suggestions before `Enter`/`Tab` apply
