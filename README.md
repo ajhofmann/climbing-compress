@@ -136,6 +136,7 @@ Upload notes:
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
 - Press `Enter` in the recent filter input to load the first matching clip instantly (`Shift+Enter` forces load even when tag suggestions are open).
 - Press `↑` / `↓` in the recent filter input to choose a clip (wraps at list ends) when no tag suggestion is open, then `Enter` to load the highlighted selection.
+- Press `Home` / `End` in the recent filter input to jump selection to the first/last visible clip.
 - Press `PageUp` / `PageDown` in the recent filter input to jump the visible-clip cursor by 5 slots at a time.
 - Selected keyboard target is shown with a `▶` prefix in the recent clip row.
 - Recent clip row now shows `1-0` slot markers for quick keyboard loading (`0` marker = slot 10).

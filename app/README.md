@@ -117,6 +117,7 @@ Upload constraints are enforced by the backend:
 - `Esc` clears active recent filter text and restores default preview
 - pressing `Enter` in recent filter input loads the first matching clip immediately (`Shift+Enter` forces load even when tag suggestions are open)
 - `ArrowUp` / `ArrowDown` in recent filter input moves a visible-clip cursor with wrap-around when no tag suggestion is open; `Enter` loads that highlighted clip
+- `Home` / `End` in recent filter input jumps the cursor to the first/last visible clip
 - `PageUp` / `PageDown` in recent filter input jumps the visible-clip cursor by 5 slots
 - selected keyboard target is rendered with a `▶` prefix in the recent row
 - recent row displays `1-0` slot markers for quick keyboard load targeting (`0` = slot 10)

@@ -2017,6 +2017,18 @@ export function VideoUpload() {
                       });
                       return;
                     }
+                    if (e.key === "Home") {
+                      if (visibleRecent.length <= 0) return;
+                      e.preventDefault();
+                      setRecentCursorIdx(0);
+                      return;
+                    }
+                    if (e.key === "End") {
+                      if (visibleRecent.length <= 0) return;
+                      e.preventDefault();
+                      setRecentCursorIdx(visibleRecent.length - 1);
+                      return;
+                    }
                     if (e.key === "Enter") {
                       e.preventDefault();
                       if (!e.shiftKey && recentTagSuggestions.length > 0 && !recentFilter.endsWith(" ")) {
@@ -2043,7 +2055,7 @@ export function VideoUpload() {
                   }}
                   placeholder="filter clips (+term -term #tag)"
                   aria-label="Filter recent clips by terms (space-separated include/exclude and optional tags like #cached or #out)"
-                  aria-keyshortcuts="Alt+Backspace Control+Backspace Meta+Backspace Tab Shift+Enter PageUp PageDown"
+                  aria-keyshortcuts="Alt+Backspace Control+Backspace Meta+Backspace Tab Shift+Enter PageUp PageDown Home End"
                   className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
                 />
                 {recentFilter && (
@@ -2221,7 +2233,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · Shift+Enter force load first match · ↑↓ select · PgUp/PgDn jump cursor by 5 · #tag + Tab/Enter complete (↑↓ picks suggestion) · Alt/Ctrl/Cmd+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · Shift+Enter force load first match · ↑↓ select · Home/End jump first/last · PgUp/PgDn jump cursor by 5 · #tag + Tab/Enter complete (↑↓ picks suggestion) · Alt/Ctrl/Cmd+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (
