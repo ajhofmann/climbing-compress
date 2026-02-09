@@ -23,8 +23,8 @@ const RECENT_FILTER_SIMPLE_TAG_ALIASES = {
   "#sq": "#square",
 } as const;
 const RECENT_FILTER_SIMPLE_TAG_ALIAS_SUGGESTIONS = Object.keys(RECENT_FILTER_SIMPLE_TAG_ALIASES) as (keyof typeof RECENT_FILTER_SIMPLE_TAG_ALIASES)[];
-const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#px>=2mp", "#px=1mp..3mp", "#ext=mp4", "#ext=mp4,mov", "#ext*=mp", "#res=1920x1080", "#res>=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name*=clip", "#id*=abc", "#id=abc123,def456"] as const;
-const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc", "#px"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#px>=2mp", "#px=1mp..3mp", "#ext=mp4", "#ext=mp4,mov", "#ext*=mp", "#res=1920x1080", "#res>=1920x1080", "#res=1280x720..1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name*=clip", "#id*=abc", "#id=abc123,def456"] as const;
+const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc", "#px", "#res"] as const;
 const RECENT_COMPARATOR_TYPO_FAMILIES = ["#out", "#outputs", "#src", "#source", "#sourcebytes", "#mb", "#render", "#outputbytes", "#dur", "#time", "#duration", "#fps", "#framerate", "#w", "#width", "#h", "#height", "#ar", "#aspect", "#ratio", "#fc", "#frames", "#px", "#pixels", "#mp", "#res", "#resolution", "#ext", "#format", "#name", "#file", "#filename", "#id", "#video", "#videoid", "#vid"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
   "#out": ["#out=0..2", "#out=..0"],
@@ -37,8 +37,9 @@ const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIE
   "#ar": ["#ar=1.3..1.8", "#ar=..1.4"],
   "#fc": ["#fc=25..200", "#fc=..30"],
   "#px": ["#px=1mp..3mp", "#px=..2mp"],
+  "#res": ["#res=1280x720..1920x1080", "#res=..1920x1080"],
 };
-const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2", "#ar=1.3..1.8", "#ar=..1.4", "#fc=25..200", "#fc=..30", "#px=1mp..3mp", "#px=..2mp"] as const;
+const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2", "#ar=1.3..1.8", "#ar=..1.4", "#fc=25..200", "#fc=..30", "#px=1mp..3mp", "#px=..2mp", "#res=1280x720..1920x1080", "#res=..1920x1080"] as const;
 const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200", "#px>=2mp", "#px<=4mp", "#px=1mp..3mp", "#res=1920x1080", "#res>=1920x1080", "#res!=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name!=clip.mp4", "#name*=clip", "#name^=recent_", "#name$=.mp4", "#id*=abc", "#id^=c9b0", "#id=deadbeef00", "#id=abc123,def456"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
@@ -60,6 +61,8 @@ type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 type ExtensionComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
 type ExtensionComparatorTerm = { operator: ExtensionComparatorOperator; values: string[] };
 type ResolutionComparatorOperator = ComparatorOperator;
+type ResolutionPair = { width: number; height: number };
+type ResolutionRangeFilter = { min: ResolutionPair | null; max: ResolutionPair | null };
 type NameComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
 type NameComparatorTerm = { operator: NameComparatorOperator; values: string[] };
 type IdComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
@@ -357,15 +360,46 @@ function parseExtensionComparatorTerm(term: string): ExtensionComparatorTerm | n
   return { operator, values: [value] };
 }
 
+function parseResolutionPairLiteral(raw: string): ResolutionPair | null {
+  const match = raw.trim().match(/^(\d{1,5})\s*(?:x|×|\*|:)\s*(\d{1,5})$/i);
+  if (!match) return null;
+  const width = parseIntegerLiteral(match[1]);
+  const height = parseIntegerLiteral(match[2]);
+  if (width == null || height == null || width <= 0 || height <= 0) return null;
+  return { width, height };
+}
+
+function parseResolutionRangeTerm(term: string): ResolutionRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:res|resolution)(?:==|=)(.*?)\.\.(.*)$/i);
+  if (!rangeMatch) return null;
+  const leftToken = rangeMatch[1].trim();
+  const rightToken = rangeMatch[2].trim();
+  const hasLeft = leftToken.length > 0;
+  const hasRight = rightToken.length > 0;
+  if (!hasLeft && !hasRight) return null;
+  const left = hasLeft ? parseResolutionPairLiteral(leftToken) : null;
+  const right = hasRight ? parseResolutionPairLiteral(rightToken) : null;
+  if (hasLeft && !left) return null;
+  if (hasRight && !right) return null;
+  if (left && right) {
+    return {
+      min: { width: Math.min(left.width, right.width), height: Math.min(left.height, right.height) },
+      max: { width: Math.max(left.width, right.width), height: Math.max(left.height, right.height) },
+    };
+  }
+  if (left) return { min: left, max: null };
+  if (right) return { min: null, max: right };
+  return null;
+}
+
 function parseResolutionComparatorTerm(term: string): { operator: ResolutionComparatorOperator; width: number; height: number } | null {
-  const comparatorMatch = term.match(/^#(?:res|resolution)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d{2,5})\s*(?:x|×|\*|:)\s*(\d{2,5})$/i);
+  const comparatorMatch = term.match(/^#(?:res|resolution)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/i);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
-  const width = parseIntegerLiteral(comparatorMatch[2]);
-  const height = parseIntegerLiteral(comparatorMatch[3]);
-  if (width == null || height == null || width <= 0 || height <= 0) return null;
-  return { operator, width, height };
+  const value = parseResolutionPairLiteral(comparatorMatch[2]);
+  if (!value) return null;
+  return { operator, width: value.width, height: value.height };
 }
 
 function parseNameComparatorTerm(term: string): NameComparatorTerm | null {
@@ -860,6 +894,7 @@ export function VideoUpload() {
     if (parsePixelAreaRangeTerm(term) !== null) return true;
     if (parsePixelAreaComparatorTerm(term) !== null) return true;
     if (parseExtensionComparatorTerm(term) !== null) return true;
+    if (parseResolutionRangeTerm(term) !== null) return true;
     if (parseResolutionComparatorTerm(term) !== null) return true;
     if (parseNameComparatorTerm(term) !== null) return true;
     return parseIdComparatorTerm(term) !== null;
@@ -913,6 +948,7 @@ export function VideoUpload() {
           || (family === "#ar" && (item.term.startsWith("#aspect") || item.term.startsWith("#ratio")))
           || (family === "#fc" && item.term.startsWith("#frames"))
           || (family === "#px" && (item.term.startsWith("#pixels") || item.term.startsWith("#mp")))
+          || (family === "#res" && item.term.startsWith("#resolution"))
         ))
         && !isRecognizedRecentTagTerm(item.term),
     );
@@ -928,6 +964,7 @@ export function VideoUpload() {
       || (entry === "#ar" && (target.term.startsWith("#aspect") || target.term.startsWith("#ratio")))
       || (entry === "#fc" && target.term.startsWith("#frames"))
       || (entry === "#px" && (target.term.startsWith("#pixels") || target.term.startsWith("#mp")))
+      || (entry === "#res" && target.term.startsWith("#resolution"))
     ));
     if (!family) return null;
     const base = [...RECENT_RANGE_HINT_TAGS_BY_FAMILY[family]]
@@ -1254,6 +1291,14 @@ export function VideoUpload() {
       if (extensionComparator.operator === "^=") return ext.startsWith(extensionComparator.values[0] ?? "");
       if (extensionComparator.operator === "$=") return ext.endsWith(extensionComparator.values[0] ?? "");
       return false;
+    }
+    const resolutionRange = parseResolutionRangeTerm(term);
+    if (resolutionRange) {
+      const sourceWidth = item.info.width;
+      const sourceHeight = item.info.height;
+      if (resolutionRange.min && (sourceWidth < resolutionRange.min.width || sourceHeight < resolutionRange.min.height)) return false;
+      if (resolutionRange.max && (sourceWidth > resolutionRange.max.width || sourceHeight > resolutionRange.max.height)) return false;
+      return true;
     }
     const resolutionComparator = parseResolutionComparatorTerm(term);
     if (resolutionComparator) {
