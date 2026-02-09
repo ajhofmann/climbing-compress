@@ -9,6 +9,7 @@ const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_CURSOR_PAGE_STEP = 5;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
+const RECENT_SORT_MODES = ["recent", "name", "duration", "outputs", "size", "fps", "resolution"] as const;
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
 const RECENT_FILTER_SIMPLE_TAG_ALIASES = {
   "#cache": "#cached",
@@ -62,6 +63,7 @@ type NameComparatorTerm = { operator: NameComparatorOperator; values: string[] }
 type IdComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
 type IdComparatorTerm = { operator: IdComparatorOperator; values: string[] };
 type NumericRangeFilter = { min: number | null; max: number | null };
+type RecentSortMode = (typeof RECENT_SORT_MODES)[number];
 
 function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
   if (raw === "≤") return "<=";
@@ -664,7 +666,7 @@ export function VideoUpload() {
   const [recentFilterFocused, setRecentFilterFocused] = useState(false);
   const [recentCursorIdx, setRecentCursorIdx] = useState(-1);
   const [recentTagCursorIdx, setRecentTagCursorIdx] = useState(-1);
-  const [recentSort, setRecentSort] = useState<"recent" | "name" | "duration" | "outputs" | "size">("recent");
+  const [recentSort, setRecentSort] = useState<RecentSortMode>("recent");
   const [recentSortReversed, setRecentSortReversed] = useState(false);
   const [recentOutputScope, setRecentOutputScope] = useState<"all" | "with" | "none">("all");
   const [recentCacheScope, setRecentCacheScope] = useState<"all" | "cached" | "uncached">("all");
@@ -672,11 +674,9 @@ export function VideoUpload() {
 
   const cycleRecentSort = useCallback(() => {
     setRecentSort((prev) => {
-      if (prev === "recent") return "name";
-      if (prev === "name") return "duration";
-      if (prev === "duration") return "outputs";
-      if (prev === "outputs") return "size";
-      return "recent";
+      const idx = RECENT_SORT_MODES.indexOf(prev);
+      if (idx < 0) return "recent";
+      return RECENT_SORT_MODES[(idx + 1) % RECENT_SORT_MODES.length] ?? "recent";
     });
   }, []);
 
@@ -700,8 +700,8 @@ export function VideoUpload() {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; showZeroQuickTags?: boolean; outputScope?: string; cacheScope?: string; filter?: string; shortcutHelp?: boolean; sortReverse?: boolean };
-      if (parsed.sort === "recent" || parsed.sort === "name" || parsed.sort === "duration" || parsed.sort === "outputs" || parsed.sort === "size") {
-        setRecentSort(parsed.sort);
+      if (parsed.sort && RECENT_SORT_MODES.includes(parsed.sort as RecentSortMode)) {
+        setRecentSort(parsed.sort as RecentSortMode);
       }
       if (typeof parsed.sortReverse === "boolean") {
         setRecentSortReversed(parsed.sortReverse);
@@ -1406,6 +1406,24 @@ export function VideoUpload() {
           if (bySourceBytes !== 0) return bySourceBytes;
           const byOutputBytes = b.output_bytes - a.output_bytes;
           if (byOutputBytes !== 0) return byOutputBytes;
+          return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        }
+        if (recentSort === "fps") {
+          const byFps = b.info.fps - a.info.fps;
+          if (Math.abs(byFps) > 1e-6) return byFps;
+          const byDuration = b.info.duration - a.info.duration;
+          if (Math.abs(byDuration) > 1e-6) return byDuration;
+          return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        }
+        if (recentSort === "resolution") {
+          const aArea = a.info.width * a.info.height;
+          const bArea = b.info.width * b.info.height;
+          const byArea = bArea - aArea;
+          if (byArea !== 0) return byArea;
+          const byWidth = b.info.width - a.info.width;
+          if (byWidth !== 0) return byWidth;
+          const byHeight = b.info.height - a.info.height;
+          if (byHeight !== 0) return byHeight;
           return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
         }
         const byDuration = b.info.duration - a.info.duration;

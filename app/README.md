@@ -69,7 +69,7 @@ Upload constraints are enforced by the backend:
 - scope counts are contextual (`out:*:N` respects active cache scope, `cache:*:N` respects active output scope)
 - keyboard `O` cycles output-scope filters in dropzone mode (`all -> with -> none`)
 - keyboard `C` cycles cache-scope filters in dropzone mode (`all -> cached -> uncached`)
-- keyboard `S` cycles recent sort modes in dropzone (`recent -> name -> duration -> outputs -> size`)
+- keyboard `S` cycles recent sort modes in dropzone (`recent -> name -> duration -> outputs -> size -> fps -> resolution`)
 - keyboard `D` toggles recent sort reversal (`[rev:off]` / `[rev:on]`)
 - keyboard `R` refreshes recent clips + output counts in dropzone mode without clicking `[refresh]`
 - keyboard `V` (or `[reset view]`) resets name/output/cache subset filters back to default all-state
@@ -139,7 +139,7 @@ Upload constraints are enforced by the backend:
 - recent header also shows total local duration (`Recent (N · M:SS)`)
 - when filter is active, header shows filtered vs total counts/durations (`n/N · m:ss/M:SS`)
 - dropzone now shows inline feedback text for local library actions (rename/delete/clear results)
-- recent row supports sort cycling between recency, filename, duration, output-count, and source-size ordering
+- recent row supports sort cycling between recency, filename, duration, output-count, source-size, fps, and resolution ordering
 - recent sort mode, reverse toggle state, and expanded/collapsed preview state are remembered across reloads
 
 ## Common scripts

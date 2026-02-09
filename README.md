@@ -133,7 +133,7 @@ Upload notes:
 - Scope counters are contextual: `out:*:N` reflects active cache scope and `cache:*:N` reflects active output scope.
 - Press `O` in dropzone mode to cycle output-scope filters (`all -> with -> none -> all`).
 - Press `C` in dropzone mode to cycle cache-scope filters (`all -> cached -> uncached -> all`).
-- Press `S` in dropzone mode to cycle Recent sort modes (`recent -> name -> duration -> outputs -> size`).
+- Press `S` in dropzone mode to cycle Recent sort modes (`recent -> name -> duration -> outputs -> size -> fps -> resolution`).
 - Press `D` in dropzone mode to toggle Recent sort reversal (`[rev:off]` / `[rev:on]`).
 - Press `R` in dropzone mode to refresh Recent clips + output counters without clicking `[refresh]`.
 - Press `V` in dropzone mode (or click `[reset view]`) to clear name/output/cache subset filters back to all.
@@ -159,7 +159,7 @@ Upload notes:
 - Recent header now also shows aggregated local duration (`Recent (N · M:SS)`).
 - While filtering, Recent header switches to filtered/total metrics (`Recent (n/N · m:ss/M:SS)`).
 - Dropzone now surfaces local-library action feedback inline (rename/delete/clear outcomes).
-- Recent row now supports sort cycling (`[sort:recent]`, `[sort:name]`, `[sort:duration]`, `[sort:outputs]`, `[sort:size]`).
+- Recent row now supports sort cycling (`[sort:recent]`, `[sort:name]`, `[sort:duration]`, `[sort:outputs]`, `[sort:size]`, `[sort:fps]`, `[sort:resolution]`).
 - Recent sort mode, reverse state, and expansion preferences persist across page reloads for faster local iteration.
 
 ## Speed-ramp modes
