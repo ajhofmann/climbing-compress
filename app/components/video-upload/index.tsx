@@ -433,9 +433,15 @@ function parseRecentFilterQuery(source: string): string[] {
       buffer += char;
       continue;
     }
-    if ((char === "'" || char === '"') && buffer.length === 0) {
-      activeQuote = char;
-      continue;
+    if (char === "'" || char === '"') {
+      const canStartQuotedSegment = buffer.length === 0
+        || buffer === "-"
+        || buffer === "!"
+        || /[=><!^*$]$/.test(buffer);
+      if (canStartQuotedSegment) {
+        activeQuote = char;
+        continue;
+      }
     }
     if (/\s/.test(char)) {
       if (buffer.length > 0) {

@@ -86,6 +86,7 @@ Upload constraints are enforced by the backend:
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
 - recent module supports inline name filtering with dedicated `no matching clips` empty state, space-separated AND-term matching, quoted phrase terms (e.g. `"alpha beta"`), and `-term` / `!term` exclusions
 - filter query also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (plus exclusions like `-#out` or `!#out`)
+- quoted phrases also work for exclude prefixes and comparator values (e.g. `!"alpha beta"` and `#name="my clip.mp4"`)
 - output-count comparators are supported too (e.g. `#out>=1`, `#out=0`, `#out!=0`, `#out>2`)
 - comparator ranges are supported using `..`, including open-ended bounds (e.g. `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`)
 - comparator equality accepts both `=` and `==` forms (e.g. `#out==0`, `#dur==8`)

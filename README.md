@@ -89,6 +89,7 @@ Upload notes:
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, quoted phrase terms (for example `"alpha beta"`), and `-term` / `!term` exclusions.
 - Exclusions accept both `-term` and `!term` forms (for example `-#out` or `!#out`).
+- Quoted phrases also work for exclude prefixes and comparator values (for example `!"alpha beta"` and `#name="my clip.mp4"`).
 - Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (and exclusions like `-#out` or `!#out`).
 - Output-count comparators are supported too (for example `#out>=1`, `#out=0`, `#out!=0`, `#out>2`).
 - Comparator ranges are supported with `..`, including open-ended bounds (for example `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`).
