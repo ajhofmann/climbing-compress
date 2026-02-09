@@ -369,6 +369,68 @@ function normalizeRecentFilterTerms(sourceTerms: string[]): string[] {
   return dedupedTerms;
 }
 
+function parseRecentFilterQuery(source: string): string[] {
+  const terms: string[] = [];
+  const text = source.trim();
+  let buffer = "";
+  let activeQuote: "'" | '"' | null = null;
+  let escaped = false;
+  for (const char of text) {
+    if (activeQuote) {
+      if (escaped) {
+        buffer += char;
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === activeQuote) {
+        activeQuote = null;
+        continue;
+      }
+      buffer += char;
+      continue;
+    }
+    if ((char === "'" || char === '"') && buffer.length === 0) {
+      activeQuote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (buffer.length > 0) {
+        terms.push(buffer);
+        buffer = "";
+      }
+      continue;
+    }
+    buffer += char;
+  }
+  if (escaped) buffer += "\\";
+  if (buffer.length > 0) terms.push(buffer);
+  return terms;
+}
+
+function stringifyRecentFilterTerms(sourceTerms: string[]): string {
+  return sourceTerms
+    .filter((term) => term.length > 0)
+    .map((term) => {
+      const shouldQuote = /\s/.test(term) || term.startsWith("'") || term.startsWith('"');
+      if (!shouldQuote) return term;
+      const escaped = term.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      return `"${escaped}"`;
+    })
+    .join(" ");
+}
+
+function withExcludePrefix(term: string, prefix: "-" | "!" | null): string {
+  if (!prefix) return term;
+  const normalizedTerm = term.startsWith("-") || term.startsWith("!")
+    ? term.slice(1)
+    : term;
+  return `${prefix}${normalizedTerm}`;
+}
+
 function levenshteinDistance(left: string, right: string): number {
   if (left === right) return 0;
   if (left.length === 0) return right.length;
@@ -553,14 +615,19 @@ export function VideoUpload() {
 
   const normalizedRecentFilter = recentFilter.trim().toLowerCase();
   const recentFilterTerms = useMemo(
-    () => normalizedRecentFilter.split(/\s+/).filter(Boolean),
+    () => parseRecentFilterQuery(normalizedRecentFilter),
     [normalizedRecentFilter],
   );
   const parsedRecentFilterTerms = useMemo(
     () => recentFilterTerms.map((raw, idx) => {
-      const isExclude = (raw.startsWith("-") || raw.startsWith("!")) && raw.length > 1;
+      const excludePrefix: "-" | "!" | null = raw.startsWith("-")
+        ? "-"
+        : raw.startsWith("!")
+          ? "!"
+          : null;
+      const isExclude = excludePrefix != null && raw.length > 1;
       const term = isExclude ? raw.slice(1) : raw;
-      return { idx, raw, term, isExclude };
+      return { idx, raw, term, isExclude, excludePrefix: isExclude ? excludePrefix : null };
     }).filter((item) => item.term.length > 0),
     [recentFilterTerms],
   );
@@ -615,7 +682,7 @@ export function VideoUpload() {
     return {
       termIndex: target.idx,
       tags: target.isExclude
-        ? RECENT_OUTPUT_HINT_TAGS.map((tag) => `-${tag}`)
+        ? RECENT_OUTPUT_HINT_TAGS.map((tag) => withExcludePrefix(tag, target.excludePrefix))
         : [...RECENT_OUTPUT_HINT_TAGS],
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
@@ -628,7 +695,7 @@ export function VideoUpload() {
     return {
       termIndex: target.idx,
       tags: target.isExclude
-        ? RECENT_STORAGE_HINT_TAGS.map((tag) => `-${tag}`)
+        ? RECENT_STORAGE_HINT_TAGS.map((tag) => withExcludePrefix(tag, target.excludePrefix))
         : [...RECENT_STORAGE_HINT_TAGS],
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
@@ -654,7 +721,7 @@ export function VideoUpload() {
       .map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
-      tags: target.isExclude ? base.map((tag) => `-${tag}`) : base,
+      tags: target.isExclude ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix)) : base,
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownTagReplacementHints = useMemo(() => {
@@ -713,7 +780,7 @@ export function VideoUpload() {
     return {
       term: target.term,
       termIndex: target.idx,
-      replacements: dedupedSuggestions.map((entry) => (target.isExclude ? `-${entry}` : entry)),
+      replacements: dedupedSuggestions.map((entry) => (target.isExclude ? withExcludePrefix(entry, target.excludePrefix) : entry)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownDurationHintConfig = useMemo(() => {
@@ -725,7 +792,7 @@ export function VideoUpload() {
     return {
       termIndex: target.idx,
       tags: target.isExclude
-        ? RECENT_DURATION_HINT_TAGS.map((tag) => `-${tag}`)
+        ? RECENT_DURATION_HINT_TAGS.map((tag) => withExcludePrefix(tag, target.excludePrefix))
         : [...RECENT_DURATION_HINT_TAGS],
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
@@ -739,7 +806,7 @@ export function VideoUpload() {
     return {
       termIndex: target.idx,
       tags: target.isExclude
-        ? base.map((tag) => `-${tag}`)
+        ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix))
         : base,
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
@@ -777,7 +844,7 @@ export function VideoUpload() {
     return {
       termIndex: target.idx,
       tags: target.isExclude
-        ? base.map((tag) => `-${tag}`)
+        ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix))
         : base,
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
@@ -966,36 +1033,36 @@ export function VideoUpload() {
       : recentVideos
   ), [recentVideos, recentFilterTerms.length, includeRecentFilterTerms, excludeRecentFilterTerms, matchesRecentFilterTerm]);
   const removeRecentFilterTerm = useCallback((termIndex: number) => {
-    const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
+    const sourceTerms = parseRecentFilterQuery(recentFilter);
     if (termIndex < 0 || termIndex >= sourceTerms.length) return;
     sourceTerms.splice(termIndex, 1);
-    setRecentFilter(sourceTerms.join(" "));
+    setRecentFilter(stringifyRecentFilterTerms(sourceTerms));
     setRecentCursorIdx(-1);
     setRecentTagCursorIdx(-1);
     recentFilterInputRef.current?.focus();
   }, [recentFilter]);
   const popRecentFilterTerm = useCallback(() => {
-    const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
+    const sourceTerms = parseRecentFilterQuery(recentFilter);
     if (sourceTerms.length <= 0) return;
     sourceTerms.pop();
-    setRecentFilter(sourceTerms.join(" "));
+    setRecentFilter(stringifyRecentFilterTerms(sourceTerms));
     setRecentCursorIdx(-1);
     setRecentTagCursorIdx(-1);
     recentFilterInputRef.current?.focus();
   }, [recentFilter]);
   const replaceRecentFilterTerm = useCallback((termIndex: number, replacement: string) => {
-    const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
+    const sourceTerms = parseRecentFilterQuery(recentFilter);
     if (termIndex < 0 || termIndex >= sourceTerms.length) return;
     sourceTerms[termIndex] = replacement;
     const normalizedTerms = normalizeRecentFilterTerms(sourceTerms);
-    setRecentFilter(`${normalizedTerms.join(" ")} `);
+    setRecentFilter(`${stringifyRecentFilterTerms(normalizedTerms)} `);
     setRecentCursorIdx(-1);
     setRecentTagCursorIdx(-1);
     recentFilterInputRef.current?.focus();
   }, [recentFilter]);
   const recentTagSuggestions = useMemo(() => {
     if (!recentFilterFocused || recentFilter.endsWith(" ")) return [] as string[];
-    const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
+    const sourceTerms = parseRecentFilterQuery(recentFilter);
     const tail = sourceTerms[sourceTerms.length - 1]?.toLowerCase() ?? "";
     const isDashExcludeTag = tail.startsWith("-#");
     const isBangExcludeTag = tail.startsWith("!#");
@@ -1049,7 +1116,7 @@ export function VideoUpload() {
       ? recentTagSuggestions[recentTagCursorIdx]
       : recentTagSuggestions[0];
   const applyRecentTagSuggestion = useCallback((suggestion: string) => {
-    const sourceTerms = recentFilter.trim().split(/\s+/).filter(Boolean);
+    const sourceTerms = parseRecentFilterQuery(recentFilter);
     const hasTagTail = sourceTerms.length > 0 && /^[-!]?#/.test(sourceTerms[sourceTerms.length - 1]);
     if (hasTagTail) {
       sourceTerms[sourceTerms.length - 1] = suggestion;
@@ -1057,7 +1124,7 @@ export function VideoUpload() {
       sourceTerms.push(suggestion);
     }
     const normalizedTerms = normalizeRecentFilterTerms(sourceTerms);
-    setRecentFilter(`${normalizedTerms.join(" ")} `);
+    setRecentFilter(`${stringifyRecentFilterTerms(normalizedTerms)} `);
     setRecentCursorIdx(-1);
     setRecentTagCursorIdx(-1);
     recentFilterInputRef.current?.focus();
@@ -2362,8 +2429,8 @@ export function VideoUpload() {
                       e.currentTarget.blur();
                     }
                   }}
-                  placeholder="filter clips (+term -term #tag)"
-                  aria-label="Filter recent clips by terms (space-separated include/exclude and optional tags like #cached or #out)"
+                  placeholder="filter clips (+term -/!term #tag phrase)"
+                  aria-label="Filter recent clips by terms (space-separated include/exclude with - or !, optional tags like #cached or #out, and quoted phrases)"
                   aria-keyshortcuts="Alt+Backspace Control+Backspace Meta+Backspace Tab Shift+Enter PageUp PageDown Home End"
                   className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
                 />
@@ -2444,9 +2511,9 @@ export function VideoUpload() {
                             : "border-cyan-500/30 text-cyan-200/90 hover:border-cyan-400/70"
                       }`}
                       aria-label={`Remove ${item.isExclude ? "exclude" : "include"} term ${item.term} from filter`}
-                      title={`Remove ${item.isExclude ? "-" : "+"}${item.term} from filter`}
+                      title={`Remove ${item.isExclude ? `${item.excludePrefix ?? "-"}${item.term}` : `+${item.term}`} from filter`}
                     >
-                      {item.isExclude ? "-" : "+"}
+                      {item.isExclude ? item.excludePrefix ?? "-" : "+"}
                       {item.term}
                     </button>
                   );
@@ -2574,7 +2641,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · Shift+Enter force load first match · ↑↓ select · Home/End jump first/last · PgUp/PgDn jump cursor by 5 · #tag + Tab/Enter complete (↑↓ picks suggestion) · Alt/Ctrl/Cmd+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · Shift+Enter force load first match · ↑↓ select · Home/End jump first/last · PgUp/PgDn jump cursor by 5 · #tag + Tab/Enter complete (↑↓ picks suggestion) · quoted phrase term · -/! exclude term · Alt/Ctrl/Cmd+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (

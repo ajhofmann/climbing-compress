@@ -84,7 +84,7 @@ Upload constraints are enforced by the backend:
 - keyboard shortcuts `Alt+P` / `Alt+N` cycle previous/next loaded clip using current `[nav:*]` scope
 - keyboard shortcut `Alt+X` ejects the loaded clip back to the dropzone selector
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
-- recent module supports inline name filtering with dedicated `no matching clips` empty state, space-separated AND-term matching, and `-term` / `!term` exclusions
+- recent module supports inline name filtering with dedicated `no matching clips` empty state, space-separated AND-term matching, quoted phrase terms (e.g. `"alpha beta"`), and `-term` / `!term` exclusions
 - filter query also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (plus exclusions like `-#out` or `!#out`)
 - output-count comparators are supported too (e.g. `#out>=1`, `#out=0`, `#out!=0`, `#out>2`)
 - comparator ranges are supported using `..`, including open-ended bounds (e.g. `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`)
@@ -105,8 +105,8 @@ Upload constraints are enforced by the backend:
 - malformed range comparators show clickable range examples (`#dur=1..2`, `#dur=..2`, `#src=2k..4k`, `#src=2k..`, `#out=0..2`, `#ar=1.3..1.8`, `#fc=25..200`) and preserve long aliases like `#height=..x` -> `#height=..1920`
 - malformed `#dur...` comparator tags also show inline duration-format examples (`#dur>90s`, `#dur>1m30s`)
 - duration-format example tags are clickable to replace malformed `#dur` tokens immediately
-- malformed exclude tokens (`-#dur...`) keep the `-` prefix when applying a duration example button
-- active filter chips are shown for parsed terms (`+term` includes, `-term` excludes)
+- malformed exclude tokens (`-#dur...` / `!#dur...`) keep their typed exclude prefix when applying a duration example button
+- active filter chips are shown for parsed terms (`+term` includes, `-term` / `!term` excludes)
 - clicking a filter chip removes that term from the query immediately
 - partial tag input (like `#c` / `-#o`) shows suggestions, and `Tab` autocompletes the first suggestion
 - comparator fragments like `#src=` / `#out=` / `#dur=` / `#fps=` / `#w=` / `#h=` / `#ar=` / `#fc=` / `#ext=` (plus long forms `#framerate=` / `#width=` / `#height=` / `#frames=` / `#format=`) keep root suggestions visible for fast correction (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#fps=24..60`, `#ar=1.3..1.8`, `#fc=25..200`)

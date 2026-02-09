@@ -87,7 +87,7 @@ Upload notes:
 - Keyboard: `Alt + P` / `Alt + N` cycle previous/next loaded clip using current `[nav:*]` scope.
 - Keyboard: `Alt + X` ejects the currently loaded clip back to dropzone mode.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
-- Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, and `-term` / `!term` exclusions.
+- Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, quoted phrase terms (for example `"alpha beta"`), and `-term` / `!term` exclusions.
 - Exclusions accept both `-term` and `!term` forms (for example `-#out` or `!#out`).
 - Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (and exclusions like `-#out` or `!#out`).
 - Output-count comparators are supported too (for example `#out>=1`, `#out=0`, `#out!=0`, `#out>2`).
@@ -109,8 +109,8 @@ Upload notes:
 - Malformed range comparators now surface clickable range examples (for example `#dur=1..2`, `#dur=..2`, `#src=2k..4k`, `#src=2k..`, `#out=0..2`, `#ar=1.3..1.8`, `#fc=25..200`), preserving long aliases like `#height=..x` -> `#height=..1920`.
 - Unknown `#dur...` comparator tags now also surface inline duration-format examples (seconds/minutes syntax).
 - Duration-format examples are clickable to replace malformed `#dur` tokens instantly.
-- If the malformed token is exclude-form (`-#dur...`), clickable replacements preserve the exclude prefix.
-- Recent filter now renders active term chips (`+term` includes, `-term` excludes) to clarify parsed query semantics.
+- If the malformed token is exclude-form (`-#dur...` or `!#dur...`), clickable replacements preserve the typed exclude prefix.
+- Recent filter now renders active term chips (`+term` includes, `-term`/`!term` excludes) to clarify parsed query semantics.
 - Click a filter term chip to remove that specific term from the query instantly.
 - Typing partial tag tokens (for example `#c`, `-#o`) shows tag suggestions; press `Tab` to autocomplete.
 - Comparator fragments like `#src=` / `#out=` / `#dur=` / `#fps=` / `#w=` / `#h=` / `#ar=` / `#fc=` / `#ext=` (plus long forms like `#framerate=` / `#width=` / `#height=` / `#frames=` / `#format=`) also keep root-level suggestions visible for quick recovery (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#fps=24..60`, `#ar=1.3..1.8`, `#fc=25..200`).
