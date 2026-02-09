@@ -10,7 +10,7 @@ const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_CURSOR_PAGE_STEP = 5;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
-const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
   "#out": ["#out=0..2", "#out=..0"],
@@ -24,12 +24,13 @@ const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIE
   "#fc": ["#fc=25..200", "#fc=..30"],
 };
 const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2", "#ar=1.3..1.8", "#ar=..1.4", "#fc=25..200", "#fc=..30"] as const;
-const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200", "#res=1920x1080", "#res!=1920x1080"] as const;
+const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200", "#res=1920x1080", "#res!=1920x1080", "#name=clip.mp4", "#name!=clip.mp4"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
 const RECENT_EXTENSION_HINT_TAGS = ["#ext=mp4", "#ext=mp4,mov", "#ext!=mp4"] as const;
+const RECENT_NAME_HINT_TAGS = ["#name=clip.mp4", "#name!=clip.mp4"] as const;
 const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
   "#fps": ["#fps>=24", "#fps=24..60"],
   "#w": ["#w>=1080", "#w=..1080"],
@@ -42,6 +43,7 @@ type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 type ExtensionComparatorOperator = "=" | "!=";
 type ExtensionComparatorTerm = { operator: ExtensionComparatorOperator; values: string[] };
 type ResolutionComparatorOperator = "=" | "!=";
+type NameComparatorOperator = "=" | "!=";
 type NumericRangeFilter = { min: number | null; max: number | null };
 
 function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
@@ -302,6 +304,16 @@ function parseResolutionComparatorTerm(term: string): { operator: ResolutionComp
   return { operator, width, height };
 }
 
+function parseNameComparatorTerm(term: string): { operator: NameComparatorOperator; value: string } | null {
+  const comparatorMatch = term.match(/^#(?:name|file|filename)(==|=|!=|<>)(.+)$/i);
+  if (!comparatorMatch) return null;
+  const operator: NameComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "==" ? "=" : "!=";
+  const value = comparatorMatch[2].trim().toLowerCase();
+  if (/^[<>=!≤≥≠]/.test(value)) return null;
+  if (!value) return null;
+  return { operator, value };
+}
+
 function parseFpsComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
   const comparatorMatch = term.match(/^#(?:fps|framerate)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+(?:\.\d+)?)$/);
   if (!comparatorMatch) return null;
@@ -352,6 +364,12 @@ function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
 
 function remapVideoMetaAliasForTarget(tag: string, targetTerm: string): string {
   const normalizedTarget = targetTerm.toLowerCase();
+  if (normalizedTarget.startsWith("#filename") && tag.startsWith("#name")) {
+    return `#filename${tag.slice(5)}`;
+  }
+  if (normalizedTarget.startsWith("#file") && tag.startsWith("#name")) {
+    return `#file${tag.slice(5)}`;
+  }
   if (normalizedTarget.startsWith("#resolution") && tag.startsWith("#res")) {
     return `#resolution${tag.slice(4)}`;
   }
@@ -675,7 +693,8 @@ export function VideoUpload() {
     if (parseFrameCountRangeTerm(term) !== null) return true;
     if (parseFrameCountComparatorTerm(term) !== null) return true;
     if (parseExtensionComparatorTerm(term) !== null) return true;
-    return parseResolutionComparatorTerm(term) !== null;
+    if (parseResolutionComparatorTerm(term) !== null) return true;
+    return parseNameComparatorTerm(term) !== null;
   }, []);
   const unknownRecentTagTerms = useMemo(() => {
     const out: string[] = [];
@@ -819,6 +838,20 @@ export function VideoUpload() {
     if (unknownExtensionTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
     const target = unknownExtensionTerms[unknownExtensionTerms.length - 1];
     const base = RECENT_EXTENSION_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
+    return {
+      termIndex: target.idx,
+      tags: target.isExclude
+        ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix))
+        : base,
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownNameHintConfig = useMemo(() => {
+    const unknownNameTerms = parsedRecentFilterTerms.filter(
+      (item) => (item.term.startsWith("#name") || item.term.startsWith("#file") || item.term.startsWith("#filename")) && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownNameTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownNameTerms[unknownNameTerms.length - 1];
+    const base = RECENT_NAME_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
       tags: target.isExclude
@@ -1020,6 +1053,12 @@ export function VideoUpload() {
       if (resolutionComparator.operator === "!=") return !isExactMatch;
       return isExactMatch;
     }
+    const nameComparator = parseNameComparatorTerm(term);
+    if (nameComparator) {
+      const fileName = item.filename.toLowerCase();
+      if (nameComparator.operator === "!=") return fileName !== nameComparator.value;
+      return fileName === nameComparator.value;
+    }
     if (term.startsWith("#")) {
       const tag = term.slice(1);
       if (tag === "cached") return item.cached;
@@ -1124,6 +1163,8 @@ export function VideoUpload() {
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#res"))
                   : normalizedTail.startsWith("#ext") || normalizedTail.startsWith("#format")
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#ext"))
+                  : normalizedTail.startsWith("#name") || normalizedTail.startsWith("#file") || normalizedTail.startsWith("#filename")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#name"))
               : [];
     const aliasAdjustedBase = base.map((tag) => remapVideoMetaAliasForTarget(tag, normalizedTail));
     return isExcludeTag ? aliasAdjustedBase.map((tag) => `${excludePrefix}${tag}`) : aliasAdjustedBase;
@@ -2611,6 +2652,22 @@ export function VideoUpload() {
                         onClick={() => replaceRecentFilterTerm(unknownExtensionHintConfig.termIndex, tag)}
                         className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
                         aria-label={`Replace malformed extension filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownNameHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>name examples:</span>
+                    {unknownNameHintConfig.tags.map((tag) => (
+                      <button
+                        key={`name-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownNameHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed name filter with ${tag}`}
                       >
                         {tag}
                       </button>
