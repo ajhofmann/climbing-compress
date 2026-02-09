@@ -235,7 +235,7 @@ function parseFpsRangeTerm(term: string): NumericRangeFilter | null {
 }
 
 function parseWidthComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
-  const comparatorMatch = term.match(/^#w(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
+  const comparatorMatch = term.match(/^#(?:w|width)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
@@ -245,13 +245,13 @@ function parseWidthComparatorTerm(term: string): { operator: ComparatorOperator;
 }
 
 function parseWidthRangeTerm(term: string): NumericRangeFilter | null {
-  const rangeMatch = term.match(/^#w(?:==|=)(.*?)\.\.(.*)$/);
+  const rangeMatch = term.match(/^#(?:w|width)(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
   return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
 }
 
 function parseHeightComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
-  const comparatorMatch = term.match(/^#h(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
+  const comparatorMatch = term.match(/^#(?:h|height)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
@@ -261,7 +261,7 @@ function parseHeightComparatorTerm(term: string): { operator: ComparatorOperator
 }
 
 function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
-  const rangeMatch = term.match(/^#h(?:==|=)(.*?)\.\.(.*)$/);
+  const rangeMatch = term.match(/^#(?:h|height)(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
   return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
 }
@@ -582,7 +582,10 @@ export function VideoUpload() {
         });
         const minDistance = scored.reduce((min, entry) => Math.min(min, entry.distance), Number.POSITIVE_INFINITY);
         return scored
-          .filter((entry) => (entry.distance === minDistance && entry.distance <= 1) || entry.sharesPrefix)
+          .filter((entry) => {
+            const nearPrefix = entry.sharesPrefix && Math.abs(entry.tag.length - family.length) <= 1;
+            return (entry.distance === minDistance && entry.distance <= 1) || nearPrefix;
+          })
           .sort((a, b) => {
             if (a.distance !== b.distance) return a.distance - b.distance;
             return a.tag.localeCompare(b.tag);
