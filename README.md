@@ -87,8 +87,9 @@ Upload notes:
 - Keyboard: `Alt + P` / `Alt + N` cycle previous/next loaded clip using current `[nav:*]` scope.
 - Keyboard: `Alt + X` ejects the currently loaded clip back to dropzone mode.
 - Recent section shows compact preview with overflow controls (`[show all]` / `[show less]`) when clips exceed six.
-- Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, and `-term` exclusions.
-- Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (and exclusions like `-#out`).
+- Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, and `-term` / `!term` exclusions.
+- Exclusions accept both `-term` and `!term` forms (for example `-#out` or `!#out`).
+- Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (and exclusions like `-#out` or `!#out`).
 - Output-count comparators are supported too (for example `#out>=1`, `#out=0`, `#out!=0`, `#out>2`).
 - Comparator ranges are supported with `..`, including open-ended bounds (for example `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`).
 - Comparator equality accepts both `=` and `==` forms (for example `#out==0`, `#dur==8`).
