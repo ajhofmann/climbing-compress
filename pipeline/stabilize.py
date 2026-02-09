@@ -90,7 +90,7 @@ def compute_anchor_trajectory(
         for name in anchor_parts:
             if name in pose:
                 x, y, vis = pose[name]
-                if vis > MIN_VISIBILITY:
+                if vis >= MIN_VISIBILITY:
                     xs.append(x)
                     ys.append(y)
         if len(xs) >= 2:

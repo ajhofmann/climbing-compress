@@ -6,7 +6,6 @@ import { analyzeVideo, solveCurve, renderVideo } from "@/lib/api";
 import { VideoUpload } from "@/components/video-upload";
 import { VideoPlayer } from "@/components/video-player";
 import { TimelineEditor } from "@/components/timeline-editor";
-import { DebugCharts } from "@/components/debug-charts";
 import { SettingsPanel } from "@/components/settings";
 import { ProgressBar } from "@/components/progress-bar";
 import { Tooltip } from "@/components/tooltip";
@@ -327,8 +326,11 @@ export default function Home() {
           <VideoUpload />
         ) : (
           <>
+            {/* Clip info bar */}
+            <VideoUpload />
+
             {/* Transport bar */}
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-3 mt-2 mb-2">
               <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb.\nShortcut: Ctrl/Cmd + Shift + A"}>
                 <button
                   onClick={isAnalyzing ? handleCancelAnalyze : handleAnalyze}
@@ -345,14 +347,12 @@ export default function Home() {
                     textShadow: "0 0 8px rgba(255,23,68,0.35)",
                   } : {}}
                 >
-                  {isAnalyzing ? "CANCEL ANALYZE" : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
+                  {isAnalyzing ? "CANCEL" : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
                 </button>
               </Tooltip>
               <div className="flex-1 min-w-0">
                 <ProgressBar />
               </div>
-              {/* Video info inline */}
-              <VideoUpload />
               <Tooltip text={"Fast local preview render.\nUses lower resolution + higher CRF + no audio\nfor rapid iteration while tuning curve edits.\nShortcut: Ctrl/Cmd + Enter"}>
                 <button
                   onClick={handleQuickRender}
@@ -363,7 +363,7 @@ export default function Home() {
                   } disabled:opacity-30 disabled:cursor-not-allowed`}
                   style={hasAnalysis ? { borderColor: "var(--neon-magenta)", color: "var(--neon-magenta)", textShadow: "0 0 8px rgba(224,64,251,0.35)" } : {}}
                 >
-                  QUICK PREVIEW
+                  PREVIEW
                 </button>
               </Tooltip>
               <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel.\nShortcut: Ctrl/Cmd + Shift + Enter"}>
@@ -391,11 +391,11 @@ export default function Home() {
                   }}
                   onClick={handleCancelRender}
                   aria-keyshortcuts="Escape"
-                  className="px-4 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap retro-btn min-w-[11rem]"
+                  className="px-3 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap retro-btn"
                   style={{ borderColor: "var(--danger)", color: "var(--danger)", textShadow: "0 0 8px rgba(255,23,68,0.45)" }}
                   title="Cancel the active render request (Esc also works)"
                 >
-                  CANCEL (ESC)
+                  CANCEL
                 </button>
               )}
             </div>
@@ -407,9 +407,6 @@ export default function Home() {
       <div className="neon-divider w-full" />
       {/* Settings Dashboard */}
       <SettingsPanel />
-
-      {/* Debug Charts */}
-      <DebugCharts />
 
       {/* Footer */}
       <footer className="relative mt-4 pt-4 pb-3 flex flex-col items-center gap-3">

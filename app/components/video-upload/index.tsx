@@ -3121,107 +3121,125 @@ export function VideoUpload() {
     );
   }
 
+  const actionsBusy = isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered;
+
   return (
-    <div className="flex items-center gap-2 shrink-0">
-      {videoName && (
-        <span
-          className="text-[11px] font-pixel text-text-muted max-w-[170px] truncate"
-          title={videoName}
-        >
-          {videoName}
-        </span>
-      )}
-      <span className="text-[11px] font-retro led-text whitespace-nowrap">
-        {videoInfo && `${videoInfo.duration.toFixed(0)}s / ${videoInfo.width}x${videoInfo.height} / ${videoInfo.fps.toFixed(0)}fps`}
-      </span>
-      <span className="text-[10px] font-pixel text-text-muted/70 whitespace-nowrap">
+    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[10px]">
+      {/* ── Clip identity ── */}
+      <div className="flex items-center gap-1.5 min-w-0">
+        {videoName && (
+          <span className="font-pixel text-text-muted max-w-[200px] truncate" title={videoName}>
+            {videoName}
+          </span>
+        )}
+        {videoInfo && (
+          <span className="font-retro led-text whitespace-nowrap">
+            {videoInfo.duration.toFixed(0)}s · {videoInfo.width}x{videoInfo.height} · {videoInfo.fps.toFixed(0)}fps
+          </span>
+        )}
+      </div>
+
+      {/* ── Storage stats ── */}
+      <span className="font-pixel text-text-muted/60 whitespace-nowrap" title="source: this clip / library total">
         src:{formatBytesShort(currentSourceBytes)}/{formatBytesShort(clipBytes)}
       </span>
-      <span className="text-[10px] font-pixel text-text-muted/70 whitespace-nowrap">
-        out:{clipOutputCount ?? "?"}/{outputCount ?? "?"} · mb:{formatBytesShort(clipOutputBytes)}/{formatBytesShort(outputBytes)}
+      <span className="font-pixel text-text-muted/60 whitespace-nowrap" title="outputs: this clip / total · disk: this clip / total">
+        out:{clipOutputCount ?? "?"}/{outputCount ?? "?"} · {formatBytesShort(clipOutputBytes)}/{formatBytesShort(outputBytes)}
       </span>
-      <Tooltip text="Clear current clip and return to upload/recent selector">
-        <button
-          onClick={handleClearVideo}
-          disabled={isAnalyzing || isRendering || clearingOutputs || pruningFiltered}
-          className="text-[11px] font-pixel text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
-          aria-keyshortcuts="Alt+X"
+
+      {/* ── Spacer pushes actions right ── */}
+      <div className="flex-1" />
+
+      {/* ── Navigation ── */}
+      <div className="flex items-center gap-1">
+        <Tooltip text={isRecentNavViewScoped ? "Load previous clip from current recent view" : "Load previous recent clip"}>
+          <button
+            onClick={() => void handleLoadAdjacent(-1)}
+            disabled={actionsBusy || refreshingRecent}
+            className="font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase px-1 py-0.5 border border-cyan-400/30 rounded"
+            aria-keyshortcuts="Alt+P"
+          >
+            ◀
+          </button>
+        </Tooltip>
+        <span
+          className="font-pixel text-cyan-200/50 uppercase cursor-default"
+          title={isRecentNavViewScoped ? "Navigating filtered view" : "Navigating all clips"}
         >
-          [EJECT]
-        </button>
-      </Tooltip>
-      <span
-        className="text-[9px] font-pixel text-cyan-200/70 whitespace-nowrap uppercase"
-        title={isRecentNavViewScoped ? "Adjacent navigation follows current recent filters/sort." : "Adjacent navigation follows full recent list."}
-      >
-        {`[nav:${isRecentNavViewScoped ? "view" : "all"}]`}
-      </span>
-      <Tooltip text={isRecentNavViewScoped ? "Load previous clip from current recent view" : "Load previous recent clip"}>
-        <button
-          onClick={() => void handleLoadAdjacent(-1)}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-          className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase px-1 py-0.5 border border-cyan-400/35 rounded"
-          aria-keyshortcuts="Alt+P"
-        >
-          [PREV]
-        </button>
-      </Tooltip>
-      <Tooltip text={isRecentNavViewScoped ? "Load next clip from current recent view" : "Load next recent clip"}>
-        <button
-          onClick={() => void handleLoadAdjacent(1)}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-          className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase px-1 py-0.5 border border-cyan-400/35 rounded"
-          aria-keyshortcuts="Alt+N"
-        >
-          [NEXT]
-        </button>
-      </Tooltip>
-      <Tooltip text="Replace the current video with a new one">
-        <button
-          onClick={openPicker}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
-          className="text-[11px] font-pixel text-neon-magenta hover:text-white retro-glow-magenta shrink-0 uppercase disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          [SWAP]
-        </button>
-      </Tooltip>
-      <Tooltip text="Delete this clip from local library and clear the current session">
-        <button
-          onClick={() => void handleDeleteCurrent()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
-          className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
-        >
-          [DELETE]
-        </button>
-      </Tooltip>
-      <Tooltip text="Rename current clip label in local library">
-        <button
-          onClick={() => void handleRenameCurrent()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
-          className="text-[11px] font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
-        >
-          [RENAME]
-        </button>
-      </Tooltip>
-      <Tooltip text="Remove every clip from local library and reset to upload screen">
-        <button
-          onClick={() => void handleClearLibrary()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
-          className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
-        >
-          [CLEAR LIB]
-        </button>
-      </Tooltip>
-      <Tooltip text="Delete rendered outputs for current clip only">
-        <button
-          onClick={() => void handleClearCurrentOutputs()}
-          disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered || !clipOutputCount || clipOutputCount <= 0}
-          className="text-[11px] font-pixel text-magenta-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed shrink-0 uppercase"
-          aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
-        >
-          {clearingOutputs ? "[CLEARING OUT]" : "[CLEAR OUT]"}
-        </button>
-      </Tooltip>
+          {isRecentNavViewScoped ? "view" : "all"}
+        </span>
+        <Tooltip text={isRecentNavViewScoped ? "Load next clip from current recent view" : "Load next recent clip"}>
+          <button
+            onClick={() => void handleLoadAdjacent(1)}
+            disabled={actionsBusy || refreshingRecent}
+            className="font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase px-1 py-0.5 border border-cyan-400/30 rounded"
+            aria-keyshortcuts="Alt+N"
+          >
+            ▶
+          </button>
+        </Tooltip>
+      </div>
+
+      {/* ── Primary actions ── */}
+      <div className="flex items-center gap-1.5">
+        <Tooltip text="Replace the current video with a new one">
+          <button
+            onClick={openPicker}
+            disabled={actionsBusy}
+            className="font-pixel text-neon-magenta hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+          >
+            SWAP
+          </button>
+        </Tooltip>
+        <Tooltip text="Clear current clip and return to upload/recent selector">
+          <button
+            onClick={handleClearVideo}
+            disabled={isAnalyzing || isRendering || clearingOutputs || pruningFiltered}
+            className="font-pixel text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            aria-keyshortcuts="Alt+X"
+          >
+            EJECT
+          </button>
+        </Tooltip>
+        <span className="text-text-muted/30">│</span>
+        <Tooltip text="Rename current clip label in local library">
+          <button
+            onClick={() => void handleRenameCurrent()}
+            disabled={actionsBusy}
+            className="font-pixel text-cyan-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+          >
+            REN
+          </button>
+        </Tooltip>
+        <Tooltip text="Delete this clip from local library and clear the current session">
+          <button
+            onClick={() => void handleDeleteCurrent()}
+            disabled={actionsBusy}
+            className="font-pixel text-red-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+          >
+            DEL
+          </button>
+        </Tooltip>
+        <Tooltip text="Delete rendered outputs for current clip only">
+          <button
+            onClick={() => void handleClearCurrentOutputs()}
+            disabled={actionsBusy || !clipOutputCount || clipOutputCount <= 0}
+            className="font-pixel text-red-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
+          >
+            {clearingOutputs ? "CLR…" : "CLR OUT"}
+          </button>
+        </Tooltip>
+        <Tooltip text="Remove every clip from local library and reset to upload screen">
+          <button
+            onClick={() => void handleClearLibrary()}
+            disabled={actionsBusy}
+            className="font-pixel text-red-400/50 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+          >
+            CLR LIB
+          </button>
+        </Tooltip>
+      </div>
     </div>
   );
 }

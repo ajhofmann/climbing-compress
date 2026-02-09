@@ -141,7 +141,7 @@ def _extract_com(
         for name in center_parts:
             if name in pose:
                 x, y, vis = pose[name]
-                if vis > MIN_VISIBILITY:
+                if vis >= MIN_VISIBILITY:
                     xs.append(x)
                     ys.append(y)
         if len(xs) >= 2:

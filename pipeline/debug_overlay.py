@@ -93,7 +93,7 @@ def _draw_skeleton(frame: np.ndarray, pose, h: int, w: int) -> None:
         for name, lm_idx in LANDMARKS.items():
             if name in pose:
                 x, y, vis = pose[name]
-                if vis > MIN_VISIBILITY:
+                if vis >= MIN_VISIBILITY:
                     idx_to_pt[lm_idx] = (int(x * w), int(y * h))
                     idx_to_vis[lm_idx] = vis
 
@@ -121,7 +121,7 @@ def _draw_skeleton(frame: np.ndarray, pose, h: int, w: int) -> None:
     elif isinstance(pose, list) and len(pose) == 33:
         pts: dict[int, tuple[int, int]] = {}
         for i, (x, y, vis) in enumerate(pose):
-            if vis > MIN_VISIBILITY:
+            if vis >= MIN_VISIBILITY:
                 pts[i] = (int(x * w), int(y * h))
         for i1, i2 in SKELETON_CONNECTIONS:
             if i1 in pts and i2 in pts:
@@ -203,7 +203,7 @@ def _compute_com(poses: list) -> tuple[np.ndarray, np.ndarray]:
         for name in parts:
             if name in p:
                 x, y, v = p[name]
-                if v > MIN_VISIBILITY:
+                if v >= MIN_VISIBILITY:
                     xs.append(x)
                     ys.append(y)
         if len(xs) >= 2:
