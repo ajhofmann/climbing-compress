@@ -12,6 +12,7 @@ const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4", "#name*=clip"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
+const RECENT_COMPARATOR_TYPO_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#framerate", "#w", "#width", "#h", "#height", "#ar", "#fc", "#frames", "#res", "#resolution", "#ext", "#format", "#name", "#file", "#filename"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
   "#out": ["#out=0..2", "#out=..0"],
   "#src": ["#src=2k..4k", "#src=2k.."],
@@ -785,11 +786,11 @@ export function VideoUpload() {
         return a.tag.localeCompare(b.tag);
       })
       .slice(0, 3);
-    const comparatorMatch = normalizedTarget.match(/^#([a-z]+)([<>=!].+)$/);
+    const comparatorMatch = normalizedTarget.match(/^#([a-z]+)([<>=!*$^≤≥≠].+)$/);
     const comparatorScored = comparatorMatch
       ? (() => {
         const family = `#${comparatorMatch[1]}`;
-        const scored = RECENT_COMPARATOR_FAMILIES.map((tag) => {
+        const scored = RECENT_COMPARATOR_TYPO_FAMILIES.map((tag) => {
           const distance = levenshteinDistance(family, tag);
           const sharesPrefix = tag.startsWith(family) || family.startsWith(tag);
           return { tag, distance, sharesPrefix };

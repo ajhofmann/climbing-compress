@@ -101,7 +101,7 @@ Upload notes:
 - Filename comparators are supported as exact/pattern checks too (for example `#name=clip.mp4`, `#name!=clip.mp4`, `#name*=clip`, `#name^=recent_`, `#name$=.mp4`), including aliases `#file...` and `#filename...`.
 - Unknown `#tag` tokens are highlighted in warning style and listed as `unknown tag:*` until corrected/removed.
 - Unknown non-duration tags also surface `did you mean` replacement buttons (for example `#cachedd` → `#cached`) with one-click repair.
-- Comparator-family typos are auto-suggested too (for example `#dru>5` → `#dur>5`, `-#srd>3k` → `-#src>3k`).
+- Comparator-family typos are auto-suggested too (for example `#dru>5` → `#dur>5`, `-#srd>3k` → `-#src>3k`, `#filname=clip.mp4` → `#filename=clip.mp4`, `#reslution=320x240` → `#resolution=320x240`).
 - Specific malformed comparator example rows are suppressed when a direct `did you mean` replacement is available, reducing hint clutter.
 - Malformed `#out...` comparator tags now surface clickable output examples (`#out>=1`, `#out=0`) with include/exclude prefix preservation.
 - Malformed `#src...` / `#mb...` comparator tags now surface clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) with include/exclude prefix preservation.

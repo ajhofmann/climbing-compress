@@ -97,7 +97,7 @@ Upload constraints are enforced by the backend:
 - filename comparators are supported as exact/pattern checks too (e.g. `#name=clip.mp4`, `#name!=clip.mp4`, `#name*=clip`, `#name^=recent_`, `#name$=.mp4`), including aliases `#file...` and `#filename...`
 - unknown `#tag` tokens are rendered as warning chips with an inline `unknown tag:*` message
 - unknown non-duration tags include `did you mean` replacement buttons for typo repair (e.g. `#cachedd` -> `#cached`)
-- comparator-family typos are suggested too (e.g. `#dru>5` -> `#dur>5`, `-#srd>3k` -> `-#src>3k`)
+- comparator-family typos are suggested too (e.g. `#dru>5` -> `#dur>5`, `-#srd>3k` -> `-#src>3k`, `#filname=clip.mp4` -> `#filename=clip.mp4`, `#reslution=320x240` -> `#resolution=320x240`)
 - malformed comparator example rows are hidden whenever a direct `did you mean` replacement is available
 - malformed `#out...` comparator tags show clickable output examples (`#out>=1`, `#out=0`) and preserve include/exclude prefix
 - malformed `#src...` / `#mb...` comparator tags show clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) and preserve include/exclude prefix
