@@ -10,6 +10,13 @@ const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_CURSOR_PAGE_STEP = 5;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
+const RECENT_FILTER_SIMPLE_TAG_ALIASES = {
+  "#cache": "#cached",
+  "#warm": "#cached",
+  "#nocache": "#uncached",
+  "#cold": "#uncached",
+} as const;
+const RECENT_FILTER_SIMPLE_TAG_ALIAS_SUGGESTIONS = Object.keys(RECENT_FILTER_SIMPLE_TAG_ALIASES) as (keyof typeof RECENT_FILTER_SIMPLE_TAG_ALIASES)[];
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name*=clip", "#id*=abc", "#id=abc123,def456"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
 const RECENT_COMPARATOR_TYPO_FAMILIES = ["#out", "#outputs", "#src", "#source", "#sourcebytes", "#mb", "#render", "#outputbytes", "#dur", "#time", "#duration", "#fps", "#framerate", "#w", "#width", "#h", "#height", "#ar", "#aspect", "#ratio", "#fc", "#frames", "#res", "#resolution", "#ext", "#format", "#name", "#file", "#filename", "#id", "#video", "#videoid", "#vid"] as const;
@@ -775,6 +782,7 @@ export function VideoUpload() {
   );
   const isRecognizedRecentTagTerm = useCallback((term: string) => {
     if (RECENT_FILTER_SIMPLE_TAGS.includes(term as typeof RECENT_FILTER_SIMPLE_TAGS[number])) return true;
+    if (term in RECENT_FILTER_SIMPLE_TAG_ALIASES) return true;
     if (parseSourceBytesRangeTerm(term) !== null) return true;
     if (parseSourceBytesComparatorTerm(term) !== null) return true;
     if (parseOutputBytesRangeTerm(term) !== null) return true;
@@ -876,7 +884,7 @@ export function VideoUpload() {
     if (unknownTagTerms.length <= 0) return null as null | { term: string; termIndex: number; replacements: string[] };
     const target = unknownTagTerms[unknownTagTerms.length - 1];
     const normalizedTarget = target.term.toLowerCase();
-    const simpleScored = RECENT_FILTER_SIMPLE_TAGS
+    const simpleScored = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_SIMPLE_TAG_ALIAS_SUGGESTIONS]
       .map((tag) => {
         const normalizedTag = tag.toLowerCase();
         const distance = levenshteinDistance(normalizedTarget, normalizedTag);
@@ -1190,7 +1198,8 @@ export function VideoUpload() {
       return false;
     }
     if (term.startsWith("#")) {
-      const tag = term.slice(1);
+      const normalizedTerm = (RECENT_FILTER_SIMPLE_TAG_ALIASES[term as keyof typeof RECENT_FILTER_SIMPLE_TAG_ALIASES] ?? term);
+      const tag = normalizedTerm.slice(1);
       if (tag === "cached") return item.cached;
       if (tag === "uncached") return !item.cached;
       if (tag === "out") return item.output_count > 0;
@@ -1267,7 +1276,7 @@ export function VideoUpload() {
     if (!isExcludeTag && !isIncludeTag) return [] as string[];
     const normalizedTail = isExcludeTag || isPlusIncludeTag ? tail.slice(1) : tail;
     const excludePrefix = isBangExcludeTag ? "!" : "-";
-    const suggestionCandidates = [...RECENT_FILTER_TAGS, ...RECENT_FILTER_RANGE_SUGGESTIONS, ...RECENT_FILTER_META_SUGGESTIONS]
+    const suggestionCandidates = [...RECENT_FILTER_TAGS, ...RECENT_FILTER_SIMPLE_TAG_ALIAS_SUGGESTIONS, ...RECENT_FILTER_RANGE_SUGGESTIONS, ...RECENT_FILTER_META_SUGGESTIONS]
       .filter((tag, idx, arr) => arr.indexOf(tag) === idx);
     const direct = suggestionCandidates.filter((tag) => tag.startsWith(normalizedTail));
     const base = direct.length > 0

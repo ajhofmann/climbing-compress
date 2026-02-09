@@ -91,7 +91,7 @@ Upload notes:
 - Exclusions accept both `-term` and `!term` forms (for example `-#out` or `!#out`).
 - Includes can also be prefixed explicitly with `+` (for example `+#cached` or `+"alpha beta"`).
 - Quoted phrases also work for exclude prefixes and comparator values (for example `!"alpha beta"` and `#name="my clip.mp4"`).
-- Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (and exclusions like `-#out` or `!#out`).
+- Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (and exclusions like `-#out` or `!#out`), with simple-tag aliases like `#cache/#warm` -> `#cached` and `#nocache/#cold` -> `#uncached`.
 - Output-count comparators are supported too (for example `#out>=1`, `#out=0`, `#out!=0`, `#out>2`), including alias `#outputs...`.
 - Comparator ranges are supported with `..`, including open-ended bounds (for example `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`).
 - Comparator equality accepts both `=` and `==` forms (for example `#out==0`, `#dur==8`).
