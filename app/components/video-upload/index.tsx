@@ -278,7 +278,7 @@ function parseFrameCountRangeTerm(term: string): NumericRangeFilter | null {
 }
 
 function parseExtensionComparatorTerm(term: string): ExtensionComparatorTerm | null {
-  const comparatorMatch = term.match(/^#ext(==|=|!=|<>)([a-z0-9.,|]+)$/i);
+  const comparatorMatch = term.match(/^#(?:ext|format)(==|=|!=|<>)([a-z0-9.,|]+)$/i);
   if (!comparatorMatch) return null;
   const operator: ExtensionComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "==" ? "=" : "!=";
   const rawValue = comparatorMatch[2].toLowerCase().replace(/\|/g, ",");
@@ -340,6 +340,9 @@ function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
 
 function remapVideoMetaAliasForTarget(tag: string, targetTerm: string): string {
   const normalizedTarget = targetTerm.toLowerCase();
+  if (normalizedTarget.startsWith("#format") && tag.startsWith("#ext")) {
+    return `#format${tag.slice(4)}`;
+  }
   if (normalizedTarget.startsWith("#framerate") && tag.startsWith("#fps")) {
     return `#framerate${tag.slice(4)}`;
   }
@@ -728,15 +731,16 @@ export function VideoUpload() {
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownExtensionHintConfig = useMemo(() => {
     const unknownExtensionTerms = parsedRecentFilterTerms.filter(
-      (item) => item.term.startsWith("#ext") && !isRecognizedRecentTagTerm(item.term),
+      (item) => (item.term.startsWith("#ext") || item.term.startsWith("#format")) && !isRecognizedRecentTagTerm(item.term),
     );
     if (unknownExtensionTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
     const target = unknownExtensionTerms[unknownExtensionTerms.length - 1];
+    const base = RECENT_EXTENSION_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
       tags: target.isExclude
-        ? RECENT_EXTENSION_HINT_TAGS.map((tag) => `-${tag}`)
-        : [...RECENT_EXTENSION_HINT_TAGS],
+        ? base.map((tag) => `-${tag}`)
+        : base,
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownVideoMetaHintConfig = useMemo(() => {
@@ -1023,7 +1027,7 @@ export function VideoUpload() {
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#ar"))
                   : normalizedTail.startsWith("#fc") || normalizedTail.startsWith("#frames")
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#fc"))
-                  : normalizedTail.startsWith("#ext")
+                  : normalizedTail.startsWith("#ext") || normalizedTail.startsWith("#format")
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#ext"))
               : [];
     const aliasAdjustedBase = base.map((tag) => remapVideoMetaAliasForTarget(tag, normalizedTail));

@@ -97,14 +97,14 @@ Upload notes:
 - Storage comparators are supported with byte units (for example `#src>3k`, `#src>3kb`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`).
 - Duration comparator tags are also supported (for example `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur!=5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`, `#dur>1:30`, `#dur>0:00:01.8`, `#dur>1h2m`).
 - Video metadata comparators are supported for FPS/width/height/aspect/frame-count too (for example `#fps<=24`, `#fps=24..60`, `#w=..1080`, `#h>=1080`, `#ar=1.3..1.8`, `#ar>=16:9`, `#fc<=30`), including long aliases `#framerate...`, `#width...`, `#height...`, and `#frames...`.
-- Extension comparators are supported as equality checks too (for example `#ext=mp4`, `#ext=mp4,mov`, `#ext!=mov`).
+- Extension comparators are supported as equality checks too (for example `#ext=mp4`, `#ext=mp4,mov`, `#ext!=mov`), including long alias `#format...`.
 - Unknown `#tag` tokens are highlighted in warning style and listed as `unknown tag:*` until corrected/removed.
 - Unknown non-duration tags also surface `did you mean` replacement buttons (for example `#cachedd` → `#cached`) with one-click repair.
 - Comparator-family typos are auto-suggested too (for example `#dru>5` → `#dur>5`, `-#srd>3k` → `-#src>3k`).
 - Specific malformed comparator example rows are suppressed when a direct `did you mean` replacement is available, reducing hint clutter.
 - Malformed `#out...` comparator tags now surface clickable output examples (`#out>=1`, `#out=0`) with include/exclude prefix preservation.
 - Malformed `#src...` / `#mb...` comparator tags now surface clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) with include/exclude prefix preservation.
-- Malformed `#ext...` comparator tags now surface clickable extension examples (`#ext=mp4`, `#ext=mp4,mov`, `#ext!=mp4`) with include/exclude prefix preservation.
+- Malformed `#ext...` / `#format...` comparator tags now surface clickable extension examples (`#ext=mp4`, `#ext=mp4,mov`, `#ext!=mp4`) with include/exclude prefix preservation and long-alias preservation.
 - Malformed `#fps...` / `#w...` / `#h...` / `#ar...` / `#fc...` comparator tags now surface clickable video-meta examples (`#fps>=24`, `#fps=24..60`, `#w>=1080`, `#h>=1080`, `#ar>=1.3`, `#fc>=25`), preserving long-form aliases when typed (`#framerate...`, `#width...`, `#height...`, `#frames...`).
 - Malformed range comparators now surface clickable range examples (for example `#dur=1..2`, `#dur=..2`, `#src=2k..4k`, `#src=2k..`, `#out=0..2`, `#ar=1.3..1.8`, `#fc=25..200`), preserving long aliases like `#height=..x` -> `#height=..1920`.
 - Unknown `#dur...` comparator tags now also surface inline duration-format examples (seconds/minutes syntax).
@@ -113,7 +113,7 @@ Upload notes:
 - Recent filter now renders active term chips (`+term` includes, `-term` excludes) to clarify parsed query semantics.
 - Click a filter term chip to remove that specific term from the query instantly.
 - Typing partial tag tokens (for example `#c`, `-#o`) shows tag suggestions; press `Tab` to autocomplete.
-- Comparator fragments like `#src=` / `#out=` / `#dur=` / `#fps=` / `#w=` / `#h=` / `#ar=` / `#fc=` / `#ext=` (plus long forms like `#framerate=` / `#width=` / `#height=` / `#frames=`) also keep root-level suggestions visible for quick recovery (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#fps=24..60`, `#ar=1.3..1.8`, `#fc=25..200`).
+- Comparator fragments like `#src=` / `#out=` / `#dur=` / `#fps=` / `#w=` / `#h=` / `#ar=` / `#fc=` / `#ext=` (plus long forms like `#framerate=` / `#width=` / `#height=` / `#frames=` / `#format=`) also keep root-level suggestions visible for quick recovery (including range presets like `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#fps=24..60`, `#ar=1.3..1.8`, `#fc=25..200`).
 - Duration tag suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`) for faster comparator input.
 - While tag suggestions are visible, `Enter` first autocompletes the top suggestion; pressing `Enter` again loads the filtered clip, and `Shift+Enter` bypasses autocomplete to load immediately.
 - While tag suggestions are visible, `↑` / `↓` cycles suggestion selection before `Enter`/`Tab` apply.
