@@ -23,6 +23,7 @@ const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
+type NumericRangeFilter = { min: number | null; max: number | null };
 
 function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
   if (raw === "≤") return "<=";
@@ -36,8 +37,14 @@ function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
   return null;
 }
 
-function normalizeNumericRange(left: number, right: number): { min: number; max: number } {
+function normalizeNumericRange(left: number, right: number): NumericRangeFilter {
   return left <= right ? { min: left, max: right } : { min: right, max: left };
+}
+
+function matchesNumericRange(value: number, range: NumericRangeFilter): boolean {
+  if (range.min != null && value < range.min) return false;
+  if (range.max != null && value > range.max) return false;
+  return true;
 }
 
 function parseDurationLiteralSeconds(raw: string): number | null {
@@ -100,13 +107,40 @@ function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator
   return { operator, value };
 }
 
-function parseOutputRangeTerm(term: string): { min: number; max: number } | null {
-  const rangeMatch = term.match(/^#out(?:==|=)(\d+)\.\.(\d+)$/);
+function parseOutputRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#out(?:==|=)(\d*)\.\.(\d*)$/);
   if (!rangeMatch) return null;
-  const left = Number(rangeMatch[1]);
-  const right = Number(rangeMatch[2]);
-  if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
-  return normalizeNumericRange(left, right);
+  const leftRaw = rangeMatch[1];
+  const rightRaw = rangeMatch[2];
+  const hasLeft = leftRaw.length > 0;
+  const hasRight = rightRaw.length > 0;
+  if (!hasLeft && !hasRight) return null;
+  const left = hasLeft ? Number(leftRaw) : null;
+  const right = hasRight ? Number(rightRaw) : null;
+  if ((left != null && !Number.isFinite(left)) || (right != null && !Number.isFinite(right))) return null;
+  if (left != null && right != null) return normalizeNumericRange(left, right);
+  if (left != null) return { min: left, max: null };
+  if (right != null) return { min: null, max: right };
+  return null;
+}
+
+function parseSourceBytesRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#src(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  const leftRaw = rangeMatch[1].trim();
+  const rightRaw = rangeMatch[2].trim();
+  const hasLeft = leftRaw.length > 0;
+  const hasRight = rightRaw.length > 0;
+  if (!hasLeft && !hasRight) return null;
+  const left = hasLeft ? parseByteLiteral(leftRaw) : null;
+  const right = hasRight ? parseByteLiteral(rightRaw) : null;
+  if ((left != null && !Number.isFinite(left)) || (right != null && !Number.isFinite(right))) return null;
+  if (hasLeft && left == null) return null;
+  if (hasRight && right == null) return null;
+  if (left != null && right != null) return normalizeNumericRange(left, right);
+  if (left != null) return { min: left, max: null };
+  if (right != null) return { min: null, max: right };
+  return null;
 }
 
 function parseByteLiteral(raw: string): number | null {
@@ -135,15 +169,6 @@ function parseSourceBytesComparatorTerm(term: string): { operator: ComparatorOpe
   return { operator, valueBytes };
 }
 
-function parseSourceBytesRangeTerm(term: string): { min: number; max: number } | null {
-  const rangeMatch = term.match(/^#src(?:==|=)(.+?)\.\.(.+)$/);
-  if (!rangeMatch) return null;
-  const left = parseByteLiteral(rangeMatch[1]);
-  const right = parseByteLiteral(rangeMatch[2]);
-  if (left == null || right == null || !Number.isFinite(left) || !Number.isFinite(right)) return null;
-  return normalizeNumericRange(left, right);
-}
-
 function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
   const comparatorMatch = term.match(/^#mb(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
   if (!comparatorMatch) return null;
@@ -154,13 +179,23 @@ function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOpe
   return { operator, valueBytes };
 }
 
-function parseOutputBytesRangeTerm(term: string): { min: number; max: number } | null {
-  const rangeMatch = term.match(/^#mb(?:==|=)(.+?)\.\.(.+)$/);
+function parseOutputBytesRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#mb(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
-  const left = parseByteLiteral(rangeMatch[1]);
-  const right = parseByteLiteral(rangeMatch[2]);
-  if (left == null || right == null || !Number.isFinite(left) || !Number.isFinite(right)) return null;
-  return normalizeNumericRange(left, right);
+  const leftRaw = rangeMatch[1].trim();
+  const rightRaw = rangeMatch[2].trim();
+  const hasLeft = leftRaw.length > 0;
+  const hasRight = rightRaw.length > 0;
+  if (!hasLeft && !hasRight) return null;
+  const left = hasLeft ? parseByteLiteral(leftRaw) : null;
+  const right = hasRight ? parseByteLiteral(rightRaw) : null;
+  if ((left != null && !Number.isFinite(left)) || (right != null && !Number.isFinite(right))) return null;
+  if (hasLeft && left == null) return null;
+  if (hasRight && right == null) return null;
+  if (left != null && right != null) return normalizeNumericRange(left, right);
+  if (left != null) return { min: left, max: null };
+  if (right != null) return { min: null, max: right };
+  return null;
 }
 
 function parseDurationComparatorTerm(term: string): { operator: ComparatorOperator; valueSeconds: number } | null {
@@ -173,13 +208,23 @@ function parseDurationComparatorTerm(term: string): { operator: ComparatorOperat
   return { operator, valueSeconds };
 }
 
-function parseDurationRangeTerm(term: string): { min: number; max: number } | null {
-  const rangeMatch = term.match(/^#dur(?:==|=)(.+?)\.\.(.+)$/);
+function parseDurationRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#dur(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
-  const left = parseDurationLiteralSeconds(rangeMatch[1]);
-  const right = parseDurationLiteralSeconds(rangeMatch[2]);
-  if (left == null || right == null || !Number.isFinite(left) || !Number.isFinite(right)) return null;
-  return normalizeNumericRange(left, right);
+  const leftRaw = rangeMatch[1].trim();
+  const rightRaw = rangeMatch[2].trim();
+  const hasLeft = leftRaw.length > 0;
+  const hasRight = rightRaw.length > 0;
+  if (!hasLeft && !hasRight) return null;
+  const left = hasLeft ? parseDurationLiteralSeconds(leftRaw) : null;
+  const right = hasRight ? parseDurationLiteralSeconds(rightRaw) : null;
+  if ((left != null && !Number.isFinite(left)) || (right != null && !Number.isFinite(right))) return null;
+  if (hasLeft && left == null) return null;
+  if (hasRight && right == null) return null;
+  if (left != null && right != null) return normalizeNumericRange(left, right);
+  if (left != null) return { min: left, max: null };
+  if (right != null) return { min: null, max: right };
+  return null;
 }
 
 function normalizeRecentFilterTerms(sourceTerms: string[]): string[] {
@@ -533,7 +578,7 @@ export function VideoUpload() {
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
     const sourceBytesRange = parseSourceBytesRangeTerm(term);
     if (sourceBytesRange) {
-      return item.source_bytes >= sourceBytesRange.min && item.source_bytes <= sourceBytesRange.max;
+      return matchesNumericRange(item.source_bytes, sourceBytesRange);
     }
     const sourceBytesComparator = parseSourceBytesComparatorTerm(term);
     if (sourceBytesComparator) {
@@ -548,7 +593,7 @@ export function VideoUpload() {
     }
     const outputBytesRange = parseOutputBytesRangeTerm(term);
     if (outputBytesRange) {
-      return item.output_bytes >= outputBytesRange.min && item.output_bytes <= outputBytesRange.max;
+      return matchesNumericRange(item.output_bytes, outputBytesRange);
     }
     const outputBytesComparator = parseOutputBytesComparatorTerm(term);
     if (outputBytesComparator) {
@@ -563,7 +608,7 @@ export function VideoUpload() {
     }
     const outputRange = parseOutputRangeTerm(term);
     if (outputRange) {
-      return item.output_count >= outputRange.min && item.output_count <= outputRange.max;
+      return matchesNumericRange(item.output_count, outputRange);
     }
     const outputComparator = parseOutputComparatorTerm(term);
     if (outputComparator) {
@@ -578,7 +623,7 @@ export function VideoUpload() {
     }
     const durationRange = parseDurationRangeTerm(term);
     if (durationRange) {
-      return item.info.duration >= durationRange.min && item.info.duration <= durationRange.max;
+      return matchesNumericRange(item.info.duration, durationRange);
     }
     const durationComparator = parseDurationComparatorTerm(term);
     if (durationComparator) {

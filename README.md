@@ -90,7 +90,7 @@ Upload notes:
 - Recent section includes quick name filtering (`filter clips`) with explicit `no matching clips` state, space-separated AND matching, and `-term` exclusions.
 - Recent filter also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long` (and exclusions like `-#out`).
 - Output-count comparators are supported too (for example `#out>=1`, `#out=0`, `#out!=0`, `#out>2`).
-- Comparator ranges are supported with `..` (for example `#out=0..2`, `#src=2k..4k`, `#dur=1..2`).
+- Comparator ranges are supported with `..`, including open-ended bounds (for example `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`).
 - Comparator equality accepts both `=` and `==` forms (for example `#out==0`, `#dur==8`).
 - Comparator typo aliases are accepted too (`=>` as `>=`, `=<` as `<=`, `<>` as `!=`) for faster forgiving input.
 - Storage comparators are supported with byte units (for example `#src>3k`, `#src>3kb`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`).
