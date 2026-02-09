@@ -10,7 +10,7 @@ const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_CURSOR_PAGE_STEP = 5;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
-const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
   "#out": ["#out=0..2", "#out=..0"],
@@ -24,7 +24,7 @@ const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIE
   "#fc": ["#fc=25..200", "#fc=..30"],
 };
 const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2", "#ar=1.3..1.8", "#ar=..1.4", "#fc=25..200", "#fc=..30"] as const;
-const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200"] as const;
+const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200", "#res=1920x1080", "#res!=1920x1080"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
@@ -36,10 +36,12 @@ const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
   "#h": ["#h>=1080", "#h=..1920"],
   "#ar": ["#ar>=1.3", "#ar=1.3..1.8"],
   "#fc": ["#fc>=25", "#fc=25..200"],
+  "#res": ["#res=1920x1080", "#res!=1920x1080"],
 } as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 type ExtensionComparatorOperator = "=" | "!=";
 type ExtensionComparatorTerm = { operator: ExtensionComparatorOperator; values: string[] };
+type ResolutionComparatorOperator = "=" | "!=";
 type NumericRangeFilter = { min: number | null; max: number | null };
 
 function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
@@ -290,6 +292,16 @@ function parseExtensionComparatorTerm(term: string): ExtensionComparatorTerm | n
   return { operator, values };
 }
 
+function parseResolutionComparatorTerm(term: string): { operator: ResolutionComparatorOperator; width: number; height: number } | null {
+  const comparatorMatch = term.match(/^#(?:res|resolution)(==|=|!=|<>)(\d{2,5})\s*x\s*(\d{2,5})$/i);
+  if (!comparatorMatch) return null;
+  const operator: ResolutionComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "==" ? "=" : "!=";
+  const width = parseIntegerLiteral(comparatorMatch[2]);
+  const height = parseIntegerLiteral(comparatorMatch[3]);
+  if (width == null || height == null || width <= 0 || height <= 0) return null;
+  return { operator, width, height };
+}
+
 function parseFpsComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
   const comparatorMatch = term.match(/^#(?:fps|framerate)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+(?:\.\d+)?)$/);
   if (!comparatorMatch) return null;
@@ -340,6 +352,9 @@ function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
 
 function remapVideoMetaAliasForTarget(tag: string, targetTerm: string): string {
   const normalizedTarget = targetTerm.toLowerCase();
+  if (normalizedTarget.startsWith("#resolution") && tag.startsWith("#res")) {
+    return `#resolution${tag.slice(4)}`;
+  }
   if (normalizedTarget.startsWith("#format") && tag.startsWith("#ext")) {
     return `#format${tag.slice(4)}`;
   }
@@ -659,7 +674,8 @@ export function VideoUpload() {
     if (parseAspectComparatorTerm(term) !== null) return true;
     if (parseFrameCountRangeTerm(term) !== null) return true;
     if (parseFrameCountComparatorTerm(term) !== null) return true;
-    return parseExtensionComparatorTerm(term) !== null;
+    if (parseExtensionComparatorTerm(term) !== null) return true;
+    return parseResolutionComparatorTerm(term) !== null;
   }, []);
   const unknownRecentTagTerms = useMemo(() => {
     const out: string[] = [];
@@ -820,6 +836,8 @@ export function VideoUpload() {
         || item.term.startsWith("#w")
         || item.term.startsWith("#h")
         || item.term.startsWith("#ar")
+        || item.term.startsWith("#res")
+        || item.term.startsWith("#resolution")
         || item.term.startsWith("#width")
         || item.term.startsWith("#height")
       ) && !isRecognizedRecentTagTerm(item.term),
@@ -833,6 +851,8 @@ export function VideoUpload() {
         ? "#fc"
       : target.term.startsWith("#ar")
         ? "#ar"
+      : target.term.startsWith("#res") || target.term.startsWith("#resolution")
+        ? "#res"
       : target.term.startsWith("#w") || target.term.startsWith("#width")
         ? "#w"
         : target.term.startsWith("#h") || target.term.startsWith("#height")
@@ -994,6 +1014,12 @@ export function VideoUpload() {
       if (extensionComparator.operator === "!=") return !extensionComparator.values.includes(ext);
       return extensionComparator.values.includes(ext);
     }
+    const resolutionComparator = parseResolutionComparatorTerm(term);
+    if (resolutionComparator) {
+      const isExactMatch = item.info.width === resolutionComparator.width && item.info.height === resolutionComparator.height;
+      if (resolutionComparator.operator === "!=") return !isExactMatch;
+      return isExactMatch;
+    }
     if (term.startsWith("#")) {
       const tag = term.slice(1);
       if (tag === "cached") return item.cached;
@@ -1094,6 +1120,8 @@ export function VideoUpload() {
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#ar"))
                   : normalizedTail.startsWith("#fc") || normalizedTail.startsWith("#frames")
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#fc"))
+                  : normalizedTail.startsWith("#res") || normalizedTail.startsWith("#resolution")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#res"))
                   : normalizedTail.startsWith("#ext") || normalizedTail.startsWith("#format")
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#ext"))
               : [];
