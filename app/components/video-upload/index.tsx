@@ -275,7 +275,7 @@ function parseFrameCountRangeTerm(term: string): NumericRangeFilter | null {
 }
 
 function parseFpsComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
-  const comparatorMatch = term.match(/^#fps(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+(?:\.\d+)?)$/);
+  const comparatorMatch = term.match(/^#(?:fps|framerate)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+(?:\.\d+)?)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
@@ -285,7 +285,7 @@ function parseFpsComparatorTerm(term: string): { operator: ComparatorOperator; v
 }
 
 function parseFpsRangeTerm(term: string): NumericRangeFilter | null {
-  const rangeMatch = term.match(/^#fps(?:==|=)(.*?)\.\.(.*)$/);
+  const rangeMatch = term.match(/^#(?:fps|framerate)(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
   return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseDecimalLiteral);
 }
@@ -324,6 +324,9 @@ function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
 
 function remapVideoMetaAliasForTarget(tag: string, targetTerm: string): string {
   const normalizedTarget = targetTerm.toLowerCase();
+  if (normalizedTarget.startsWith("#framerate") && tag.startsWith("#fps")) {
+    return `#framerate${tag.slice(4)}`;
+  }
   if (normalizedTarget.startsWith("#width") && tag.startsWith("#w")) {
     return `#width${tag.slice(2)}`;
   }
@@ -614,6 +617,7 @@ export function VideoUpload() {
       (item) => item.term.includes("..")
         && RECENT_COMPARATOR_FAMILIES.some((family) => (
           item.term.startsWith(family)
+          || (family === "#fps" && item.term.startsWith("#framerate"))
           || (family === "#fc" && item.term.startsWith("#frames"))
         ))
         && !isRecognizedRecentTagTerm(item.term),
@@ -622,6 +626,7 @@ export function VideoUpload() {
     const target = unknownRangeTerms[unknownRangeTerms.length - 1];
     const family = RECENT_COMPARATOR_FAMILIES.find((entry) => (
       target.term.startsWith(entry)
+      || (entry === "#fps" && target.term.startsWith("#framerate"))
       || (entry === "#fc" && target.term.startsWith("#frames"))
     ));
     if (!family) return null;
@@ -708,6 +713,7 @@ export function VideoUpload() {
     const unknownMetaTerms = parsedRecentFilterTerms.filter(
       (item) => (
         item.term.startsWith("#fps")
+        || item.term.startsWith("#framerate")
         || item.term.startsWith("#fc")
         || item.term.startsWith("#frames")
         || item.term.startsWith("#w")
@@ -720,6 +726,7 @@ export function VideoUpload() {
     if (unknownMetaTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
     const target = unknownMetaTerms[unknownMetaTerms.length - 1];
     const family = target.term.startsWith("#fps")
+      || target.term.startsWith("#framerate")
       ? "#fps"
       : target.term.startsWith("#fc") || target.term.startsWith("#frames")
         ? "#fc"
@@ -964,7 +971,7 @@ export function VideoUpload() {
             ? suggestionCandidates.filter((tag) => tag.startsWith("#mb"))
             : normalizedTail.startsWith("#dur")
               ? suggestionCandidates.filter((tag) => tag.startsWith("#dur"))
-              : normalizedTail.startsWith("#fps")
+              : normalizedTail.startsWith("#fps") || normalizedTail.startsWith("#framerate")
                 ? suggestionCandidates.filter((tag) => tag.startsWith("#fps"))
                 : normalizedTail.startsWith("#w")
                   ? suggestionCandidates.filter((tag) => tag.startsWith("#w"))
