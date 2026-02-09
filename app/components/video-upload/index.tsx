@@ -10,8 +10,8 @@ const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_CURSOR_PAGE_STEP = 5;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
-const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8"] as const;
-const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30"] as const;
+const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
   "#out": ["#out=0..2", "#out=..0"],
   "#src": ["#src=2k..4k", "#src=2k.."],
@@ -21,9 +21,10 @@ const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIE
   "#w": ["#w=720..1920", "#w=..1080"],
   "#h": ["#h=720..1920", "#h=..1920"],
   "#ar": ["#ar=1.3..1.8", "#ar=..1.4"],
+  "#fc": ["#fc=25..200", "#fc=..30"],
 };
-const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2", "#ar=1.3..1.8", "#ar=..1.4"] as const;
-const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8"] as const;
+const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2", "#ar=1.3..1.8", "#ar=..1.4", "#fc=25..200", "#fc=..30"] as const;
+const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
@@ -33,6 +34,7 @@ const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
   "#w": ["#w>=1080", "#w=..1080"],
   "#h": ["#h>=1080", "#h=..1920"],
   "#ar": ["#ar>=1.3", "#ar=1.3..1.8"],
+  "#fc": ["#fc>=25", "#fc=25..200"],
 } as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 type NumericRangeFilter = { min: number | null; max: number | null };
@@ -256,6 +258,22 @@ function parseAspectRangeTerm(term: string): NumericRangeFilter | null {
   return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseAspectRatioLiteral);
 }
 
+function parseFrameCountComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#(?:fc|frames)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parseIntegerLiteral(comparatorMatch[2]);
+  if (value == null) return null;
+  return { operator, value };
+}
+
+function parseFrameCountRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:fc|frames)(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
+}
+
 function parseFpsComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
   const comparatorMatch = term.match(/^#fps(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+(?:\.\d+)?)$/);
   if (!comparatorMatch) return null;
@@ -311,6 +329,9 @@ function remapVideoMetaAliasForTarget(tag: string, targetTerm: string): string {
   }
   if (normalizedTarget.startsWith("#height") && tag.startsWith("#h")) {
     return `#height${tag.slice(2)}`;
+  }
+  if (normalizedTarget.startsWith("#frames") && tag.startsWith("#fc")) {
+    return `#frames${tag.slice(3)}`;
   }
   return tag;
 }
@@ -546,7 +567,9 @@ export function VideoUpload() {
     if (parseHeightRangeTerm(term) !== null) return true;
     if (parseHeightComparatorTerm(term) !== null) return true;
     if (parseAspectRangeTerm(term) !== null) return true;
-    return parseAspectComparatorTerm(term) !== null;
+    if (parseAspectComparatorTerm(term) !== null) return true;
+    if (parseFrameCountRangeTerm(term) !== null) return true;
+    return parseFrameCountComparatorTerm(term) !== null;
   }, []);
   const unknownRecentTagTerms = useMemo(() => {
     const out: string[] = [];
@@ -589,12 +612,18 @@ export function VideoUpload() {
   const unknownRangeHintConfig = useMemo(() => {
     const unknownRangeTerms = parsedRecentFilterTerms.filter(
       (item) => item.term.includes("..")
-        && RECENT_COMPARATOR_FAMILIES.some((family) => item.term.startsWith(family))
+        && RECENT_COMPARATOR_FAMILIES.some((family) => (
+          item.term.startsWith(family)
+          || (family === "#fc" && item.term.startsWith("#frames"))
+        ))
         && !isRecognizedRecentTagTerm(item.term),
     );
     if (unknownRangeTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
     const target = unknownRangeTerms[unknownRangeTerms.length - 1];
-    const family = RECENT_COMPARATOR_FAMILIES.find((entry) => target.term.startsWith(entry));
+    const family = RECENT_COMPARATOR_FAMILIES.find((entry) => (
+      target.term.startsWith(entry)
+      || (entry === "#fc" && target.term.startsWith("#frames"))
+    ));
     if (!family) return null;
     const base = [...RECENT_RANGE_HINT_TAGS_BY_FAMILY[family]]
       .map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
@@ -679,6 +708,8 @@ export function VideoUpload() {
     const unknownMetaTerms = parsedRecentFilterTerms.filter(
       (item) => (
         item.term.startsWith("#fps")
+        || item.term.startsWith("#fc")
+        || item.term.startsWith("#frames")
         || item.term.startsWith("#w")
         || item.term.startsWith("#h")
         || item.term.startsWith("#ar")
@@ -690,6 +721,8 @@ export function VideoUpload() {
     const target = unknownMetaTerms[unknownMetaTerms.length - 1];
     const family = target.term.startsWith("#fps")
       ? "#fps"
+      : target.term.startsWith("#fc") || target.term.startsWith("#frames")
+        ? "#fc"
       : target.term.startsWith("#ar")
         ? "#ar"
       : target.term.startsWith("#w") || target.term.startsWith("#width")
@@ -829,6 +862,21 @@ export function VideoUpload() {
       if (operator === "!=") return Math.abs(aspect - value) >= 0.005;
       return Math.abs(aspect - value) < 0.005;
     }
+    const frameRange = parseFrameCountRangeTerm(term);
+    if (frameRange) {
+      return matchesNumericRange(item.info.frame_count, frameRange);
+    }
+    const frameComparator = parseFrameCountComparatorTerm(term);
+    if (frameComparator) {
+      const { operator, value } = frameComparator;
+      const frameCount = item.info.frame_count;
+      if (operator === "<") return frameCount < value;
+      if (operator === "<=") return frameCount <= value;
+      if (operator === ">") return frameCount > value;
+      if (operator === ">=") return frameCount >= value;
+      if (operator === "!=") return frameCount !== value;
+      return frameCount === value;
+    }
     if (term.startsWith("#")) {
       const tag = term.slice(1);
       if (tag === "cached") return item.cached;
@@ -924,6 +972,8 @@ export function VideoUpload() {
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#h"))
                   : normalizedTail.startsWith("#ar")
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#ar"))
+                  : normalizedTail.startsWith("#fc") || normalizedTail.startsWith("#frames")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#fc"))
               : [];
     const aliasAdjustedBase = base.map((tag) => remapVideoMetaAliasForTarget(tag, normalizedTail));
     return isExcludeTag ? aliasAdjustedBase.map((tag) => `-${tag}`) : aliasAdjustedBase;
