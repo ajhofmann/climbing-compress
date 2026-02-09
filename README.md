@@ -132,7 +132,7 @@ Upload notes:
 - Press `?` (Shift + `/`) in dropzone mode (or click `[keys:on/off]`) to toggle shortcut help text.
 - `[keys:on/off]` shortcut-help visibility persists across reloads with other Recent view preferences.
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
-- Press `Alt + Backspace` in the recent filter input to pop the last query term quickly.
+- Press `Alt + Backspace` (or `Ctrl/Cmd + Backspace`) in the recent filter input to pop the last query term quickly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
 - Press `Enter` in the recent filter input to load the first matching clip instantly (`Shift+Enter` forces load even when tag suggestions are open).
 - Press `↑` / `↓` in the recent filter input to choose a clip (wraps at list ends) when no tag suggestion is open, then `Enter` to load the highlighted selection.

@@ -113,7 +113,7 @@ Upload constraints are enforced by the backend:
 - quick tag buttons show live match counts (`#tag:N`) but insert plain tag tokens when clicked
 - zero-match quick tags are collapsed by default and can be expanded via `[+N zero]` (`[hide 0s]` when expanded)
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
-- `Alt+Backspace` in recent filter input removes the last query term quickly
+- `Alt+Backspace` (or `Ctrl/Cmd+Backspace`) in recent filter input removes the last query term quickly
 - `Esc` clears active recent filter text and restores default preview
 - pressing `Enter` in recent filter input loads the first matching clip immediately (`Shift+Enter` forces load even when tag suggestions are open)
 - `ArrowUp` / `ArrowDown` in recent filter input moves a visible-clip cursor with wrap-around when no tag suggestion is open; `Enter` loads that highlighted clip
