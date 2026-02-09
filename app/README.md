@@ -96,7 +96,7 @@ Upload constraints are enforced by the backend:
 - video metadata comparators are supported for fps/width/height/aspect/frame-count/resolution too (e.g. `#fps<=24`, `#fps=24..60`, `#w=..1080`, `#h>=1080`, `#ar=1.3..1.8`, `#ar>=16:9`, `#fc<=30`, `#res=1920x1080`), including long aliases `#framerate...`, `#width...`, `#height...`, `#aspect...`, `#ratio...`, `#frames...`, and `#resolution...`
 - resolution comparators accept separators `x`, `×`, `*`, or `:` (e.g. `#res=1920x1080`, `#res=1920*1080`, `#res=16:9`)
 - extension comparators are supported as equality checks too (e.g. `#ext=mp4`, `#ext=mp4,mov`, `#ext!=mov`), including long alias `#format...`
-- filename comparators are supported as exact/pattern checks too (e.g. `#name=clip.mp4`, `#name!=clip.mp4`, `#name*=clip`, `#name^=recent_`, `#name$=.mp4`), including aliases `#file...` and `#filename...`
+- filename comparators are supported as exact/pattern checks too (e.g. `#name=clip.mp4`, `#name=clip.mp4,other.mp4`, `#name!=clip.mp4`, `#name*=clip`, `#name^=recent_`, `#name$=.mp4`), including aliases `#file...` and `#filename...`
 - unknown `#tag` tokens are rendered as warning chips with an inline `unknown tag:*` message
 - unknown non-duration tags include `did you mean` replacement buttons for typo repair (e.g. `#cachedd` -> `#cached`)
 - comparator-family typos are suggested too (e.g. `#dru>5` -> `#dur>5`, `-#srd>3k` -> `-#src>3k`, `#filname=clip.mp4` -> `#filename=clip.mp4`, `#reslution=320x240` -> `#resolution=320x240`)
@@ -104,7 +104,7 @@ Upload constraints are enforced by the backend:
 - malformed `#out...` comparator tags show clickable output examples (`#out>=1`, `#out=0`) and preserve include/exclude prefix
 - malformed `#src...` / `#mb...` comparator tags show clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) and preserve include/exclude prefix
 - malformed `#ext...` / `#format...` comparator tags show clickable extension examples (`#ext=mp4`, `#ext=mp4,mov`, `#ext!=mp4`) and preserve include/exclude prefix + long alias choice
-- malformed `#name...` / `#file...` / `#filename...` comparator tags show clickable name examples (`#name=clip.mp4`, `#name!=clip.mp4`, `#name*=clip`) and preserve include/exclude prefix + alias choice
+- malformed `#name...` / `#file...` / `#filename...` comparator tags show clickable name examples (`#name=clip.mp4`, `#name=clip.mp4,other.mp4`, `#name!=clip.mp4`, `#name*=clip`) and preserve include/exclude prefix + alias choice
 - malformed `#fps...` / `#w...` / `#h...` / `#ar...` / `#fc...` / `#res...` comparator tags show clickable video-meta examples (`#fps>=24`, `#fps=24..60`, `#w>=1080`, `#h>=1080`, `#ar>=1.3`, `#fc>=25`, `#res=1920x1080`) and preserve long-form aliases (`#framerate...`, `#width...`, `#height...`, `#aspect...`, `#ratio...`, `#frames...`, `#resolution...`) when typed
 - malformed range comparators show clickable range examples (`#dur=1..2`, `#dur=..2`, `#src=2k..4k`, `#src=2k..`, `#out=0..2`, `#ar=1.3..1.8`, `#fc=25..200`) and preserve long aliases like `#height=..x` -> `#height=..1920`
 - malformed `#dur...` / `#time...` / `#duration...` comparator tags also show inline duration-format examples (`#dur>90s`, `#dur>1m30s`)
