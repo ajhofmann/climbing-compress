@@ -12,7 +12,7 @@ const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name*=clip", "#id*=abc", "#id=abc123,def456"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
-const RECENT_COMPARATOR_TYPO_FAMILIES = ["#out", "#src", "#mb", "#dur", "#time", "#duration", "#fps", "#framerate", "#w", "#width", "#h", "#height", "#ar", "#aspect", "#ratio", "#fc", "#frames", "#res", "#resolution", "#ext", "#format", "#name", "#file", "#filename", "#id", "#video", "#vid"] as const;
+const RECENT_COMPARATOR_TYPO_FAMILIES = ["#out", "#outputs", "#src", "#source", "#mb", "#dur", "#time", "#duration", "#fps", "#framerate", "#w", "#width", "#h", "#height", "#ar", "#aspect", "#ratio", "#fc", "#frames", "#res", "#resolution", "#ext", "#format", "#name", "#file", "#filename", "#id", "#video", "#vid"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
   "#out": ["#out=0..2", "#out=..0"],
   "#src": ["#src=2k..4k", "#src=2k.."],
@@ -159,7 +159,7 @@ function parseOpenRangeParts(
 }
 
 function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
-  const comparatorMatch = term.match(/^#out(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
+  const comparatorMatch = term.match(/^#(?:out|outputs)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
@@ -169,13 +169,13 @@ function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator
 }
 
 function parseOutputRangeTerm(term: string): NumericRangeFilter | null {
-  const rangeMatch = term.match(/^#out(?:==|=)(.*?)\.\.(.*)$/);
+  const rangeMatch = term.match(/^#(?:out|outputs)(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
   return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
 }
 
 function parseSourceBytesRangeTerm(term: string): NumericRangeFilter | null {
-  const rangeMatch = term.match(/^#src(?:==|=)(.*?)\.\.(.*)$/);
+  const rangeMatch = term.match(/^#(?:src|source)(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
   return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseByteLiteral);
 }
@@ -197,7 +197,7 @@ function parseByteLiteral(raw: string): number | null {
 }
 
 function parseSourceBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
-  const comparatorMatch = term.match(/^#src(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
+  const comparatorMatch = term.match(/^#(?:src|source)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
@@ -408,6 +408,12 @@ function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
 
 function remapVideoMetaAliasForTarget(tag: string, targetTerm: string): string {
   const normalizedTarget = targetTerm.toLowerCase();
+  if (normalizedTarget.startsWith("#outputs") && tag.startsWith("#out")) {
+    return `#outputs${tag.slice(4)}`;
+  }
+  if (normalizedTarget.startsWith("#source") && tag.startsWith("#src")) {
+    return `#source${tag.slice(4)}`;
+  }
   if (normalizedTarget.startsWith("#video") && tag.startsWith("#id")) {
     return `#video${tag.slice(3)}`;
   }
@@ -794,24 +800,26 @@ export function VideoUpload() {
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownOutputHintConfig = useMemo(() => {
     const unknownOutputTerms = parsedRecentFilterTerms.filter(
-      (item) => item.term.startsWith("#out") && !isRecognizedRecentTagTerm(item.term),
+      (item) => (item.term.startsWith("#out") || item.term.startsWith("#outputs")) && !isRecognizedRecentTagTerm(item.term),
     );
     if (unknownOutputTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
     const target = unknownOutputTerms[unknownOutputTerms.length - 1];
+    const base = RECENT_OUTPUT_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
-      tags: RECENT_OUTPUT_HINT_TAGS.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownStorageHintConfig = useMemo(() => {
     const unknownStorageTerms = parsedRecentFilterTerms.filter(
-      (item) => (item.term.startsWith("#src") || item.term.startsWith("#mb")) && !isRecognizedRecentTagTerm(item.term),
+      (item) => (item.term.startsWith("#src") || item.term.startsWith("#source") || item.term.startsWith("#mb")) && !isRecognizedRecentTagTerm(item.term),
     );
     if (unknownStorageTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
     const target = unknownStorageTerms[unknownStorageTerms.length - 1];
+    const base = RECENT_STORAGE_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
-      tags: RECENT_STORAGE_HINT_TAGS.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownRangeHintConfig = useMemo(() => {
@@ -819,6 +827,8 @@ export function VideoUpload() {
       (item) => item.term.includes("..")
         && RECENT_COMPARATOR_FAMILIES.some((family) => (
           item.term.startsWith(family)
+          || (family === "#out" && item.term.startsWith("#outputs"))
+          || (family === "#src" && item.term.startsWith("#source"))
           || (family === "#dur" && (item.term.startsWith("#time") || item.term.startsWith("#duration")))
           || (family === "#fps" && item.term.startsWith("#framerate"))
           || (family === "#ar" && (item.term.startsWith("#aspect") || item.term.startsWith("#ratio")))
@@ -830,6 +840,8 @@ export function VideoUpload() {
     const target = unknownRangeTerms[unknownRangeTerms.length - 1];
     const family = RECENT_COMPARATOR_FAMILIES.find((entry) => (
       target.term.startsWith(entry)
+      || (entry === "#out" && target.term.startsWith("#outputs"))
+      || (entry === "#src" && target.term.startsWith("#source"))
       || (entry === "#dur" && (target.term.startsWith("#time") || target.term.startsWith("#duration")))
       || (entry === "#fps" && target.term.startsWith("#framerate"))
       || (entry === "#ar" && (target.term.startsWith("#aspect") || target.term.startsWith("#ratio")))
@@ -885,10 +897,9 @@ export function VideoUpload() {
           .slice(0, 3);
       })()
       : [];
-    const baseSuggestions = [
-      ...simpleScored.map((entry) => entry.tag),
-      ...comparatorScored.map((entry) => `${entry.tag}${comparatorMatch?.[2] ?? ""}`),
-    ];
+    const baseSuggestions = comparatorMatch
+      ? comparatorScored.map((entry) => `${entry.tag}${comparatorMatch[2]}`)
+      : simpleScored.map((entry) => entry.tag);
     const dedupedSuggestions: string[] = [];
     for (const suggestion of baseSuggestions) {
       if (suggestion.toLowerCase() === normalizedTarget) continue;
@@ -1247,9 +1258,9 @@ export function VideoUpload() {
     const direct = suggestionCandidates.filter((tag) => tag.startsWith(normalizedTail));
     const base = direct.length > 0
       ? direct
-      : normalizedTail.startsWith("#out")
+      : normalizedTail.startsWith("#out") || normalizedTail.startsWith("#outputs")
         ? suggestionCandidates.filter((tag) => tag.startsWith("#out"))
-        : normalizedTail.startsWith("#src")
+        : normalizedTail.startsWith("#src") || normalizedTail.startsWith("#source")
           ? suggestionCandidates.filter((tag) => tag.startsWith("#src"))
           : normalizedTail.startsWith("#mb")
             ? suggestionCandidates.filter((tag) => tag.startsWith("#mb"))
