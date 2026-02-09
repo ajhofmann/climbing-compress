@@ -98,6 +98,7 @@ Upload constraints are enforced by the backend:
 - malformed comparator example rows are hidden whenever a direct `did you mean` replacement is available
 - malformed `#out...` comparator tags show clickable output examples (`#out>=1`, `#out=0`) and preserve include/exclude prefix
 - malformed `#src...` / `#mb...` comparator tags show clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) and preserve include/exclude prefix
+- malformed range comparators show clickable range examples (`#dur=1..2`, `#src=2k..4k`, `#out=0..2`)
 - malformed `#dur...` comparator tags also show inline duration-format examples (`#dur>90s`, `#dur>1m30s`)
 - duration-format example tags are clickable to replace malformed `#dur` tokens immediately
 - malformed exclude tokens (`-#dur...`) keep the `-` prefix when applying a duration example button

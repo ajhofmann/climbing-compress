@@ -101,6 +101,7 @@ Upload notes:
 - Specific malformed comparator example rows are suppressed when a direct `did you mean` replacement is available, reducing hint clutter.
 - Malformed `#out...` comparator tags now surface clickable output examples (`#out>=1`, `#out=0`) with include/exclude prefix preservation.
 - Malformed `#src...` / `#mb...` comparator tags now surface clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) with include/exclude prefix preservation.
+- Malformed range comparators now surface clickable range examples (for example `#dur=1..2`, `#src=2k..4k`, `#out=0..2`).
 - Unknown `#dur...` comparator tags now also surface inline duration-format examples (seconds/minutes syntax).
 - Duration-format examples are clickable to replace malformed `#dur` tokens instantly.
 - If the malformed token is exclude-form (`-#dur...`), clickable replacements preserve the exclude prefix.

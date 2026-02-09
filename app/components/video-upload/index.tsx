@@ -11,6 +11,12 @@ const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long"] as const;
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur"] as const;
+const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
+  "#out": ["#out=0..2"],
+  "#src": ["#src=2k..4k"],
+  "#mb": ["#mb=0b..1m"],
+  "#dur": ["#dur=1..2", "#dur=0:01..0:06"],
+};
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
@@ -438,6 +444,22 @@ export function VideoUpload() {
         : [...RECENT_STORAGE_HINT_TAGS],
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownRangeHintConfig = useMemo(() => {
+    const unknownRangeTerms = parsedRecentFilterTerms.filter(
+      (item) => item.term.includes("..")
+        && RECENT_COMPARATOR_FAMILIES.some((family) => item.term.startsWith(family))
+        && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownRangeTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownRangeTerms[unknownRangeTerms.length - 1];
+    const family = RECENT_COMPARATOR_FAMILIES.find((entry) => target.term.startsWith(entry));
+    if (!family) return null;
+    const base = [...RECENT_RANGE_HINT_TAGS_BY_FAMILY[family]];
+    return {
+      termIndex: target.idx,
+      tags: target.isExclude ? base.map((tag) => `-${tag}`) : base,
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownTagReplacementHints = useMemo(() => {
     const unknownTagTerms = parsedRecentFilterTerms.filter(
       (item) => item.term.startsWith("#") && !isRecognizedRecentTagTerm(item.term),
@@ -460,18 +482,22 @@ export function VideoUpload() {
       .slice(0, 3);
     const comparatorMatch = normalizedTarget.match(/^#([a-z]+)([<>=!].+)$/);
     const comparatorScored = comparatorMatch
-      ? RECENT_COMPARATOR_FAMILIES
-        .map((tag) => {
-          const distance = levenshteinDistance(`#${comparatorMatch[1]}`, tag);
-          const sharesPrefix = tag.startsWith(`#${comparatorMatch[1]}`) || `#${comparatorMatch[1]}`.startsWith(tag);
+      ? (() => {
+        const family = `#${comparatorMatch[1]}`;
+        const scored = RECENT_COMPARATOR_FAMILIES.map((tag) => {
+          const distance = levenshteinDistance(family, tag);
+          const sharesPrefix = tag.startsWith(family) || family.startsWith(tag);
           return { tag, distance, sharesPrefix };
-        })
-        .filter((entry) => entry.distance <= 2 || entry.sharesPrefix)
-        .sort((a, b) => {
-          if (a.distance !== b.distance) return a.distance - b.distance;
-          return a.tag.localeCompare(b.tag);
-        })
-        .slice(0, 3)
+        });
+        const minDistance = scored.reduce((min, entry) => Math.min(min, entry.distance), Number.POSITIVE_INFINITY);
+        return scored
+          .filter((entry) => (entry.distance === minDistance && entry.distance <= 1) || entry.sharesPrefix)
+          .sort((a, b) => {
+            if (a.distance !== b.distance) return a.distance - b.distance;
+            return a.tag.localeCompare(b.tag);
+          })
+          .slice(0, 3);
+      })()
       : [];
     const baseSuggestions = [
       ...simpleScored.map((entry) => entry.tag),
@@ -2058,7 +2084,7 @@ export function VideoUpload() {
                     ))}
                   </div>
                 )}
-                {!unknownTagReplacementHints && unknownOutputHintConfig && (
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownOutputHintConfig && (
                   <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
                     <span>output examples:</span>
                     {unknownOutputHintConfig.tags.map((tag) => (
@@ -2074,7 +2100,7 @@ export function VideoUpload() {
                     ))}
                   </div>
                 )}
-                {!unknownTagReplacementHints && unknownStorageHintConfig && (
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownStorageHintConfig && (
                   <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
                     <span>storage examples:</span>
                     {unknownStorageHintConfig.tags.map((tag) => (
@@ -2090,7 +2116,23 @@ export function VideoUpload() {
                     ))}
                   </div>
                 )}
-                {!unknownTagReplacementHints && unknownDurationHintConfig && (
+                {!unknownTagReplacementHints && unknownRangeHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>range examples:</span>
+                    {unknownRangeHintConfig.tags.map((tag) => (
+                      <button
+                        key={`range-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownRangeHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed range filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownDurationHintConfig && (
                   <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
                     <span>duration examples:</span>
                     {unknownDurationHintConfig.tags.map((tag) => (
