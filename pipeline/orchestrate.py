@@ -503,8 +503,14 @@ def run_analysis(
     tracking_info: dict = {}
     if HAS_TRACKER and has_tracks(video_path):
         tracking_info["tracker_available"] = True
+    if req.use_tracker and not HAS_TRACKER:
+        tracking_info["tracker_unavailable"] = True
+        logger.warning("Tracking requested but dependencies missing (ultralytics, supervision)")
     if flow_scores is not None:
         tracking_info["flow_available"] = True
+    if req.use_flow and not HAS_FLOW:
+        tracking_info["flow_unavailable"] = True
+        logger.warning("Flow scoring requested but pipeline.flow import failed")
     if camera_motion is not None:
         tracking_info["camera_motion_available"] = True
 
@@ -683,9 +689,9 @@ def run_render(
             mode=req.mode,
         )
     else:
-        overlay_fn = make_speed_badge_fn(curve)
+        overlay_fn = None
 
-    if getattr(req, "render_chapters", False):
+    if overlay_fn is not None and getattr(req, "render_chapters", False):
         chapters = build_chapter_markers(scores, fps, len(trimmed))
         overlay_fn = wrap_overlay_with_chapters(overlay_fn, chapters, fps)
 
@@ -739,8 +745,8 @@ def run_render(
         comparison_id = uuid.uuid4().hex[:10]
         comparison_path = str(output_dir / f"{comparison_id}.mp4")
 
-        # Simple speed badge overlay for comparison
-        comp_overlay = make_speed_badge_fn(flat_curve)
+        # Speed badge overlay for comparison only when debug is on
+        comp_overlay = make_speed_badge_fn(flat_curve) if req.debug_overlay else None
 
         render_preview(
             video_path, flat_curve, fps,

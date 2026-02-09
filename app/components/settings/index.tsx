@@ -211,10 +211,24 @@ export function SettingsPanel() {
                     </span>
                   </Tooltip>
                 )}
+                {analysis.tracker_unavailable && (
+                  <Tooltip text="Tracking requested but dependencies missing — install ultralytics and supervision">
+                    <span className="flex items-center gap-1 text-[11px] font-pixel text-red-400 uppercase">
+                      <span className="pilot-light pilot-light-red pilot-light-breathe" />TRK ERR
+                    </span>
+                  </Tooltip>
+                )}
                 {analysis.flow_available && (
                   <Tooltip text="Optical flow data is available">
                     <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-magenta uppercase">
                       <span className="pilot-light pilot-light-magenta pilot-light-breathe" />FLW
+                    </span>
+                  </Tooltip>
+                )}
+                {analysis.flow_unavailable && (
+                  <Tooltip text="Flow scoring requested but dependencies missing">
+                    <span className="flex items-center gap-1 text-[11px] font-pixel text-red-400 uppercase">
+                      <span className="pilot-light pilot-light-red pilot-light-breathe" />FLW ERR
                     </span>
                   </Tooltip>
                 )}

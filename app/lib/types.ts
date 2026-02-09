@@ -49,7 +49,9 @@ export interface AnalysisData {
   waveform_progress: string;
   waveform_action: string;
   tracker_available?: boolean;
+  tracker_unavailable?: boolean;
   flow_available?: boolean;
+  flow_unavailable?: boolean;
   camera_motion_available?: boolean;
 }
 

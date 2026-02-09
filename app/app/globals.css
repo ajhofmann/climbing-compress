@@ -65,27 +65,7 @@ body::after {
     radial-gradient(ellipse at 50% 110%, rgba(224,64,251,0.02) 0%, transparent 55%);
 }
 
-/* ---- Scan lines overlay ---- */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.08) 2px,
-    rgba(0, 0, 0, 0.08) 4px
-  );
-  animation: scanline-scroll 8s linear infinite;
-}
-
-@keyframes scanline-scroll {
-  0% { background-position: 0 0; }
-  100% { background-position: 0 100px; }
-}
+/* ---- Scan lines overlay (disabled) ---- */
 
 /* ---- Neon glow utilities ---- */
 .retro-glow {
@@ -359,23 +339,9 @@ select:focus {
   color: #000;
 }
 
-/* ---- CRT effect for images ---- */
+/* ---- CRT effect for images (disabled) ---- */
 .crt-filter {
   position: relative;
-}
-.crt-filter::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 1px,
-    rgba(0, 0, 0, 0.15) 1px,
-    rgba(0, 0, 0, 0.15) 2px
-  );
-  pointer-events: none;
-  border-radius: inherit;
 }
 
 /* ---- LED text style ---- */
@@ -426,6 +392,10 @@ select:focus {
 .pilot-light-orange {
   background: var(--neon-orange);
   box-shadow: 0 0 4px var(--neon-orange), 0 0 8px rgba(255,110,64,0.4);
+}
+.pilot-light-red {
+  background: #ff4444;
+  box-shadow: 0 0 4px #ff4444, 0 0 8px rgba(255,68,68,0.4);
 }
 .pilot-light-off {
   background: #1a1a2e;
