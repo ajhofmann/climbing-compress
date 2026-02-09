@@ -10,7 +10,7 @@ const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_CURSOR_PAGE_STEP = 5;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
-const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name*=clip", "#id*=abc"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name*=clip", "#id*=abc", "#id=abc123,def456"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
 const RECENT_COMPARATOR_TYPO_FAMILIES = ["#out", "#src", "#mb", "#dur", "#time", "#duration", "#fps", "#framerate", "#w", "#width", "#h", "#height", "#ar", "#aspect", "#ratio", "#fc", "#frames", "#res", "#resolution", "#ext", "#format", "#name", "#file", "#filename", "#id", "#video", "#vid"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
@@ -25,14 +25,14 @@ const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIE
   "#fc": ["#fc=25..200", "#fc=..30"],
 };
 const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2", "#ar=1.3..1.8", "#ar=..1.4", "#fc=25..200", "#fc=..30"] as const;
-const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200", "#res=1920x1080", "#res!=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name!=clip.mp4", "#name*=clip", "#name^=recent_", "#name$=.mp4", "#id*=abc", "#id^=c9b0", "#id=deadbeef00"] as const;
+const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200", "#res=1920x1080", "#res!=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name!=clip.mp4", "#name*=clip", "#name^=recent_", "#name$=.mp4", "#id*=abc", "#id^=c9b0", "#id=deadbeef00", "#id=abc123,def456"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
 const RECENT_EXTENSION_HINT_TAGS = ["#ext=mp4", "#ext=mp4,mov", "#ext!=mp4"] as const;
 const RECENT_NAME_HINT_TAGS = ["#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name!=clip.mp4", "#name*=clip"] as const;
-const RECENT_ID_HINT_TAGS = ["#id*=abc", "#id^=c9b0", "#id=deadbeef00"] as const;
+const RECENT_ID_HINT_TAGS = ["#id*=abc", "#id^=c9b0", "#id=deadbeef00", "#id=abc123,def456"] as const;
 const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
   "#fps": ["#fps>=24", "#fps=24..60"],
   "#w": ["#w>=1080", "#w=..1080"],
@@ -48,6 +48,7 @@ type ResolutionComparatorOperator = "=" | "!=";
 type NameComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
 type NameComparatorTerm = { operator: NameComparatorOperator; values: string[] };
 type IdComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
+type IdComparatorTerm = { operator: IdComparatorOperator; values: string[] };
 type NumericRangeFilter = { min: number | null; max: number | null };
 
 function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
@@ -333,8 +334,8 @@ function parseNameComparatorTerm(term: string): NameComparatorTerm | null {
   return { operator, values: [rawValue] };
 }
 
-function parseIdComparatorTerm(term: string): { operator: IdComparatorOperator; value: string } | null {
-  const comparatorMatch = term.match(/^#(?:id|video|vid)(\*=|\^=|\$=|==|=|!=|<>)([a-z0-9_-]+)$/i);
+function parseIdComparatorTerm(term: string): IdComparatorTerm | null {
+  const comparatorMatch = term.match(/^#(?:id|video|vid)(\*=|\^=|\$=|==|=|!=|<>)([a-z0-9,_|-]+)$/i);
   if (!comparatorMatch) return null;
   const operator: IdComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "=="
     ? "="
@@ -343,9 +344,18 @@ function parseIdComparatorTerm(term: string): { operator: IdComparatorOperator; 
       : comparatorMatch[1] === "*=" || comparatorMatch[1] === "^=" || comparatorMatch[1] === "$="
         ? comparatorMatch[1]
         : "=";
-  const value = comparatorMatch[2].trim().toLowerCase();
-  if (!value) return null;
-  return { operator, value };
+  const rawValue = comparatorMatch[2].trim().toLowerCase();
+  if (!rawValue) return null;
+  if (operator === "=" || operator === "!=") {
+    const values = rawValue
+      .replace(/\|/g, ",")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry, idx, arr) => entry.length > 0 && arr.indexOf(entry) === idx);
+    if (values.length <= 0) return null;
+    return { operator, values };
+  }
+  return { operator, values: [rawValue] };
 }
 
 function parseFpsComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
@@ -1146,11 +1156,11 @@ export function VideoUpload() {
     const idComparator = parseIdComparatorTerm(term);
     if (idComparator) {
       const id = item.video_id.toLowerCase();
-      if (idComparator.operator === "!=") return id !== idComparator.value;
-      if (idComparator.operator === "=") return id === idComparator.value;
-      if (idComparator.operator === "*=") return id.includes(idComparator.value);
-      if (idComparator.operator === "^=") return id.startsWith(idComparator.value);
-      if (idComparator.operator === "$=") return id.endsWith(idComparator.value);
+      if (idComparator.operator === "!=") return !idComparator.values.includes(id);
+      if (idComparator.operator === "=") return idComparator.values.includes(id);
+      if (idComparator.operator === "*=") return id.includes(idComparator.values[0] ?? "");
+      if (idComparator.operator === "^=") return id.startsWith(idComparator.values[0] ?? "");
+      if (idComparator.operator === "$=") return id.endsWith(idComparator.values[0] ?? "");
       return false;
     }
     if (term.startsWith("#")) {
