@@ -12,7 +12,7 @@ const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4", "#name*=clip"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
-const RECENT_COMPARATOR_TYPO_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#framerate", "#w", "#width", "#h", "#height", "#ar", "#fc", "#frames", "#res", "#resolution", "#ext", "#format", "#name", "#file", "#filename"] as const;
+const RECENT_COMPARATOR_TYPO_FAMILIES = ["#out", "#src", "#mb", "#dur", "#time", "#duration", "#fps", "#framerate", "#w", "#width", "#h", "#height", "#ar", "#aspect", "#ratio", "#fc", "#frames", "#res", "#resolution", "#ext", "#format", "#name", "#file", "#filename"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
   "#out": ["#out=0..2", "#out=..0"],
   "#src": ["#src=2k..4k", "#src=2k.."],
@@ -219,7 +219,7 @@ function parseOutputBytesRangeTerm(term: string): NumericRangeFilter | null {
 }
 
 function parseDurationComparatorTerm(term: string): { operator: ComparatorOperator; valueSeconds: number } | null {
-  const comparatorMatch = term.match(/^#dur(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
+  const comparatorMatch = term.match(/^#(?:dur|time|duration)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
@@ -229,7 +229,7 @@ function parseDurationComparatorTerm(term: string): { operator: ComparatorOperat
 }
 
 function parseDurationRangeTerm(term: string): NumericRangeFilter | null {
-  const rangeMatch = term.match(/^#dur(?:==|=)(.*?)\.\.(.*)$/);
+  const rangeMatch = term.match(/^#(?:dur|time|duration)(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
   return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseDurationLiteralSeconds);
 }
@@ -371,6 +371,12 @@ function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
 
 function remapVideoMetaAliasForTarget(tag: string, targetTerm: string): string {
   const normalizedTarget = targetTerm.toLowerCase();
+  if (normalizedTarget.startsWith("#duration") && tag.startsWith("#dur")) {
+    return `#duration${tag.slice(4)}`;
+  }
+  if (normalizedTarget.startsWith("#time") && tag.startsWith("#dur")) {
+    return `#time${tag.slice(4)}`;
+  }
   if (normalizedTarget.startsWith("#aspect") && tag.startsWith("#ar")) {
     return `#aspect${tag.slice(3)}`;
   }
@@ -758,6 +764,7 @@ export function VideoUpload() {
       (item) => item.term.includes("..")
         && RECENT_COMPARATOR_FAMILIES.some((family) => (
           item.term.startsWith(family)
+          || (family === "#dur" && (item.term.startsWith("#time") || item.term.startsWith("#duration")))
           || (family === "#fps" && item.term.startsWith("#framerate"))
           || (family === "#ar" && (item.term.startsWith("#aspect") || item.term.startsWith("#ratio")))
           || (family === "#fc" && item.term.startsWith("#frames"))
@@ -768,6 +775,7 @@ export function VideoUpload() {
     const target = unknownRangeTerms[unknownRangeTerms.length - 1];
     const family = RECENT_COMPARATOR_FAMILIES.find((entry) => (
       target.term.startsWith(entry)
+      || (entry === "#dur" && (target.term.startsWith("#time") || target.term.startsWith("#duration")))
       || (entry === "#fps" && target.term.startsWith("#framerate"))
       || (entry === "#ar" && (target.term.startsWith("#aspect") || target.term.startsWith("#ratio")))
       || (entry === "#fc" && target.term.startsWith("#frames"))
@@ -841,15 +849,16 @@ export function VideoUpload() {
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownDurationHintConfig = useMemo(() => {
     const unknownDurationTerms = parsedRecentFilterTerms.filter(
-      (item) => item.term.startsWith("#dur") && !isRecognizedRecentTagTerm(item.term),
+      (item) => (item.term.startsWith("#dur") || item.term.startsWith("#time") || item.term.startsWith("#duration")) && !isRecognizedRecentTagTerm(item.term),
     );
     if (unknownDurationTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
     const target = unknownDurationTerms[unknownDurationTerms.length - 1];
+    const base = RECENT_DURATION_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
       tags: target.isExclude
-        ? RECENT_DURATION_HINT_TAGS.map((tag) => withExcludePrefix(tag, target.excludePrefix))
-        : [...RECENT_DURATION_HINT_TAGS],
+        ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix))
+        : base,
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownExtensionHintConfig = useMemo(() => {
@@ -1173,7 +1182,7 @@ export function VideoUpload() {
           ? suggestionCandidates.filter((tag) => tag.startsWith("#src"))
           : normalizedTail.startsWith("#mb")
             ? suggestionCandidates.filter((tag) => tag.startsWith("#mb"))
-            : normalizedTail.startsWith("#dur")
+            : normalizedTail.startsWith("#dur") || normalizedTail.startsWith("#time") || normalizedTail.startsWith("#duration")
               ? suggestionCandidates.filter((tag) => tag.startsWith("#dur"))
               : normalizedTail.startsWith("#fps") || normalizedTail.startsWith("#framerate")
                 ? suggestionCandidates.filter((tag) => tag.startsWith("#fps"))
