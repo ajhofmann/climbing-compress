@@ -107,7 +107,7 @@ Upload constraints are enforced by the backend:
 - partial tag input (like `#c` / `-#o`) shows suggestions, and `Tab` autocompletes the first suggestion
 - comparator fragments like `#src=` / `#out=` / `#dur=` keep root suggestions visible for fast correction
 - duration suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`)
-- when tag suggestions are visible, `Enter` autocompletes first; a second `Enter` loads filtered clip
+- when tag suggestions are visible, `Enter` autocompletes first; a second `Enter` loads filtered clip, while `Shift+Enter` bypasses autocomplete to load immediately
 - when tag suggestions are visible, `ArrowUp` / `ArrowDown` cycles suggestions before `Enter`/`Tab` apply
 - focusing an empty filter input shows quick one-click tag buttons for cached/output/duration tags
 - quick tag buttons show live match counts (`#tag:N`) but insert plain tag tokens when clicked
@@ -115,7 +115,7 @@ Upload constraints are enforced by the backend:
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
 - `Alt+Backspace` in recent filter input removes the last query term quickly
 - `Esc` clears active recent filter text and restores default preview
-- pressing `Enter` in recent filter input loads the first matching clip immediately
+- pressing `Enter` in recent filter input loads the first matching clip immediately (`Shift+Enter` forces load even when tag suggestions are open)
 - `ArrowUp` / `ArrowDown` in recent filter input moves a visible-clip cursor with wrap-around when no tag suggestion is open; `Enter` loads that highlighted clip
 - selected keyboard target is rendered with a `▶` prefix in the recent row
 - recent row displays `1-0` slot markers for quick keyboard load targeting (`0` = slot 10)

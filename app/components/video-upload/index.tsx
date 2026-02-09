@@ -1950,7 +1950,7 @@ export function VideoUpload() {
                     }
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      if (recentTagSuggestions.length > 0 && !recentFilter.endsWith(" ")) {
+                      if (!e.shiftKey && recentTagSuggestions.length > 0 && !recentFilter.endsWith(" ")) {
                         applyRecentTagSuggestion(activeRecentTagSuggestion ?? recentTagSuggestions[0]);
                         return;
                       }
@@ -1974,7 +1974,7 @@ export function VideoUpload() {
                   }}
                   placeholder="filter clips (+term -term #tag)"
                   aria-label="Filter recent clips by terms (space-separated include/exclude and optional tags like #cached or #out)"
-                  aria-keyshortcuts="Alt+Backspace Tab"
+                  aria-keyshortcuts="Alt+Backspace Tab Shift+Enter"
                   className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
                 />
                 {recentFilter && (
@@ -2152,7 +2152,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · ↑↓ select · #tag + Tab/Enter complete (↑↓ picks suggestion) · Alt+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · Shift+Enter force load first match · ↑↓ select · #tag + Tab/Enter complete (↑↓ picks suggestion) · Alt+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (

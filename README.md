@@ -110,7 +110,7 @@ Upload notes:
 - Typing partial tag tokens (for example `#c`, `-#o`) shows tag suggestions; press `Tab` to autocomplete.
 - Comparator fragments like `#src=` / `#out=` / `#dur=` also keep root-level suggestions visible for quick recovery.
 - Duration tag suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`) for faster comparator input.
-- While tag suggestions are visible, `Enter` first autocompletes the top suggestion; pressing `Enter` again loads the filtered clip.
+- While tag suggestions are visible, `Enter` first autocompletes the top suggestion; pressing `Enter` again loads the filtered clip, and `Shift+Enter` bypasses autocomplete to load immediately.
 - While tag suggestions are visible, `↑` / `↓` cycles suggestion selection before `Enter`/`Tab` apply.
 - Focusing an empty filter input shows quick tag buttons (`#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`) for one-click insertion.
 - Quick tag buttons include live match counts (`#tag:N`) while still inserting plain tag tokens.
@@ -134,7 +134,7 @@ Upload notes:
 - Press `/` in dropzone mode to focus the recent clip filter instantly.
 - Press `Alt + Backspace` in the recent filter input to pop the last query term quickly.
 - Press `Esc` to clear an active recent filter and restore unfiltered preview.
-- Press `Enter` in the recent filter input to load the first matching clip instantly.
+- Press `Enter` in the recent filter input to load the first matching clip instantly (`Shift+Enter` forces load even when tag suggestions are open).
 - Press `↑` / `↓` in the recent filter input to choose a clip (wraps at list ends) when no tag suggestion is open, then `Enter` to load the highlighted selection.
 - Selected keyboard target is shown with a `▶` prefix in the recent clip row.
 - Recent clip row now shows `1-0` slot markers for quick keyboard loading (`0` marker = slot 10).
