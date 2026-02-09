@@ -13,10 +13,10 @@ const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#s
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
-  "#out": ["#out=0..2"],
-  "#src": ["#src=2k..4k"],
-  "#mb": ["#mb=0b..1m"],
-  "#dur": ["#dur=1..2", "#dur=0:01..0:06"],
+  "#out": ["#out=0..2", "#out=..0"],
+  "#src": ["#src=2k..4k", "#src=2k.."],
+  "#mb": ["#mb=0b..1m", "#mb=..1m"],
+  "#dur": ["#dur=1..2", "#dur=..2", "#dur=0:01..0:06"],
 };
 const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
