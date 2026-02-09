@@ -15,6 +15,11 @@ const RECENT_FILTER_SIMPLE_TAG_ALIASES = {
   "#warm": "#cached",
   "#nocache": "#uncached",
   "#cold": "#uncached",
+  "#vertical": "#portrait",
+  "#vert": "#portrait",
+  "#horizontal": "#landscape",
+  "#horiz": "#landscape",
+  "#sq": "#square",
 } as const;
 const RECENT_FILTER_SIMPLE_TAG_ALIAS_SUGGESTIONS = Object.keys(RECENT_FILTER_SIMPLE_TAG_ALIASES) as (keyof typeof RECENT_FILTER_SIMPLE_TAG_ALIASES)[];
 const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name*=clip", "#id*=abc", "#id=abc123,def456"] as const;

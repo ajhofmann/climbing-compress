@@ -85,7 +85,7 @@ Upload constraints are enforced by the backend:
 - keyboard shortcut `Alt+X` ejects the loaded clip back to the dropzone selector
 - recent module supports overflow expansion (`[show all]` / `[show less]`) beyond six clip previews
 - recent module supports inline name filtering with dedicated `no matching clips` empty state, space-separated AND-term matching, quoted phrase terms (e.g. `"alpha beta"`), explicit `+term` includes, and `-term` / `!term` exclusions
-- filter query also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (plus exclusions like `-#out` or `!#out`), with simple-tag aliases like `#cache/#warm` -> `#cached` and `#nocache/#cold` -> `#uncached`
+- filter query also supports metadata tags: `#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`, `#portrait`, `#landscape`, `#square` (plus exclusions like `-#out` or `!#out`), with simple-tag aliases like `#cache/#warm` -> `#cached`, `#nocache/#cold` -> `#uncached`, `#vertical/#vert` -> `#portrait`, `#horizontal/#horiz` -> `#landscape`, and `#sq` -> `#square`
 - includes can also be prefixed explicitly with `+` (e.g. `+#cached` or `+"alpha beta"`)
 - quoted phrases also work for exclude prefixes and comparator values (e.g. `!"alpha beta"` and `#name="my clip.mp4"`)
 - output-count comparators are supported too (e.g. `#out>=1`, `#out=0`, `#out!=0`, `#out>2`), including alias `#outputs...`
