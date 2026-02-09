@@ -10,7 +10,7 @@ const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_CURSOR_PAGE_STEP = 5;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
-const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4", "#name*=clip"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
   "#out": ["#out=0..2", "#out=..0"],
@@ -24,13 +24,13 @@ const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIE
   "#fc": ["#fc=25..200", "#fc=..30"],
 };
 const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2", "#ar=1.3..1.8", "#ar=..1.4", "#fc=25..200", "#fc=..30"] as const;
-const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200", "#res=1920x1080", "#res!=1920x1080", "#name=clip.mp4", "#name!=clip.mp4"] as const;
+const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200", "#res=1920x1080", "#res!=1920x1080", "#name=clip.mp4", "#name!=clip.mp4", "#name*=clip", "#name^=recent_", "#name$=.mp4"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
 const RECENT_EXTENSION_HINT_TAGS = ["#ext=mp4", "#ext=mp4,mov", "#ext!=mp4"] as const;
-const RECENT_NAME_HINT_TAGS = ["#name=clip.mp4", "#name!=clip.mp4"] as const;
+const RECENT_NAME_HINT_TAGS = ["#name=clip.mp4", "#name!=clip.mp4", "#name*=clip"] as const;
 const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
   "#fps": ["#fps>=24", "#fps=24..60"],
   "#w": ["#w>=1080", "#w=..1080"],
@@ -43,7 +43,7 @@ type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 type ExtensionComparatorOperator = "=" | "!=";
 type ExtensionComparatorTerm = { operator: ExtensionComparatorOperator; values: string[] };
 type ResolutionComparatorOperator = "=" | "!=";
-type NameComparatorOperator = "=" | "!=";
+type NameComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
 type NumericRangeFilter = { min: number | null; max: number | null };
 
 function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
@@ -305,9 +305,15 @@ function parseResolutionComparatorTerm(term: string): { operator: ResolutionComp
 }
 
 function parseNameComparatorTerm(term: string): { operator: NameComparatorOperator; value: string } | null {
-  const comparatorMatch = term.match(/^#(?:name|file|filename)(==|=|!=|<>)(.+)$/i);
+  const comparatorMatch = term.match(/^#(?:name|file|filename)(\*=|\^=|\$=|==|=|!=|<>)(.+)$/i);
   if (!comparatorMatch) return null;
-  const operator: NameComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "==" ? "=" : "!=";
+  const operator: NameComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "=="
+    ? "="
+    : comparatorMatch[1] === "!=" || comparatorMatch[1] === "<>"
+      ? "!="
+      : comparatorMatch[1] === "*=" || comparatorMatch[1] === "^=" || comparatorMatch[1] === "$="
+        ? comparatorMatch[1]
+        : "=";
   const value = comparatorMatch[2].trim().toLowerCase();
   if (/^[<>=!≤≥≠]/.test(value)) return null;
   if (!value) return null;
@@ -1057,6 +1063,9 @@ export function VideoUpload() {
     if (nameComparator) {
       const fileName = item.filename.toLowerCase();
       if (nameComparator.operator === "!=") return fileName !== nameComparator.value;
+      if (nameComparator.operator === "*=") return fileName.includes(nameComparator.value);
+      if (nameComparator.operator === "^=") return fileName.startsWith(nameComparator.value);
+      if (nameComparator.operator === "$=") return fileName.endsWith(nameComparator.value);
       return fileName === nameComparator.value;
     }
     if (term.startsWith("#")) {
