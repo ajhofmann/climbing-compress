@@ -112,7 +112,7 @@ Upload notes:
 - Duration tag suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`) for faster comparator input.
 - While tag suggestions are visible, `Enter` first autocompletes the top suggestion; pressing `Enter` again loads the filtered clip, and `Shift+Enter` bypasses autocomplete to load immediately.
 - While tag suggestions are visible, `↑` / `↓` cycles suggestion selection before `Enter`/`Tab` apply.
-- Focusing an empty filter input shows quick tag buttons (`#cached`, `#uncached`, `#out`, `#noout`, `#short`, `#long`) for one-click insertion.
+- Focusing an empty filter input shows quick tag buttons for simple tags plus comparator/range presets (for example `#cached`, `#out>=1`, `#src=2k..`, `#dur=..2`).
 - Quick tag buttons include live match counts (`#tag:N`) while still inserting plain tag tokens.
 - Zero-match quick tags are hidden by default with a `[+N zero]` toggle (`[hide 0s]` when expanded).
 - Recent section includes output-scope filtering (`[out:all]` / `[out:with]` / `[out:none]`) for output-housekeeping workflows.

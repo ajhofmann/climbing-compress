@@ -109,7 +109,7 @@ Upload constraints are enforced by the backend:
 - duration suggestions include unit-aware templates (`#dur>90s`, `#dur>1m30s`)
 - when tag suggestions are visible, `Enter` autocompletes first; a second `Enter` loads filtered clip, while `Shift+Enter` bypasses autocomplete to load immediately
 - when tag suggestions are visible, `ArrowUp` / `ArrowDown` cycles suggestions before `Enter`/`Tab` apply
-- focusing an empty filter input shows quick one-click tag buttons for cached/output/duration tags
+- focusing an empty filter input shows quick one-click tag buttons for simple tags plus comparator/range presets (e.g. `#cached`, `#out>=1`, `#src=2k..`, `#dur=..2`)
 - quick tag buttons show live match counts (`#tag:N`) but insert plain tag tokens when clicked
 - zero-match quick tags are collapsed by default and can be expanded via `[+N zero]` (`[hide 0s]` when expanded)
 - `/` keyboard shortcut focuses recent filter input when no clip is loaded
