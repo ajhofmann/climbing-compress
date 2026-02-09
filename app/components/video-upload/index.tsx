@@ -13,11 +13,14 @@ const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#src>3k", 
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur"] as const;
 const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
-const RECENT_STORAGE_HINT_TAGS = ["#src>10m", "#mb>10m"] as const;
+const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 
 function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
+  if (raw === "≤") return "<=";
+  if (raw === "≥") return ">=";
+  if (raw === "≠") return "!=";
   if (raw === "<=" || raw === "=<") return "<=";
   if (raw === ">=" || raw === "=>") return ">=";
   if (raw === "=" || raw === "==") return "=";
@@ -77,7 +80,7 @@ function parseDurationLiteralSeconds(raw: string): number | null {
 }
 
 function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
-  const comparatorMatch = term.match(/^#out(<=|=<|>=|=>|!=|<>|==|=|<|>)(\d+)$/);
+  const comparatorMatch = term.match(/^#out(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
@@ -103,7 +106,7 @@ function parseByteLiteral(raw: string): number | null {
 }
 
 function parseSourceBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
-  const comparatorMatch = term.match(/^#src(<=|=<|>=|=>|!=|<>|==|=|<|>)(.+)$/);
+  const comparatorMatch = term.match(/^#src(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
@@ -113,7 +116,7 @@ function parseSourceBytesComparatorTerm(term: string): { operator: ComparatorOpe
 }
 
 function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
-  const comparatorMatch = term.match(/^#mb(<=|=<|>=|=>|!=|<>|==|=|<|>)(.+)$/);
+  const comparatorMatch = term.match(/^#mb(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
@@ -123,7 +126,7 @@ function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOpe
 }
 
 function parseDurationComparatorTerm(term: string): { operator: ComparatorOperator; valueSeconds: number } | null {
-  const comparatorMatch = term.match(/^#dur(<=|=<|>=|=>|!=|<>|==|=|<|>)(.+)$/);
+  const comparatorMatch = term.match(/^#dur(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
