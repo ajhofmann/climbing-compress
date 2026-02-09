@@ -457,7 +457,7 @@ function normalizeRecentFilterTerms(sourceTerms: string[]): string[] {
   const dedupedTerms: string[] = [];
   for (const token of sourceTerms) {
     const lower = token.toLowerCase();
-    const isTagToken = lower.startsWith("#") || lower.startsWith("-#") || lower.startsWith("!#");
+    const isTagToken = lower.startsWith("#") || lower.startsWith("-#") || lower.startsWith("!#") || lower.startsWith("+#");
     if (isTagToken && dedupedTerms.some((entry) => entry.toLowerCase() === lower)) continue;
     dedupedTerms.push(token);
   }
@@ -492,6 +492,7 @@ function parseRecentFilterQuery(source: string): string[] {
       const canStartQuotedSegment = buffer.length === 0
         || buffer === "-"
         || buffer === "!"
+        || buffer === "+"
         || /[=><!^*$]$/.test(buffer);
       if (canStartQuotedSegment) {
         activeQuote = char;
@@ -726,8 +727,9 @@ export function VideoUpload() {
         : raw.startsWith("!")
           ? "!"
           : null;
+      const hasIncludePrefix = excludePrefix == null && raw.startsWith("+");
       const isExclude = excludePrefix != null && raw.length > 1;
-      const term = isExclude ? raw.slice(1) : raw;
+      const term = isExclude || hasIncludePrefix ? raw.slice(1) : raw;
       return { idx, raw, term, isExclude, excludePrefix: isExclude ? excludePrefix : null };
     }).filter((item) => item.term.length > 0),
     [recentFilterTerms],
@@ -1235,10 +1237,11 @@ export function VideoUpload() {
     const tail = sourceTerms[sourceTerms.length - 1]?.toLowerCase() ?? "";
     const isDashExcludeTag = tail.startsWith("-#");
     const isBangExcludeTag = tail.startsWith("!#");
+    const isPlusIncludeTag = tail.startsWith("+#");
     const isExcludeTag = isDashExcludeTag || isBangExcludeTag;
-    const isIncludeTag = tail.startsWith("#");
+    const isIncludeTag = tail.startsWith("#") || isPlusIncludeTag;
     if (!isExcludeTag && !isIncludeTag) return [] as string[];
-    const normalizedTail = isExcludeTag ? tail.slice(1) : tail;
+    const normalizedTail = isExcludeTag || isPlusIncludeTag ? tail.slice(1) : tail;
     const excludePrefix = isBangExcludeTag ? "!" : "-";
     const suggestionCandidates = [...RECENT_FILTER_TAGS, ...RECENT_FILTER_RANGE_SUGGESTIONS, ...RECENT_FILTER_META_SUGGESTIONS]
       .filter((tag, idx, arr) => arr.indexOf(tag) === idx);
@@ -1273,7 +1276,8 @@ export function VideoUpload() {
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#id"))
               : [];
     const aliasAdjustedBase = base.map((tag) => remapVideoMetaAliasForTarget(tag, normalizedTail));
-    return isExcludeTag ? aliasAdjustedBase.map((tag) => `${excludePrefix}${tag}`) : aliasAdjustedBase;
+    if (isExcludeTag) return aliasAdjustedBase.map((tag) => `${excludePrefix}${tag}`);
+    return isPlusIncludeTag ? aliasAdjustedBase.map((tag) => `+${tag}`) : aliasAdjustedBase;
   }, [recentFilter, recentFilterFocused]);
   useEffect(() => {
     if (recentTagSuggestions.length <= 0) {
@@ -1292,7 +1296,7 @@ export function VideoUpload() {
       : recentTagSuggestions[0];
   const applyRecentTagSuggestion = useCallback((suggestion: string) => {
     const sourceTerms = parseRecentFilterQuery(recentFilter);
-    const hasTagTail = sourceTerms.length > 0 && /^[-!]?#/.test(sourceTerms[sourceTerms.length - 1]);
+    const hasTagTail = sourceTerms.length > 0 && /^[-+!]?#/.test(sourceTerms[sourceTerms.length - 1]);
     if (hasTagTail) {
       sourceTerms[sourceTerms.length - 1] = suggestion;
     } else {
