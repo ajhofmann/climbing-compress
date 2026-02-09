@@ -181,16 +181,16 @@ function parseSourceBytesRangeTerm(term: string): NumericRangeFilter | null {
 }
 
 function parseByteLiteral(raw: string): number | null {
-  const match = raw.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)(?:\s*)(kb|mb|gb|b|k|m|g)?$/);
+  const match = raw.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)(?:\s*)(kib|mib|gib|ki|mi|gi|kb|mb|gb|b|k|m|g)?$/);
   if (!match) return null;
   const amount = Number(match[1]);
   if (!Number.isFinite(amount)) return null;
   const unit = match[2] ?? "b";
-  const multiplier = unit === "k" || unit === "kb"
+  const multiplier = unit === "k" || unit === "kb" || unit === "ki" || unit === "kib"
     ? 1024
-    : unit === "m" || unit === "mb"
+    : unit === "m" || unit === "mb" || unit === "mi" || unit === "mib"
       ? 1024 * 1024
-      : unit === "g" || unit === "gb"
+      : unit === "g" || unit === "gb" || unit === "gi" || unit === "gib"
         ? 1024 * 1024 * 1024
         : 1;
   return amount * multiplier;

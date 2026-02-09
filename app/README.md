@@ -92,7 +92,7 @@ Upload constraints are enforced by the backend:
 - comparator ranges are supported using `..`, including open-ended bounds (e.g. `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`)
 - comparator equality accepts both `=` and `==` forms (e.g. `#out==0`, `#dur==8`)
 - comparator typo aliases are accepted (`=>` as `>=`, `=<` as `<=`, `<>` as `!=`)
-- storage comparators are supported with byte units (e.g. `#src>3k`, `#src>3kb`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`), including aliases `#source...` (source bytes) and `#render...` / `#outputbytes...` (render-output bytes)
+- storage comparators are supported with byte units (e.g. `#src>3k`, `#src>3kb`, `#src>3kib`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`, `#mb>1mib`), including aliases `#source...` (source bytes) and `#render...` / `#outputbytes...` (render-output bytes)
 - duration comparator tags are supported too (e.g. `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur!=5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`, `#dur>1:30`, `#dur>0:00:01.8`, `#dur>1h2m`), including aliases `#time...` and `#duration...`
 - video metadata comparators are supported for fps/width/height/aspect/frame-count/resolution too (e.g. `#fps<=24`, `#fps=24..60`, `#w=..1080`, `#h>=1080`, `#ar=1.3..1.8`, `#ar>=16:9`, `#fc<=30`, `#res=1920x1080`), including long aliases `#framerate...`, `#width...`, `#height...`, `#aspect...`, `#ratio...`, `#frames...`, and `#resolution...`
 - resolution comparators accept separators `x`, `×`, `*`, or `:` (e.g. `#res=1920x1080`, `#res=1920*1080`, `#res=16:9`)

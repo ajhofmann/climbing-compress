@@ -96,7 +96,7 @@ Upload notes:
 - Comparator ranges are supported with `..`, including open-ended bounds (for example `#out=0..2`, `#src=2k..4k`, `#dur=1..2`, `#dur=..2`, `#src=2k..`).
 - Comparator equality accepts both `=` and `==` forms (for example `#out==0`, `#dur==8`).
 - Comparator typo aliases are accepted too (`=>` as `>=`, `=<` as `<=`, `<>` as `!=`) for faster forgiving input.
-- Storage comparators are supported with byte units (for example `#src>3k`, `#src>3kb`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`), including aliases `#source...` (source bytes) and `#render...` / `#outputbytes...` (rendered-output bytes).
+- Storage comparators are supported with byte units (for example `#src>3k`, `#src>3kb`, `#src>3kib`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`, `#mb>1mib`), including aliases `#source...` (source bytes) and `#render...` / `#outputbytes...` (rendered-output bytes).
 - Duration comparator tags are also supported (for example `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur!=5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`, `#dur>1:30`, `#dur>0:00:01.8`, `#dur>1h2m`), including aliases `#time...` and `#duration...`.
 - Video metadata comparators are supported for FPS/width/height/aspect/frame-count/resolution too (for example `#fps<=24`, `#fps=24..60`, `#w=..1080`, `#h>=1080`, `#ar=1.3..1.8`, `#ar>=16:9`, `#fc<=30`, `#res=1920x1080`), including long aliases `#framerate...`, `#width...`, `#height...`, `#aspect...`, `#ratio...`, `#frames...`, and `#resolution...`.
 - Resolution comparators accept `x`, `×`, `*`, or `:` separators (for example `#res=1920x1080`, `#res=1920*1080`, `#res=16:9`).
