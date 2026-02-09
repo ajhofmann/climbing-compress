@@ -22,7 +22,7 @@ const RECENT_FILTER_SIMPLE_TAG_ALIASES = {
   "#sq": "#square",
 } as const;
 const RECENT_FILTER_SIMPLE_TAG_ALIAS_SUGGESTIONS = Object.keys(RECENT_FILTER_SIMPLE_TAG_ALIASES) as (keyof typeof RECENT_FILTER_SIMPLE_TAG_ALIASES)[];
-const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#res=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name*=clip", "#id*=abc", "#id=abc123,def456"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov", "#ext*=mp", "#res=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name*=clip", "#id*=abc", "#id=abc123,def456"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
 const RECENT_COMPARATOR_TYPO_FAMILIES = ["#out", "#outputs", "#src", "#source", "#sourcebytes", "#mb", "#render", "#outputbytes", "#dur", "#time", "#duration", "#fps", "#framerate", "#w", "#width", "#h", "#height", "#ar", "#aspect", "#ratio", "#fc", "#frames", "#res", "#resolution", "#ext", "#format", "#name", "#file", "#filename", "#id", "#video", "#videoid", "#vid"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
@@ -42,7 +42,7 @@ const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_T
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
-const RECENT_EXTENSION_HINT_TAGS = ["#ext=mp4", "#ext=mp4,mov", "#ext!=mp4"] as const;
+const RECENT_EXTENSION_HINT_TAGS = ["#ext=mp4", "#ext=mp4,mov", "#ext!=mp4", "#ext*=mp"] as const;
 const RECENT_NAME_HINT_TAGS = ["#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name!=clip.mp4", "#name*=clip"] as const;
 const RECENT_ID_HINT_TAGS = ["#id*=abc", "#id^=c9b0", "#id=deadbeef00", "#id=abc123,def456"] as const;
 const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
@@ -54,7 +54,7 @@ const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
   "#res": ["#res=1920x1080", "#res!=1920x1080"],
 } as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
-type ExtensionComparatorOperator = "=" | "!=";
+type ExtensionComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
 type ExtensionComparatorTerm = { operator: ExtensionComparatorOperator; values: string[] };
 type ResolutionComparatorOperator = "=" | "!=";
 type NameComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
@@ -299,16 +299,30 @@ function parseFrameCountRangeTerm(term: string): NumericRangeFilter | null {
 }
 
 function parseExtensionComparatorTerm(term: string): ExtensionComparatorTerm | null {
-  const comparatorMatch = term.match(/^#(?:ext|format)(==|=|!=|<>)([a-z0-9.,|]+)$/i);
+  const comparatorMatch = term.match(/^#(?:ext|format)(\*=|\^=|\$=|==|=|!=|<>)([a-z0-9.,|]+)$/i);
   if (!comparatorMatch) return null;
-  const operator: ExtensionComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "==" ? "=" : "!=";
-  const rawValue = comparatorMatch[2].toLowerCase().replace(/\|/g, ",");
-  const values = rawValue
-    .split(",")
-    .map((entry) => entry.trim().replace(/^\./, ""))
-    .filter((entry, idx, arr) => entry.length > 0 && arr.indexOf(entry) === idx);
-  if (values.length <= 0) return null;
-  return { operator, values };
+  const operator: ExtensionComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "=="
+    ? "="
+    : comparatorMatch[1] === "!=" || comparatorMatch[1] === "<>"
+      ? "!="
+      : comparatorMatch[1] === "*=" || comparatorMatch[1] === "^=" || comparatorMatch[1] === "$="
+        ? comparatorMatch[1]
+        : "=";
+  const rawValue = comparatorMatch[2].trim().toLowerCase();
+  if (!rawValue) return null;
+  if (operator === "=" || operator === "!=") {
+    const values = rawValue
+      .replace(/\|/g, ",")
+      .split(",")
+      .map((entry) => entry.trim().replace(/^\./, ""))
+      .filter((entry, idx, arr) => entry.length > 0 && arr.indexOf(entry) === idx);
+    if (values.length <= 0) return null;
+    return { operator, values };
+  }
+  if (rawValue.includes(",") || rawValue.includes("|")) return null;
+  const value = rawValue.replace(/^\./, "");
+  if (!value) return null;
+  return { operator, values: [value] };
 }
 
 function parseResolutionComparatorTerm(term: string): { operator: ResolutionComparatorOperator; width: number; height: number } | null {
@@ -1174,7 +1188,11 @@ export function VideoUpload() {
         ? item.filename.slice(dot + 1).toLowerCase()
         : "";
       if (extensionComparator.operator === "!=") return !extensionComparator.values.includes(ext);
-      return extensionComparator.values.includes(ext);
+      if (extensionComparator.operator === "=") return extensionComparator.values.includes(ext);
+      if (extensionComparator.operator === "*=") return ext.includes(extensionComparator.values[0] ?? "");
+      if (extensionComparator.operator === "^=") return ext.startsWith(extensionComparator.values[0] ?? "");
+      if (extensionComparator.operator === "$=") return ext.endsWith(extensionComparator.values[0] ?? "");
+      return false;
     }
     const resolutionComparator = parseResolutionComparatorTerm(term);
     if (resolutionComparator) {

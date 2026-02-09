@@ -96,7 +96,7 @@ Upload constraints are enforced by the backend:
 - duration comparator tags are supported too (e.g. `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur!=5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`, `#dur>1:30`, `#dur>0:00:01.8`, `#dur>1h2m`), including aliases `#time...` and `#duration...`
 - video metadata comparators are supported for fps/width/height/aspect/frame-count/resolution too (e.g. `#fps<=24`, `#fps=24..60`, `#w=..1080`, `#h>=1080`, `#ar=1.3..1.8`, `#ar>=16:9`, `#fc<=30`, `#res=1920x1080`), including long aliases `#framerate...`, `#width...`, `#height...`, `#aspect...`, `#ratio...`, `#frames...`, and `#resolution...`
 - resolution comparators accept separators `x`, `×`, `*`, or `:` (e.g. `#res=1920x1080`, `#res=1920*1080`, `#res=16:9`)
-- extension comparators are supported as equality checks too (e.g. `#ext=mp4`, `#ext=mp4,mov`, `#ext!=mov`), including long alias `#format...`
+- extension comparators are supported as equality/pattern checks too (e.g. `#ext=mp4`, `#ext=mp4,mov`, `#ext!=mov`, `#ext*=mp`, `#ext^=m`, `#ext$=4`), including long alias `#format...`
 - filename comparators are supported as exact/pattern checks too (e.g. `#name=clip.mp4`, `#name=clip.mp4,other.mp4`, `#name!=clip.mp4`, `#name*=clip`, `#name^=recent_`, `#name$=.mp4`), including aliases `#file...` and `#filename...`
 - video-id comparators are supported too (e.g. `#id=c9b07510d5`, `#id=abc123,def456`, `#id*=c9b0`, `#id^=c9`, `#id$=510d5`), including aliases `#video...`, `#videoid...`, and `#vid...`
 - unknown `#tag` tokens are rendered as warning chips with an inline `unknown tag:*` message
@@ -105,7 +105,7 @@ Upload constraints are enforced by the backend:
 - malformed comparator example rows are hidden whenever a direct `did you mean` replacement is available
 - malformed `#out...` / `#outputs...` comparator tags show clickable output examples (`#out>=1`, `#out=0`) and preserve include/exclude prefix + alias choice
 - malformed `#src...` / `#source...` / `#sourcebytes...` / `#mb...` / `#render...` / `#outputbytes...` comparator tags show clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) and preserve include/exclude prefix + alias choice
-- malformed `#ext...` / `#format...` comparator tags show clickable extension examples (`#ext=mp4`, `#ext=mp4,mov`, `#ext!=mp4`) and preserve include/exclude prefix + long alias choice
+- malformed `#ext...` / `#format...` comparator tags show clickable extension examples (`#ext=mp4`, `#ext=mp4,mov`, `#ext!=mp4`, `#ext*=mp`) and preserve include/exclude prefix + long alias choice
 - malformed `#name...` / `#file...` / `#filename...` comparator tags show clickable name examples (`#name=clip.mp4`, `#name=clip.mp4,other.mp4`, `#name!=clip.mp4`, `#name*=clip`) and preserve include/exclude prefix + alias choice
 - malformed `#id...` / `#video...` / `#videoid...` / `#vid...` comparator tags show clickable id examples (`#id*=abc`, `#id^=c9b0`, `#id=deadbeef00`, `#id=abc123,def456`) and preserve include/exclude prefix + alias choice
 - malformed `#fps...` / `#w...` / `#h...` / `#ar...` / `#fc...` / `#res...` comparator tags show clickable video-meta examples (`#fps>=24`, `#fps=24..60`, `#w>=1080`, `#h>=1080`, `#ar>=1.3`, `#fc>=25`, `#res=1920x1080`) and preserve long-form aliases (`#framerate...`, `#width...`, `#height...`, `#aspect...`, `#ratio...`, `#frames...`, `#resolution...`) when typed

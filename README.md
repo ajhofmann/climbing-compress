@@ -100,7 +100,7 @@ Upload notes:
 - Duration comparator tags are also supported (for example `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur!=5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`, `#dur>1:30`, `#dur>0:00:01.8`, `#dur>1h2m`), including aliases `#time...` and `#duration...`.
 - Video metadata comparators are supported for FPS/width/height/aspect/frame-count/resolution too (for example `#fps<=24`, `#fps=24..60`, `#w=..1080`, `#h>=1080`, `#ar=1.3..1.8`, `#ar>=16:9`, `#fc<=30`, `#res=1920x1080`), including long aliases `#framerate...`, `#width...`, `#height...`, `#aspect...`, `#ratio...`, `#frames...`, and `#resolution...`.
 - Resolution comparators accept `x`, `×`, `*`, or `:` separators (for example `#res=1920x1080`, `#res=1920*1080`, `#res=16:9`).
-- Extension comparators are supported as equality checks too (for example `#ext=mp4`, `#ext=mp4,mov`, `#ext!=mov`), including long alias `#format...`.
+- Extension comparators are supported as equality/pattern checks too (for example `#ext=mp4`, `#ext=mp4,mov`, `#ext!=mov`, `#ext*=mp`, `#ext^=m`, `#ext$=4`), including long alias `#format...`.
 - Filename comparators are supported as exact/pattern checks too (for example `#name=clip.mp4`, `#name=clip.mp4,other.mp4`, `#name!=clip.mp4`, `#name*=clip`, `#name^=recent_`, `#name$=.mp4`), including aliases `#file...` and `#filename...`.
 - Video-id comparators are supported for quick clip targeting too (for example `#id=c9b07510d5`, `#id=abc123,def456`, `#id*=c9b0`, `#id^=c9`, `#id$=510d5`), including aliases `#video...`, `#videoid...`, and `#vid...`.
 - Unknown `#tag` tokens are highlighted in warning style and listed as `unknown tag:*` until corrected/removed.
@@ -109,7 +109,7 @@ Upload notes:
 - Specific malformed comparator example rows are suppressed when a direct `did you mean` replacement is available, reducing hint clutter.
 - Malformed `#out...` / `#outputs...` comparator tags now surface clickable output examples (`#out>=1`, `#out=0`) with include/exclude prefix preservation + alias preservation.
 - Malformed `#src...` / `#source...` / `#sourcebytes...` / `#mb...` / `#render...` / `#outputbytes...` comparator tags now surface clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) with include/exclude prefix preservation + alias preservation.
-- Malformed `#ext...` / `#format...` comparator tags now surface clickable extension examples (`#ext=mp4`, `#ext=mp4,mov`, `#ext!=mp4`) with include/exclude prefix preservation and long-alias preservation.
+- Malformed `#ext...` / `#format...` comparator tags now surface clickable extension examples (`#ext=mp4`, `#ext=mp4,mov`, `#ext!=mp4`, `#ext*=mp`) with include/exclude prefix preservation and long-alias preservation.
 - Malformed `#name...` / `#file...` / `#filename...` comparator tags now surface clickable filename examples (`#name=clip.mp4`, `#name=clip.mp4,other.mp4`, `#name!=clip.mp4`, `#name*=clip`) with include/exclude prefix + alias preservation.
 - Malformed `#id...` / `#video...` / `#videoid...` / `#vid...` comparator tags now surface clickable id examples (`#id*=abc`, `#id^=c9b0`, `#id=deadbeef00`, `#id=abc123,def456`) with include/exclude prefix + alias preservation.
 - Malformed `#fps...` / `#w...` / `#h...` / `#ar...` / `#fc...` / `#res...` comparator tags now surface clickable video-meta examples (`#fps>=24`, `#fps=24..60`, `#w>=1080`, `#h>=1080`, `#ar>=1.3`, `#fc>=25`, `#res=1920x1080`), preserving long-form aliases when typed (`#framerate...`, `#width...`, `#height...`, `#aspect...`, `#ratio...`, `#frames...`, `#resolution...`).
