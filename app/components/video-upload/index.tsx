@@ -251,7 +251,7 @@ function parseAspectRatioLiteral(raw: string): number | null {
 }
 
 function parseAspectComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
-  const comparatorMatch = term.match(/^#ar(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
+  const comparatorMatch = term.match(/^#(?:ar|aspect|ratio)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
   if (!comparatorMatch) return null;
   const operator = normalizeComparatorOperator(comparatorMatch[1]);
   if (!operator) return null;
@@ -261,7 +261,7 @@ function parseAspectComparatorTerm(term: string): { operator: ComparatorOperator
 }
 
 function parseAspectRangeTerm(term: string): NumericRangeFilter | null {
-  const rangeMatch = term.match(/^#ar(?:==|=)(.*?)\.\.(.*)$/);
+  const rangeMatch = term.match(/^#(?:ar|aspect|ratio)(?:==|=)(.*?)\.\.(.*)$/);
   if (!rangeMatch) return null;
   return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseAspectRatioLiteral);
 }
@@ -371,6 +371,12 @@ function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
 
 function remapVideoMetaAliasForTarget(tag: string, targetTerm: string): string {
   const normalizedTarget = targetTerm.toLowerCase();
+  if (normalizedTarget.startsWith("#aspect") && tag.startsWith("#ar")) {
+    return `#aspect${tag.slice(3)}`;
+  }
+  if (normalizedTarget.startsWith("#ratio") && tag.startsWith("#ar")) {
+    return `#ratio${tag.slice(3)}`;
+  }
   if (normalizedTarget.startsWith("#filename") && tag.startsWith("#name")) {
     return `#filename${tag.slice(5)}`;
   }
@@ -753,6 +759,7 @@ export function VideoUpload() {
         && RECENT_COMPARATOR_FAMILIES.some((family) => (
           item.term.startsWith(family)
           || (family === "#fps" && item.term.startsWith("#framerate"))
+          || (family === "#ar" && (item.term.startsWith("#aspect") || item.term.startsWith("#ratio")))
           || (family === "#fc" && item.term.startsWith("#frames"))
         ))
         && !isRecognizedRecentTagTerm(item.term),
@@ -762,6 +769,7 @@ export function VideoUpload() {
     const family = RECENT_COMPARATOR_FAMILIES.find((entry) => (
       target.term.startsWith(entry)
       || (entry === "#fps" && target.term.startsWith("#framerate"))
+      || (entry === "#ar" && (target.term.startsWith("#aspect") || target.term.startsWith("#ratio")))
       || (entry === "#fc" && target.term.startsWith("#frames"))
     ));
     if (!family) return null;
@@ -882,6 +890,8 @@ export function VideoUpload() {
         || item.term.startsWith("#w")
         || item.term.startsWith("#h")
         || item.term.startsWith("#ar")
+        || item.term.startsWith("#aspect")
+        || item.term.startsWith("#ratio")
         || item.term.startsWith("#res")
         || item.term.startsWith("#resolution")
         || item.term.startsWith("#width")
@@ -895,7 +905,7 @@ export function VideoUpload() {
       ? "#fps"
       : target.term.startsWith("#fc") || target.term.startsWith("#frames")
         ? "#fc"
-      : target.term.startsWith("#ar")
+      : target.term.startsWith("#ar") || target.term.startsWith("#aspect") || target.term.startsWith("#ratio")
         ? "#ar"
       : target.term.startsWith("#res") || target.term.startsWith("#resolution")
         ? "#res"
@@ -1171,7 +1181,7 @@ export function VideoUpload() {
                   ? suggestionCandidates.filter((tag) => tag.startsWith("#w"))
                   : normalizedTail.startsWith("#h")
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#h"))
-                  : normalizedTail.startsWith("#ar")
+                  : normalizedTail.startsWith("#ar") || normalizedTail.startsWith("#aspect") || normalizedTail.startsWith("#ratio")
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#ar"))
                   : normalizedTail.startsWith("#fc") || normalizedTail.startsWith("#frames")
                     ? suggestionCandidates.filter((tag) => tag.startsWith("#fc"))
