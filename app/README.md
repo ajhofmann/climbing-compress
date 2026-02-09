@@ -93,14 +93,14 @@ Upload constraints are enforced by the backend:
 - storage comparators are supported with byte units (e.g. `#src>3k`, `#src>3kb`, `#src!=3k`, `#src>10m`, `#mb>0b`, `#mb>1mb`)
 - duration comparator tags are supported too (e.g. `#dur>5`, `#dur<2`, `#dur<=1.5`, `#dur!=5`, `#dur>90s`, `#dur>1m30s`, `#dur>1.5m`, `#dur>1:30`, `#dur>0:00:01.8`, `#dur>1h2m`)
 - video metadata comparators are supported for fps/width/height/aspect/frame-count too (e.g. `#fps<=24`, `#fps=24..60`, `#w=..1080`, `#h>=1080`, `#ar=1.3..1.8`, `#ar>=16:9`, `#fc<=30`), including long aliases `#framerate...`, `#width...`, `#height...`, and `#frames...`
-- extension comparators are supported as equality checks too (e.g. `#ext=mp4`, `#ext!=mov`)
+- extension comparators are supported as equality checks too (e.g. `#ext=mp4`, `#ext=mp4,mov`, `#ext!=mov`)
 - unknown `#tag` tokens are rendered as warning chips with an inline `unknown tag:*` message
 - unknown non-duration tags include `did you mean` replacement buttons for typo repair (e.g. `#cachedd` -> `#cached`)
 - comparator-family typos are suggested too (e.g. `#dru>5` -> `#dur>5`, `-#srd>3k` -> `-#src>3k`)
 - malformed comparator example rows are hidden whenever a direct `did you mean` replacement is available
 - malformed `#out...` comparator tags show clickable output examples (`#out>=1`, `#out=0`) and preserve include/exclude prefix
 - malformed `#src...` / `#mb...` comparator tags show clickable storage examples (`#src>3k`, `#mb>0b`, `#src>10m`) and preserve include/exclude prefix
-- malformed `#ext...` comparator tags show clickable extension examples (`#ext=mp4`, `#ext!=mp4`) and preserve include/exclude prefix
+- malformed `#ext...` comparator tags show clickable extension examples (`#ext=mp4`, `#ext=mp4,mov`, `#ext!=mp4`) and preserve include/exclude prefix
 - malformed `#fps...` / `#w...` / `#h...` / `#ar...` / `#fc...` comparator tags show clickable video-meta examples (`#fps>=24`, `#fps=24..60`, `#w>=1080`, `#h>=1080`, `#ar>=1.3`, `#fc>=25`) and preserve long-form aliases (`#framerate...`, `#width...`, `#height...`, `#frames...`) when typed
 - malformed range comparators show clickable range examples (`#dur=1..2`, `#dur=..2`, `#src=2k..4k`, `#src=2k..`, `#out=0..2`, `#ar=1.3..1.8`, `#fc=25..200`) and preserve long aliases like `#height=..x` -> `#height=..1920`
 - malformed `#dur...` comparator tags also show inline duration-format examples (`#dur>90s`, `#dur>1m30s`)

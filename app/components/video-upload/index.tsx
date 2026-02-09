@@ -10,7 +10,7 @@ const RECENT_PREVIEW_LIMIT = 6;
 const RECENT_CURSOR_PAGE_STEP = 5;
 const RECENT_PREF_KEY = "sendit.recentPrefs";
 const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
-const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4"] as const;
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#ext=mp4", "#ext=mp4,mov"] as const;
 const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc"] as const;
 const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
   "#out": ["#out=0..2", "#out=..0"],
@@ -29,7 +29,7 @@ const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_T
 const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
 const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
 const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
-const RECENT_EXTENSION_HINT_TAGS = ["#ext=mp4", "#ext!=mp4"] as const;
+const RECENT_EXTENSION_HINT_TAGS = ["#ext=mp4", "#ext=mp4,mov", "#ext!=mp4"] as const;
 const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
   "#fps": ["#fps>=24", "#fps=24..60"],
   "#w": ["#w>=1080", "#w=..1080"],
@@ -39,6 +39,7 @@ const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
 } as const;
 type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
 type ExtensionComparatorOperator = "=" | "!=";
+type ExtensionComparatorTerm = { operator: ExtensionComparatorOperator; values: string[] };
 type NumericRangeFilter = { min: number | null; max: number | null };
 
 function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
@@ -276,13 +277,17 @@ function parseFrameCountRangeTerm(term: string): NumericRangeFilter | null {
   return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
 }
 
-function parseExtensionComparatorTerm(term: string): { operator: ExtensionComparatorOperator; value: string } | null {
-  const comparatorMatch = term.match(/^#ext(==|=|!=|<>)([a-z0-9.]+)$/i);
+function parseExtensionComparatorTerm(term: string): ExtensionComparatorTerm | null {
+  const comparatorMatch = term.match(/^#ext(==|=|!=|<>)([a-z0-9.,|]+)$/i);
   if (!comparatorMatch) return null;
   const operator: ExtensionComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "==" ? "=" : "!=";
-  const value = comparatorMatch[2].toLowerCase().replace(/^\./, "");
-  if (!value) return null;
-  return { operator, value };
+  const rawValue = comparatorMatch[2].toLowerCase().replace(/\|/g, ",");
+  const values = rawValue
+    .split(",")
+    .map((entry) => entry.trim().replace(/^\./, ""))
+    .filter((entry, idx, arr) => entry.length > 0 && arr.indexOf(entry) === idx);
+  if (values.length <= 0) return null;
+  return { operator, values };
 }
 
 function parseFpsComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
@@ -915,8 +920,8 @@ export function VideoUpload() {
       const ext = dot >= 0 && dot < item.filename.length - 1
         ? item.filename.slice(dot + 1).toLowerCase()
         : "";
-      if (extensionComparator.operator === "!=") return ext !== extensionComparator.value;
-      return ext === extensionComparator.value;
+      if (extensionComparator.operator === "!=") return !extensionComparator.values.includes(ext);
+      return extensionComparator.values.includes(ext);
     }
     if (term.startsWith("#")) {
       const tag = term.slice(1);
