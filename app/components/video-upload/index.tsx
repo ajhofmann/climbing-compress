@@ -533,6 +533,19 @@ function withExcludePrefix(term: string, prefix: "-" | "!" | null): string {
   return `${prefix}${normalizedTerm}`;
 }
 
+function withIncludePrefix(term: string, includePrefix: boolean): string {
+  if (!includePrefix) return term;
+  const normalizedTerm = term.startsWith("+") || term.startsWith("-") || term.startsWith("!")
+    ? term.slice(1)
+    : term;
+  return `+${normalizedTerm}`;
+}
+
+function applyParsedTermPrefix(term: string, excludePrefix: "-" | "!" | null, includePrefix: boolean): string {
+  if (excludePrefix) return withExcludePrefix(term, excludePrefix);
+  return withIncludePrefix(term, includePrefix);
+}
+
 function levenshteinDistance(left: string, right: string): number {
   if (left === right) return 0;
   if (left.length === 0) return right.length;
@@ -730,7 +743,7 @@ export function VideoUpload() {
       const hasIncludePrefix = excludePrefix == null && raw.startsWith("+");
       const isExclude = excludePrefix != null && raw.length > 1;
       const term = isExclude || hasIncludePrefix ? raw.slice(1) : raw;
-      return { idx, raw, term, isExclude, excludePrefix: isExclude ? excludePrefix : null };
+      return { idx, raw, term, isExclude, excludePrefix: isExclude ? excludePrefix : null, includePrefix: hasIncludePrefix };
     }).filter((item) => item.term.length > 0),
     [recentFilterTerms],
   );
@@ -787,9 +800,7 @@ export function VideoUpload() {
     const target = unknownOutputTerms[unknownOutputTerms.length - 1];
     return {
       termIndex: target.idx,
-      tags: target.isExclude
-        ? RECENT_OUTPUT_HINT_TAGS.map((tag) => withExcludePrefix(tag, target.excludePrefix))
-        : [...RECENT_OUTPUT_HINT_TAGS],
+      tags: RECENT_OUTPUT_HINT_TAGS.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownStorageHintConfig = useMemo(() => {
@@ -800,9 +811,7 @@ export function VideoUpload() {
     const target = unknownStorageTerms[unknownStorageTerms.length - 1];
     return {
       termIndex: target.idx,
-      tags: target.isExclude
-        ? RECENT_STORAGE_HINT_TAGS.map((tag) => withExcludePrefix(tag, target.excludePrefix))
-        : [...RECENT_STORAGE_HINT_TAGS],
+      tags: RECENT_STORAGE_HINT_TAGS.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownRangeHintConfig = useMemo(() => {
@@ -831,7 +840,7 @@ export function VideoUpload() {
       .map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
-      tags: target.isExclude ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix)) : base,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownTagReplacementHints = useMemo(() => {
@@ -890,7 +899,7 @@ export function VideoUpload() {
     return {
       term: target.term,
       termIndex: target.idx,
-      replacements: dedupedSuggestions.map((entry) => (target.isExclude ? withExcludePrefix(entry, target.excludePrefix) : entry)),
+      replacements: dedupedSuggestions.map((entry) => applyParsedTermPrefix(entry, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownDurationHintConfig = useMemo(() => {
@@ -902,9 +911,7 @@ export function VideoUpload() {
     const base = RECENT_DURATION_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
-      tags: target.isExclude
-        ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix))
-        : base,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownExtensionHintConfig = useMemo(() => {
@@ -916,9 +923,7 @@ export function VideoUpload() {
     const base = RECENT_EXTENSION_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
-      tags: target.isExclude
-        ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix))
-        : base,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownNameHintConfig = useMemo(() => {
@@ -930,9 +935,7 @@ export function VideoUpload() {
     const base = RECENT_NAME_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
-      tags: target.isExclude
-        ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix))
-        : base,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownIdHintConfig = useMemo(() => {
@@ -944,9 +947,7 @@ export function VideoUpload() {
     const base = RECENT_ID_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
-      tags: target.isExclude
-        ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix))
-        : base,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const unknownVideoMetaHintConfig = useMemo(() => {
@@ -988,9 +989,7 @@ export function VideoUpload() {
       .map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
     return {
       termIndex: target.idx,
-      tags: target.isExclude
-        ? base.map((tag) => withExcludePrefix(tag, target.excludePrefix))
-        : base,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
