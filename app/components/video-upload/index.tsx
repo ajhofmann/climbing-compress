@@ -29,6 +29,10 @@ function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
   return null;
 }
 
+function normalizeNumericRange(left: number, right: number): { min: number; max: number } {
+  return left <= right ? { min: left, max: right } : { min: right, max: left };
+}
+
 function parseDurationLiteralSeconds(raw: string): number | null {
   const value = raw.trim().toLowerCase();
   if (!value) return null;
@@ -89,6 +93,15 @@ function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator
   return { operator, value };
 }
 
+function parseOutputRangeTerm(term: string): { min: number; max: number } | null {
+  const rangeMatch = term.match(/^#out(?:==|=)(\d+)\.\.(\d+)$/);
+  if (!rangeMatch) return null;
+  const left = Number(rangeMatch[1]);
+  const right = Number(rangeMatch[2]);
+  if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
+  return normalizeNumericRange(left, right);
+}
+
 function parseByteLiteral(raw: string): number | null {
   const match = raw.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)(?:\s*)(kb|mb|gb|b|k|m|g)?$/);
   if (!match) return null;
@@ -115,6 +128,15 @@ function parseSourceBytesComparatorTerm(term: string): { operator: ComparatorOpe
   return { operator, valueBytes };
 }
 
+function parseSourceBytesRangeTerm(term: string): { min: number; max: number } | null {
+  const rangeMatch = term.match(/^#src(?:==|=)(.+?)\.\.(.+)$/);
+  if (!rangeMatch) return null;
+  const left = parseByteLiteral(rangeMatch[1]);
+  const right = parseByteLiteral(rangeMatch[2]);
+  if (left == null || right == null || !Number.isFinite(left) || !Number.isFinite(right)) return null;
+  return normalizeNumericRange(left, right);
+}
+
 function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
   const comparatorMatch = term.match(/^#mb(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
   if (!comparatorMatch) return null;
@@ -125,6 +147,15 @@ function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOpe
   return { operator, valueBytes };
 }
 
+function parseOutputBytesRangeTerm(term: string): { min: number; max: number } | null {
+  const rangeMatch = term.match(/^#mb(?:==|=)(.+?)\.\.(.+)$/);
+  if (!rangeMatch) return null;
+  const left = parseByteLiteral(rangeMatch[1]);
+  const right = parseByteLiteral(rangeMatch[2]);
+  if (left == null || right == null || !Number.isFinite(left) || !Number.isFinite(right)) return null;
+  return normalizeNumericRange(left, right);
+}
+
 function parseDurationComparatorTerm(term: string): { operator: ComparatorOperator; valueSeconds: number } | null {
   const comparatorMatch = term.match(/^#dur(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
   if (!comparatorMatch) return null;
@@ -133,6 +164,15 @@ function parseDurationComparatorTerm(term: string): { operator: ComparatorOperat
   const valueSeconds = parseDurationLiteralSeconds(comparatorMatch[2]);
   if (valueSeconds == null || !Number.isFinite(valueSeconds)) return null;
   return { operator, valueSeconds };
+}
+
+function parseDurationRangeTerm(term: string): { min: number; max: number } | null {
+  const rangeMatch = term.match(/^#dur(?:==|=)(.+?)\.\.(.+)$/);
+  if (!rangeMatch) return null;
+  const left = parseDurationLiteralSeconds(rangeMatch[1]);
+  const right = parseDurationLiteralSeconds(rangeMatch[2]);
+  if (left == null || right == null || !Number.isFinite(left) || !Number.isFinite(right)) return null;
+  return normalizeNumericRange(left, right);
 }
 
 function normalizeRecentFilterTerms(sourceTerms: string[]): string[] {
@@ -351,9 +391,13 @@ export function VideoUpload() {
   );
   const isRecognizedRecentTagTerm = useCallback((term: string) => {
     if (RECENT_FILTER_SIMPLE_TAGS.includes(term as typeof RECENT_FILTER_SIMPLE_TAGS[number])) return true;
+    if (parseSourceBytesRangeTerm(term) !== null) return true;
     if (parseSourceBytesComparatorTerm(term) !== null) return true;
+    if (parseOutputBytesRangeTerm(term) !== null) return true;
     if (parseOutputBytesComparatorTerm(term) !== null) return true;
+    if (parseOutputRangeTerm(term) !== null) return true;
     if (parseOutputComparatorTerm(term) !== null) return true;
+    if (parseDurationRangeTerm(term) !== null) return true;
     return parseDurationComparatorTerm(term) !== null;
   }, []);
   const unknownRecentTagTerms = useMemo(() => {
@@ -460,6 +504,10 @@ export function VideoUpload() {
     };
   }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
   const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
+    const sourceBytesRange = parseSourceBytesRangeTerm(term);
+    if (sourceBytesRange) {
+      return item.source_bytes >= sourceBytesRange.min && item.source_bytes <= sourceBytesRange.max;
+    }
     const sourceBytesComparator = parseSourceBytesComparatorTerm(term);
     if (sourceBytesComparator) {
       const { operator, valueBytes } = sourceBytesComparator;
@@ -470,6 +518,10 @@ export function VideoUpload() {
       if (operator === ">=") return sourceBytes >= valueBytes;
       if (operator === "!=") return sourceBytes !== valueBytes;
       return sourceBytes === valueBytes;
+    }
+    const outputBytesRange = parseOutputBytesRangeTerm(term);
+    if (outputBytesRange) {
+      return item.output_bytes >= outputBytesRange.min && item.output_bytes <= outputBytesRange.max;
     }
     const outputBytesComparator = parseOutputBytesComparatorTerm(term);
     if (outputBytesComparator) {
@@ -482,6 +534,10 @@ export function VideoUpload() {
       if (operator === "!=") return outputBytesForClip !== valueBytes;
       return outputBytesForClip === valueBytes;
     }
+    const outputRange = parseOutputRangeTerm(term);
+    if (outputRange) {
+      return item.output_count >= outputRange.min && item.output_count <= outputRange.max;
+    }
     const outputComparator = parseOutputComparatorTerm(term);
     if (outputComparator) {
       const { operator, value } = outputComparator;
@@ -492,6 +548,10 @@ export function VideoUpload() {
       if (operator === ">=") return outputs >= value;
       if (operator === "!=") return outputs !== value;
       return outputs === value;
+    }
+    const durationRange = parseDurationRangeTerm(term);
+    if (durationRange) {
+      return item.info.duration >= durationRange.min && item.info.duration <= durationRange.max;
     }
     const durationComparator = parseDurationComparatorTerm(term);
     if (durationComparator) {
