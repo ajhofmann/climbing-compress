@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pipeline.movement import score_movement, score_progress, analyze_rest_signals
+from pipeline.movement import score_movement, score_progress, score_com_velocity, analyze_rest_signals
 
 
 class TestScoreMovement:
@@ -105,6 +105,38 @@ class TestScoreMovement:
 
     def test_empty_input(self):
         scores = score_movement([], 30)
+        assert len(scores) == 0
+
+
+class TestScoreComVelocity:
+    """Tests for dynamic-mode COM velocity scoring."""
+
+    def test_stationary_is_zero(self):
+        """If the climber doesn't move, score should be near zero."""
+        fps = 30
+        poses = [
+            {"left_hip": (0.5, 0.5, 0.9), "right_hip": (0.6, 0.5, 0.9),
+             "left_shoulder": (0.5, 0.4, 0.9), "right_shoulder": (0.6, 0.4, 0.9)}
+        ] * 60
+        scores = score_com_velocity(poses, fps)
+        assert scores.max() < 0.1
+
+    def test_moving_section_scores_higher(self, synthetic_poses):
+        """Moving frames should score higher than rest frames."""
+        poses, fps = synthetic_poses
+        scores = score_com_velocity(poses, fps)
+        assert len(scores) == len(poses)
+        assert scores.min() >= 0.0
+        assert scores.max() <= 1.0
+
+    def test_normalized_range(self, synthetic_poses):
+        poses, fps = synthetic_poses
+        scores = score_com_velocity(poses, fps)
+        assert scores.min() >= 0.0
+        assert scores.max() <= 1.0
+
+    def test_empty_input(self):
+        scores = score_com_velocity([], 30)
         assert len(scores) == 0
 
 

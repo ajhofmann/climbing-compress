@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 
 from pipeline.pose import extract_poses, interpolate_missing_poses
-from pipeline.movement import score_movement, score_progress, analyze_rest_signals
+from pipeline.movement import score_movement, score_progress, score_com_velocity, analyze_rest_signals
 from pipeline.speed_curve import (
     solve_speed_curve, solve_constant_progress, get_output_duration,
     detect_rest, solve_hybrid_curve, curve_from_keyframes,
@@ -142,6 +142,21 @@ def compute_scores_and_curve(
             foot_weight=req.foot_weight,
             core_weight=req.core_weight,
             flow_scores=trimmed_flow,
+            camera_motion=trimmed_cam,
+        )
+        curve = solve_speed_curve(
+            scores, fps,
+            target_duration=req.target_duration,
+            min_speed=req.min_speed,
+            max_speed=req.max_speed,
+            sensitivity=req.sensitivity,
+            steepness=req.steepness,
+            pins=pins,
+        )
+    elif req.mode == "dynamic":
+        scores = score_com_velocity(
+            trimmed, fps,
+            smooth_sigma_s=req.smoothing,
             camera_motion=trimmed_cam,
         )
         curve = solve_speed_curve(
@@ -489,6 +504,7 @@ def run_analysis(
     emit({"progress": 0.70, "message": "Computing progress scores..."})
     progress_scores = score_progress(poses, fps, camera_motion=camera_motion)
     action_scores = score_movement(poses, fps, flow_scores=flow_scores, camera_motion=camera_motion)
+    dynamic_scores = score_com_velocity(poses, fps, camera_motion=camera_motion)
 
     emit({"progress": 0.85, "message": "Generating waveforms..."})
 
@@ -496,9 +512,11 @@ def run_analysis(
     step = max(1, n // 500)
     prog_ds = progress_scores[::step].tolist()
     act_ds = action_scores[::step].tolist()
+    dyn_ds = dynamic_scores[::step].tolist()
 
     waveform_progress = render_waveform_data_url(progress_scores, fps)
     waveform_action = render_waveform_data_url(action_scores, fps)
+    waveform_dynamic = render_waveform_data_url(dynamic_scores, fps)
 
     tracking_info: dict = {}
     if HAS_TRACKER and has_tracks(video_path):
@@ -523,9 +541,11 @@ def run_analysis(
         "duration": n / fps,
         "scores_progress": prog_ds,
         "scores_action": act_ds,
+        "scores_dynamic": dyn_ds,
         "scores_step": step,
         "waveform_progress": waveform_progress,
         "waveform_action": waveform_action,
+        "waveform_dynamic": waveform_dynamic,
         **tracking_info,
     })
 

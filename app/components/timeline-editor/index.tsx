@@ -32,7 +32,9 @@ export function TimelineEditor() {
         ? analysis.waveform_progress
         : settings.mode === "action"
           ? analysis.waveform_action
-          : (settings.progressActionBlend < 0.5 ? analysis.waveform_progress : analysis.waveform_action)
+          : settings.mode === "dynamic"
+            ? (analysis.waveform_dynamic ?? analysis.waveform_action)
+            : (settings.progressActionBlend < 0.5 ? analysis.waveform_progress : analysis.waveform_action)
     )
     : "";
 

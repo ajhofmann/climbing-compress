@@ -267,6 +267,62 @@ def score_progress(
     return progress_rate
 
 
+def score_com_velocity(
+    poses: list[dict | None],
+    fps: float,
+    smooth_sigma_s: float = 0.25,
+    camera_motion: tuple[np.ndarray, np.ndarray] | None = None,
+) -> np.ndarray:  # shape (n_frames,), normalized [0, 1]
+    """
+    Compute per-frame center-of-mass velocity magnitude (dynamic move intensity).
+
+    Tracks the climber's center of mass (average of hips, shoulders) and
+    computes raw displacement magnitude per frame, with no direction
+    weighting or consistency filter. Designed to highlight big dynamic
+    moves (dynos, deadpoints) where the body moves rapidly in any direction.
+
+    Unlike score_progress, this does NOT apply vertical bias or
+    directional consistency — any fast COM movement scores high.
+    Uses lighter smoothing (0.25s default) to preserve sharp peaks.
+
+    Args:
+        smooth_sigma_s: Gaussian smoothing sigma in seconds. Default 0.25
+            for sharper peaks than progress/action.
+        camera_motion: optional (cam_dx, cam_dy) per-frame camera translation.
+            When provided, cumulative camera displacement is subtracted
+            from COM so shake doesn't inflate scores.
+
+    Returns:
+        scores: per-frame COM velocity magnitude, normalized to [0, 1].
+                High = body moving fast (dynamic move). Low = stationary.
+    """
+    n = len(poses)
+    if n < 2:
+        return np.zeros(n)
+
+    com_x, com_y = _extract_com(poses)
+
+    valid = ~np.isnan(com_x)
+    if np.sum(valid) < 2:
+        return np.zeros(n)
+
+    indices = np.arange(n)
+    com_x = np.interp(indices, indices[valid], com_x[valid])
+    com_y = np.interp(indices, indices[valid], com_y[valid])
+
+    if camera_motion is not None:
+        cam_dx, cam_dy = camera_motion
+        if len(cam_dx) == n:
+            com_x -= _debiased_cumsum(cam_dx)
+            com_y -= _debiased_cumsum(cam_dy)
+
+    dx = np.diff(com_x, prepend=com_x[0])
+    dy = np.diff(com_y, prepend=com_y[0])
+    displacement = np.sqrt(dx ** 2 + dy ** 2)
+
+    return smooth_and_normalize(displacement, fps, sigma_s=smooth_sigma_s)
+
+
 def analyze_rest_signals(
     poses: list[dict | None],
     fps: float,

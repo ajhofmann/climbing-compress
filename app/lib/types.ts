@@ -45,9 +45,11 @@ export interface AnalysisData {
   duration: number;
   scores_progress: number[];
   scores_action: number[];
+  scores_dynamic?: number[];
   scores_step: number;
   waveform_progress: string;
   waveform_action: string;
+  waveform_dynamic?: string;
   tracker_available?: boolean;
   tracker_unavailable?: boolean;
   flow_available?: boolean;
@@ -55,7 +57,7 @@ export interface AnalysisData {
   camera_motion_available?: boolean;
 }
 
-export type SpeedMode = "progress" | "action" | "hybrid";
+export type SpeedMode = "progress" | "action" | "hybrid" | "dynamic";
 export type EditMode = "pins" | "keyframes";
 export type OutputAspect = "original" | "vertical" | "square";
 

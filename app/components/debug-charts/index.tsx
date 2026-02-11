@@ -199,17 +199,19 @@ export function DebugCharts() {
     return curveTimes[curveTimes.length - 1];
   }, [curveTimes, curve, playbackTime]);
 
-  // Build score comparison data from analysis (full video, both modes)
+  // Build score comparison data from analysis (full video, all modes)
   const scoreCompareData = useMemo(() => {
     if (!analysis) return [];
     const progress = analysis.scores_progress;
     const action = analysis.scores_action;
+    const dynamic = analysis.scores_dynamic;
     const step = analysis.scores_step;
     const fps = analysis.fps;
     return progress.map((p: number, i: number) => ({
       time: parseFloat(((i * step) / fps).toFixed(2)),
       progress: p,
       action: action[i] ?? 0,
+      ...(dynamic ? { dynamic: dynamic[i] ?? 0 } : {}),
     }));
   }, [analysis]);
 
@@ -437,7 +439,9 @@ export function DebugCharts() {
                 ? "Upward wall displacement per frame. Measures how much the climber's center of mass moves toward the top. High values = active climbing. Low values = resting or readjusting. This signal determines how output time is allocated."
                 : settings.mode === "action"
                   ? "Per-frame limb velocity with weighted contributions from hands, feet, and core. High values = dynamic moves that get slow-mo. Low values = stillness that gets fast-forwarded. Tweak hand/foot/core weights in settings to reshape this."
-                  : "Hybrid score blends progress and action signals. Use BLEND in Program to shift from even wall progression to dynamic move emphasis."
+                  : settings.mode === "dynamic"
+                    ? "Center-of-mass velocity magnitude per frame. High values = body moving fast (dynos, big moves) → slow-mo. Low values = stationary → fast-forward. Highlights explosive movement in any direction."
+                    : "Hybrid score blends progress and action signals. Use BLEND in Program to shift from even wall progression to dynamic move emphasis."
             }
           >
             <div
@@ -480,7 +484,7 @@ export function DebugCharts() {
                     tickLine={{ stroke: "var(--border)" }}
                     width={42}
                     label={{
-                      value: settings.mode === "progress" ? "displacement" : settings.mode === "action" ? "velocity" : "hybrid",
+                      value: settings.mode === "progress" ? "displacement" : settings.mode === "action" ? "velocity" : settings.mode === "dynamic" ? "COM velocity" : "hybrid",
                       angle: -90,
                       position: "insideLeft",
                       offset: 12,
@@ -500,7 +504,7 @@ export function DebugCharts() {
 
                   <Area
                     dataKey="score"
-                    name={settings.mode === "progress" ? "progress" : settings.mode === "action" ? "action" : "hybrid"}
+                    name={settings.mode === "progress" ? "progress" : settings.mode === "action" ? "action" : settings.mode === "dynamic" ? "dynamic" : "hybrid"}
                     fill="var(--warm)"
                     fillOpacity={0.25}
                     stroke="var(--warm)"
@@ -543,8 +547,8 @@ export function DebugCharts() {
 
               {showComparison && (
                 <ChartSection
-                  title="Progress vs Action Scores"
-                  description="Side-by-side comparison of both scoring modes across the full (untrimmed) video. Progress scoring emphasizes steady upward displacement — good for tracking wall position. Action scoring emphasizes explosive limb velocity — good for highlighting dynamic moves. Use this to understand how switching modes changes the speed curve shape."
+                  title="Progress vs Action vs Dynamic Scores"
+                  description="Side-by-side comparison of scoring modes across the full (untrimmed) video. Progress = upward displacement. Action = limb velocity. Dynamic = center-of-mass velocity magnitude (highlights dynos and big moves). Use this to understand how switching modes changes the speed curve shape."
                 >
                   <div
                     className="rounded-xl border overflow-hidden"
@@ -603,6 +607,18 @@ export function DebugCharts() {
                           type="monotone"
                           isAnimationActive={false}
                         />
+                        {analysis.scores_dynamic && (
+                          <Area
+                            dataKey="dynamic"
+                            name="dynamic"
+                            fill="rgb(76, 175, 80)"
+                            fillOpacity={0.15}
+                            stroke="rgb(76, 175, 80)"
+                            strokeWidth={1.5}
+                            type="monotone"
+                            isAnimationActive={false}
+                          />
+                        )}
 
                         <Tooltip
                           content={<ScoreCompareTooltip />}
@@ -617,7 +633,7 @@ export function DebugCharts() {
                   </div>
 
                   {/* Legend */}
-                  <div className="flex gap-4 px-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
+                  <div className="flex flex-wrap gap-4 px-1 text-[10px]" style={{ color: "var(--text-muted)" }}>
                     <span className="flex items-center gap-1">
                       <span className="w-2 h-0.5 rounded-full inline-block" style={{ background: "var(--accent)" }} />
                       progress — upward wall displacement
@@ -626,6 +642,12 @@ export function DebugCharts() {
                       <span className="w-2 h-0.5 rounded-full inline-block" style={{ background: "var(--warm)" }} />
                       action — limb velocity
                     </span>
+                    {analysis.scores_dynamic && (
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-0.5 rounded-full inline-block" style={{ background: "rgb(76, 175, 80)" }} />
+                        dynamic — COM velocity
+                      </span>
+                    )}
                   </div>
                 </ChartSection>
               )}

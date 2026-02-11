@@ -100,6 +100,7 @@ export function SettingsPanel() {
                 {([
                   { key: "progress" as const, label: "PROGRESS", tip: "50% of video = 50% up the wall.\nStalling = fast-forward." },
                   { key: "action" as const, label: "ACTION", tip: "Big moves get slow-mo,\nchalk-ups get skipped." },
+                  { key: "dynamic" as const, label: "DYNAMIC", tip: "Slow down when center of mass moves fast.\nHighlights dynos and big moves." },
                   { key: "hybrid" as const, label: "HYBRID", tip: "Blend progress + action scoring.\nDial between steady pacing and move highlights." },
                 ]).map(({ key, label, tip }) => (
                   <Tooltip key={key} text={tip}>
@@ -123,7 +124,7 @@ export function SettingsPanel() {
             <LedCounter label="DURATION" value={s.targetDuration} min={3} max={120} step={1} onChange={(v) => u("targetDuration", v)} title="Target output duration in seconds.\nThe speed curve stretches to hit this." />
 
             {/* Speed faders */}
-            {(s.mode === "action" || s.mode === "hybrid") && (
+            {(s.mode === "action" || s.mode === "dynamic" || s.mode === "hybrid") && (
               <Fader label="SENS" value={s.sensitivity} min={0.01} max={0.99} step={0.01} onChange={(v) => u("sensitivity", v)} title="Sensitivity: lower = more generous slow-mo on moves" />
             )}
             {s.mode === "hybrid" && (

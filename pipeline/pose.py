@@ -102,6 +102,49 @@ def _remap_landmarks(
     return remapped
 
 
+def _pick_tracked_pose(
+    pose_landmarks_list: list,
+    track: dict | None,
+) -> list:
+    """Select the detected pose closest to the tracker bounding box.
+
+    When multiple poses are detected (climber + belayer), uses the
+    tracker bbox center to pick the right one.  Falls back to the
+    first (highest-confidence) detection when no track is available.
+    """
+    if len(pose_landmarks_list) == 1 or track is None:
+        return pose_landmarks_list[0]
+
+    bbox = track.get("bbox_norm")
+    if bbox is None:
+        return pose_landmarks_list[0]
+
+    # Tracker bbox center
+    tx = (bbox[0] + bbox[2]) / 2
+    ty = (bbox[1] + bbox[3]) / 2
+
+    best_lm = pose_landmarks_list[0]
+    best_dist = float("inf")
+
+    for lm_list in pose_landmarks_list:
+        # Approximate pose center from hips + shoulders
+        xs, ys = [], []
+        for idx in (11, 12, 23, 24):  # shoulders + hips
+            if idx < len(lm_list):
+                xs.append(lm_list[idx].x)
+                ys.append(lm_list[idx].y)
+        if not xs:
+            continue
+        cx = sum(xs) / len(xs)
+        cy = sum(ys) / len(ys)
+        dist = (cx - tx) ** 2 + (cy - ty) ** 2
+        if dist < best_dist:
+            best_dist = dist
+            best_lm = lm_list
+
+    return best_lm
+
+
 def extract_poses(
     video_path: str,
     scale: float = 0.5,
@@ -130,10 +173,16 @@ def extract_poses(
     """
     model_path = _ensure_model()
 
+    # When tracker data is available, detect multiple poses on the full
+    # frame and pick the one closest to the tracked bbox.  This avoids
+    # cropping (which often shrinks the climber too small for MediaPipe)
+    # while still using the tracker to reject the belayer.
+    num_poses = 3 if (tracks is not None and len(tracks) > 0) else 1
+
     vid_options = vision.PoseLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=model_path),
         running_mode=vision.RunningMode.VIDEO,
-        num_poses=1,
+        num_poses=num_poses,
         min_pose_detection_confidence=0.3,
         min_tracking_confidence=0.3,
     )
@@ -151,31 +200,6 @@ def extract_poses(
                 fps = meta["fps"]
                 total_frames = meta["total_frames"]
 
-            crop_origin = None
-
-            # If we have a track for this frame, crop to it
-            if (
-                use_tracks
-                and frame_idx < len(tracks)
-                and tracks[frame_idx] is not None
-            ):
-                track = tracks[frame_idx]
-                if track.get("bbox_norm") is not None:
-                    low_quality = bool(
-                        track.get("interpolated") or track.get("recovered")
-                    )
-                    margin = TRACK_RECOVERY_MARGIN if low_quality else 0.2
-                    crop, crop_origin = _crop_to_track(
-                        frame_rgb, track, margin=margin
-                    )
-                    # Only use crop if it's reasonably sized
-                    if crop.shape[0] > 50 and crop.shape[1] > 50:
-                        frame_rgb = crop
-                    else:
-                        crop_origin = None
-                else:
-                    crop_origin = None
-
             frame_rgb = _resize_for_detection(
                 frame_rgb, max_short_side=max_short_side
             )
@@ -188,15 +212,19 @@ def extract_poses(
             result = landmarker.detect_for_video(mp_image, timestamp_ms)
 
             if result.pose_landmarks and len(result.pose_landmarks) > 0:
-                lm_list = result.pose_landmarks[0]
+                # Pick the pose closest to the tracker bbox (if available)
+                lm_list = _pick_tracked_pose(
+                    result.pose_landmarks,
+                    tracks[frame_idx] if (
+                        use_tracks
+                        and frame_idx < len(tracks)
+                        and tracks[frame_idx] is not None
+                    ) else None,
+                )
                 landmarks = {}
                 for name, idx in LANDMARKS.items():
                     lm = lm_list[idx]
                     landmarks[name] = (lm.x, lm.y, lm.visibility)
-
-                # Map back to full-frame coords if we used a crop
-                if crop_origin is not None:
-                    landmarks = _remap_landmarks(landmarks, crop_origin)
 
                 raw_poses.append((frame_idx, landmarks))
             else:
