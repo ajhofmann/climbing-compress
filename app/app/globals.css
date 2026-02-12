@@ -597,3 +597,230 @@ select:focus {
 .header-title-glow {
   animation: header-title-pulse 3s ease-in-out infinite;
 }
+
+/* ===== VCR / VHS AESTHETIC ===== */
+
+/* ---- VCR deck button ---- */
+.vcr-btn {
+  position: relative;
+  padding: 8px 20px;
+  font-family: var(--font-pixel), monospace;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--neon-cyan);
+  background: linear-gradient(180deg, #2a2a3e 0%, #1a1a2e 50%, #141428 100%);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
+  white-space: nowrap;
+}
+.vcr-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #32325a 0%, #222240 50%, #1a1a32 100%);
+  border-color: rgba(0, 229, 255, 0.4);
+  color: #fff;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 0 12px rgba(0, 229, 255, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.vcr-btn:active:not(:disabled) {
+  background: linear-gradient(180deg, #141428 0%, #1a1a2e 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.6),
+    0 0 8px rgba(0, 229, 255, 0.1);
+  transform: translateY(1px);
+}
+.vcr-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.vcr-btn--magenta {
+  color: var(--neon-magenta);
+  border-color: rgba(224, 64, 251, 0.25);
+  text-shadow: 0 0 6px rgba(224, 64, 251, 0.3);
+}
+.vcr-btn--magenta:hover:not(:disabled) {
+  border-color: rgba(224, 64, 251, 0.5);
+  color: #fff;
+  text-shadow: 0 0 10px rgba(224, 64, 251, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 0 12px rgba(224, 64, 251, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.vcr-btn--danger {
+  color: var(--danger);
+  border-color: rgba(255, 23, 68, 0.3);
+  text-shadow: 0 0 6px rgba(255, 23, 68, 0.35);
+}
+.vcr-btn--danger:hover:not(:disabled) {
+  border-color: rgba(255, 23, 68, 0.6);
+  color: #fff;
+  text-shadow: 0 0 10px rgba(255, 23, 68, 0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 0 12px rgba(255, 23, 68, 0.15),
+    0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.vcr-btn--primary {
+  background: linear-gradient(180deg, #004d5a 0%, #003040 50%, #00242e 100%);
+  border-color: rgba(0, 229, 255, 0.4);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 229, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 0 12px rgba(0, 229, 255, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.vcr-btn--primary:hover:not(:disabled) {
+  border-color: rgba(0, 229, 255, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 229, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(0, 229, 255, 0.2),
+    0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.vcr-btn--active {
+  background: linear-gradient(180deg, #141428 0%, #1a1a2e 100%);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.6),
+    0 0 8px rgba(0, 229, 255, 0.08);
+}
+
+/* ---- VCR transport deck ---- */
+.vcr-deck {
+  position: relative;
+  background:
+    linear-gradient(180deg, #1e1e32 0%, #161628 40%, #12121f 100%);
+  border: 1px solid rgba(0, 229, 255, 0.08);
+  border-radius: 6px;
+  padding: 12px 16px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.vcr-deck::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.15), transparent);
+}
+
+/* ---- CRT scan lines overlay ---- */
+.crt-scanlines {
+  position: relative;
+}
+.crt-scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 2;
+}
+
+/* ---- VHS tracking noise ---- */
+@keyframes vhs-tracking {
+  0%, 100% { transform: translateX(0); opacity: 0; }
+  5% { transform: translateX(-2px); opacity: 0.6; }
+  10% { transform: translateX(1px); opacity: 0; }
+  45% { opacity: 0; }
+  50% { transform: translateX(3px); opacity: 0.4; }
+  55% { transform: translateX(-1px); opacity: 0; }
+}
+.vhs-tracking {
+  position: relative;
+  overflow: hidden;
+}
+.vhs-tracking::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  top: 30%;
+  background: linear-gradient(90deg, transparent, rgba(0, 229, 255, 0.3), rgba(224, 64, 251, 0.2), transparent);
+  animation: vhs-tracking 8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* ---- VCR OSD (on-screen display) text ---- */
+.vcr-osd {
+  font-family: var(--font-pixel), monospace;
+  font-size: 13px;
+  color: #fff;
+  text-shadow:
+    1px 1px 0 rgba(0, 0, 0, 0.8),
+    0 0 8px rgba(255, 255, 255, 0.3);
+  letter-spacing: 0.08em;
+}
+
+/* ---- Tape counter display ---- */
+.tape-counter {
+  font-family: var(--font-retro), monospace;
+  font-size: 14px;
+  color: var(--neon-lime);
+  text-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
+  letter-spacing: 0.15em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- VCR record indicator ---- */
+@keyframes rec-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.vcr-rec {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-pixel), monospace;
+  font-size: 12px;
+  color: #ff1744;
+  text-shadow: 0 0 8px rgba(255, 23, 68, 0.5);
+  letter-spacing: 0.15em;
+}
+.vcr-rec::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff1744;
+  box-shadow: 0 0 6px rgba(255, 23, 68, 0.6);
+  animation: rec-blink 1s ease-in-out infinite;
+}
+
+/* ---- VCR play/pause status ---- */
+.vcr-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-pixel), monospace;
+  font-size: 14px;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+  letter-spacing: 0.1em;
+}

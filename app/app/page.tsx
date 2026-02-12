@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useStore, AnalysisParams } from "@/lib/store";
 import { analyzeVideo, solveCurve, renderVideo } from "@/lib/api";
@@ -340,7 +340,7 @@ export default function Home() {
       <VideoPlayer />
       {/* Hero source thumbnail -- shown when clip is loaded but no render output yet */}
       {videoId && !outputId && thumbnails.length > 0 && (
-        <div className="relative w-full flex items-center justify-center neon-video-frame overflow-hidden rounded" style={{ maxHeight: "50vh" }}>
+        <div className="relative w-full flex items-center justify-center neon-video-frame overflow-hidden rounded crt-scanlines vhs-tracking" style={{ maxHeight: "50vh" }}>
           <Image
             src={thumbnails[Math.floor(thumbnails.length / 2)]}
             alt="Source video preview"
@@ -350,16 +350,19 @@ export default function Home() {
             className="w-full h-auto object-contain max-h-[50vh]"
           />
           <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/40 via-transparent to-black/20" />
-          <span
-            className="absolute bottom-2 right-3 px-2 py-0.5 rounded border text-[9px] font-pixel uppercase tracking-[0.15em]"
-            style={{
-              borderColor: "rgba(0,229,255,0.3)",
-              color: "rgba(0,229,255,0.6)",
-              background: "rgba(0,0,0,0.55)",
-              textShadow: "0 0 6px rgba(0,229,255,0.25)",
-            }}
-          >
-            source preview
+          {/* VCR OSD overlays */}
+          <div className="absolute top-3 left-4 pointer-events-none z-10 flex items-center gap-2">
+            <span className="vcr-osd text-sm">SENDIT</span>
+            <span className="vcr-osd text-sm text-text-muted/40">SP</span>
+          </div>
+          <div className="absolute top-3 right-4 pointer-events-none z-10">
+            <span className="vcr-status text-sm">❚❚ PAUSE</span>
+          </div>
+          <span className="absolute bottom-3 right-4 vcr-osd text-sm text-cyan-400/50 pointer-events-none z-10">
+            SOURCE PREVIEW
+          </span>
+          <span className="absolute bottom-3 left-4 tape-counter text-sm pointer-events-none z-10">
+            00:00:00
           </span>
         </div>
       )}
@@ -374,75 +377,74 @@ export default function Home() {
             {/* Clip info bar */}
             <VideoUpload />
 
-            {/* Transport bar */}
-            <div className="flex items-center gap-3 mt-2 mb-2">
-              <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb.\nShortcut: Ctrl/Cmd + Shift + A"}>
-                <button
-                  onClick={isAnalyzing ? handleCancelAnalyze : handleAnalyze}
-                  disabled={!videoId}
-                  aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
-                  className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
-                    isAnalyzing ? "retro-btn"
-                      : videoId && !hasAnalysis ? "retro-btn-primary pulse-border"
-                      : "retro-btn"
-                  } disabled:opacity-30 disabled:cursor-not-allowed`}
-                  style={isAnalyzing ? {
-                    borderColor: "var(--danger)",
-                    color: "var(--danger)",
-                    textShadow: "0 0 8px rgba(255,23,68,0.35)",
-                  } : {}}
-                >
-                  {isAnalyzing ? "CANCEL" : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
-                </button>
-              </Tooltip>
-              <div className="flex-1 min-w-0">
-                <ProgressBar />
+            {/* VCR Transport Deck */}
+            <div className="vcr-deck mt-3 mb-2">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="vcr-osd text-[11px] text-text-muted/60 uppercase tracking-widest">transport</span>
+                <div className="flex-1 h-px bg-gradient-to-r from-cyan-500/20 via-cyan-500/10 to-transparent" />
+                {isRendering && <span className="vcr-rec text-[11px]">REC</span>}
+                {isAnalyzing && <span className="vcr-status text-[11px]">▶ SCANNING</span>}
+                {!isAnalyzing && !isRendering && hasAnalysis && <span className="vcr-status text-[11px]">■ READY</span>}
+                {!isAnalyzing && !isRendering && !hasAnalysis && <span className="vcr-status text-[11px]">⏏ IDLE</span>}
               </div>
-              <Tooltip text={"Fast local preview render.\nUses lower resolution + higher CRF + no audio\nfor rapid iteration while tuning curve edits.\nShortcut: Ctrl/Cmd + Enter"}>
-                <button
-                  onClick={handleQuickRender}
-                  disabled={!videoId || !hasAnalysis || isRendering}
-                  aria-keyshortcuts="Control+Enter Meta+Enter"
-                  className={`px-4 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
-                    hasAnalysis ? "retro-btn" : "retro-btn"
-                  } disabled:opacity-30 disabled:cursor-not-allowed`}
-                  style={hasAnalysis ? { borderColor: "var(--neon-magenta)", color: "var(--neon-magenta)", textShadow: "0 0 8px rgba(224,64,251,0.35)" } : {}}
-                >
-                  PREVIEW
-                </button>
-              </Tooltip>
-              <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel.\nShortcut: Ctrl/Cmd + Shift + Enter"}>
-                <button
-                  onClick={handleRender}
-                  disabled={!videoId || !hasAnalysis || isRendering}
-                  aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"
-                  className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
-                    isRendering ? "retro-btn opacity-70" : hasAnalysis ? "retro-btn-primary" : "retro-btn"
-                  } disabled:opacity-30 disabled:cursor-not-allowed`}
-                  style={isRendering ? { borderColor: "var(--neon-orange)", color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.45)" } : {}}
-                >
-                  {isRendering ? "RENDERING..." : "RENDER"}
-                </button>
-              </Tooltip>
-              {isRendering && (
-                <button
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    handleCancelRender();
-                  }}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    handleCancelRender();
-                  }}
-                  onClick={handleCancelRender}
-                  aria-keyshortcuts="Escape"
-                  className="px-3 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap retro-btn"
-                  style={{ borderColor: "var(--danger)", color: "var(--danger)", textShadow: "0 0 8px rgba(255,23,68,0.45)" }}
-                  title="Cancel the active render request (Esc also works)"
-                >
-                  CANCEL
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb.\nShortcut: Ctrl/Cmd + Shift + A"}>
+                  <button
+                    onClick={isAnalyzing ? handleCancelAnalyze : handleAnalyze}
+                    disabled={!videoId}
+                    aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
+                    className={`vcr-btn ${
+                      isAnalyzing ? "vcr-btn--danger"
+                        : videoId && !hasAnalysis ? "vcr-btn--primary pulse-border"
+                        : ""
+                    }`}
+                  >
+                    {isAnalyzing ? "■ STOP" : hasAnalysis ? "◀◀ RE-SCAN" : "▶ ANALYZE"}
+                  </button>
+                </Tooltip>
+                <div className="flex-1 min-w-0">
+                  <ProgressBar />
+                </div>
+                <Tooltip text={"Fast local preview render.\nUses lower resolution + higher CRF + no audio\nfor rapid iteration while tuning curve edits.\nShortcut: Ctrl/Cmd + Enter"}>
+                  <button
+                    onClick={handleQuickRender}
+                    disabled={!videoId || !hasAnalysis || isRendering}
+                    aria-keyshortcuts="Control+Enter Meta+Enter"
+                    className={`vcr-btn vcr-btn--magenta`}
+                  >
+                    ▶▶ PREVIEW
+                  </button>
+                </Tooltip>
+                <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel.\nShortcut: Ctrl/Cmd + Shift + Enter"}>
+                  <button
+                    onClick={handleRender}
+                    disabled={!videoId || !hasAnalysis || isRendering}
+                    aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"
+                    className={`vcr-btn ${isRendering ? "vcr-btn--active" : "vcr-btn--primary"}`}
+                    style={isRendering ? { color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.45)" } : {}}
+                  >
+                    {isRendering ? "● REC..." : "● RENDER"}
+                  </button>
+                </Tooltip>
+                {isRendering && (
+                  <button
+                    onPointerDown={(e) => {
+                      e.preventDefault();
+                      handleCancelRender();
+                    }}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleCancelRender();
+                    }}
+                    onClick={handleCancelRender}
+                    aria-keyshortcuts="Escape"
+                    className="vcr-btn vcr-btn--danger"
+                    title="Cancel the active render request (Esc also works)"
+                  >
+                    ■ STOP
+                  </button>
+                )}
+              </div>
             </div>
             <TimelineEditor />
             <RenderHistoryTimeline videoId={videoId} refreshToken={renderHistoryRefreshToken} />

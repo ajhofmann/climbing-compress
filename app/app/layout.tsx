@@ -5,7 +5,8 @@ import { AmbientVibes } from "@/components/ambient-vibes";
 
 export const metadata: Metadata = {
   title: "SENDIT // Speed Ramp System",
-  description: "speed-ramp your climbing sends",
+  description:
+    "Auto speed-ramp your climbing sends. 50% through the video = 50% up the boulder. MediaPipe pose detection + FFmpeg + retro VCR vibes.",
 };
 
 const pixelFont = Press_Start_2P({

@@ -99,6 +99,7 @@ export function VideoUpload() {
   const [clipOutputBytes, setClipOutputBytes] = useState<number | null>(null);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [showAllRecent, setShowAllRecent] = useState(false);
+  const [recentPage, setRecentPage] = useState(0);
   const [showZeroQuickTags, setShowZeroQuickTags] = useState(false);
   const [recentFilter, setRecentFilter] = useState("");
   const [recentFilterFocused, setRecentFilterFocused] = useState(false);
@@ -130,6 +131,7 @@ export function VideoUpload() {
     setRecentSort("recent");
     setRecentSortReversed(false);
     setShowAllRecent(false);
+    setRecentPage(0);
     setShowZeroQuickTags(false);
     setShowShortcutHelp(false);
     setRecentCursorIdx(-1);
@@ -139,7 +141,7 @@ export function VideoUpload() {
     try {
       const raw = window.localStorage.getItem(RECENT_PREF_KEY);
       if (!raw) return;
-      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; showZeroQuickTags?: boolean; outputScope?: string; cacheScope?: string; filter?: string; shortcutHelp?: boolean; sortReverse?: boolean };
+      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; page?: number; showZeroQuickTags?: boolean; outputScope?: string; cacheScope?: string; filter?: string; shortcutHelp?: boolean; sortReverse?: boolean };
       if (parsed.sort && RECENT_SORT_MODES.includes(parsed.sort as RecentSortMode)) {
         setRecentSort(parsed.sort as RecentSortMode);
       }
@@ -148,6 +150,9 @@ export function VideoUpload() {
       }
       if (typeof parsed.showAll === "boolean") {
         setShowAllRecent(parsed.showAll);
+      }
+      if (typeof parsed.page === "number" && Number.isFinite(parsed.page) && parsed.page >= 0) {
+        setRecentPage(parsed.page);
       }
       if (typeof parsed.showZeroQuickTags === "boolean") {
         setShowZeroQuickTags(parsed.showZeroQuickTags);
@@ -175,6 +180,7 @@ export function VideoUpload() {
         sort: recentSort,
         sortReverse: recentSortReversed,
         showAll: showAllRecent,
+        page: recentPage,
         showZeroQuickTags,
         outputScope: recentOutputScope,
         cacheScope: recentCacheScope,
@@ -184,7 +190,7 @@ export function VideoUpload() {
     } catch {
       // ignore storage write failures
     }
-  }, [recentSort, recentSortReversed, showAllRecent, showZeroQuickTags, recentOutputScope, recentCacheScope, recentFilter, showShortcutHelp]);
+  }, [recentSort, recentSortReversed, showAllRecent, recentPage, showZeroQuickTags, recentOutputScope, recentCacheScope, recentFilter, showShortcutHelp]);
 
   const formatDuration = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
@@ -211,6 +217,10 @@ export function VideoUpload() {
       if (!validIds.has(id)) recentThumbFetchRef.current.delete(id);
     }
     setShowAllRecent((prev) => (items.length > RECENT_PREVIEW_LIMIT ? prev : false));
+    setRecentPage((prev) => {
+      const pages = Math.max(1, Math.ceil(items.length / RECENT_PREVIEW_LIMIT));
+      return prev >= pages ? 0 : prev;
+    });
   }, []);
 
   const normalizedRecentFilter = recentFilter.trim().toLowerCase();
@@ -694,14 +704,20 @@ export function VideoUpload() {
     recentSortReversed ? [...sortedRecentBase].reverse() : sortedRecentBase
   ), [sortedRecentBase, recentSortReversed]);
 
-  const visibleRecent = useMemo(() => (
-    showAllRecent
-      ? sortedRecent
-      : sortedRecent.slice(0, RECENT_PREVIEW_LIMIT)
-  ), [showAllRecent, sortedRecent]);
+  const totalPages = Math.max(1, Math.ceil(sortedRecent.length / RECENT_PREVIEW_LIMIT));
+  // Clamp page when data shrinks
+  const clampedPage = Math.min(recentPage, totalPages - 1);
+  if (clampedPage !== recentPage) setRecentPage(clampedPage);
+
+  const visibleRecent = useMemo(() => {
+    if (showAllRecent) return sortedRecent;
+    const start = clampedPage * RECENT_PREVIEW_LIMIT;
+    return sortedRecent.slice(start, start + RECENT_PREVIEW_LIMIT);
+  }, [showAllRecent, sortedRecent, clampedPage]);
   useEffect(() => {
     setRecentCursorIdx(-1);
-  }, [normalizedRecentFilter, recentOutputScope, recentCacheScope, recentSort, recentSortReversed, showAllRecent]);
+    setRecentPage(0);
+  }, [normalizedRecentFilter, recentOutputScope, recentCacheScope, recentSort, recentSortReversed]);
   useEffect(() => {
     setRecentCursorIdx((prev) => {
       if (visibleRecent.length <= 0) return -1;
@@ -751,7 +767,7 @@ export function VideoUpload() {
     () => (isRecentNavViewScoped ? sortedRecent : recentVideos),
     [isRecentNavViewScoped, sortedRecent, recentVideos],
   );
-  const hasAnyRecentCustomization = hasActiveRecentSubset || recentSort !== "recent" || recentSortReversed || showAllRecent || showZeroQuickTags || showShortcutHelp;
+  const hasAnyRecentCustomization = hasActiveRecentSubset || recentSort !== "recent" || recentSortReversed || showAllRecent || recentPage > 0 || showZeroQuickTags || showShortcutHelp;
 
   useEffect(() => {
     if (!renameDraftVideoId) return;
@@ -1011,7 +1027,18 @@ export function VideoUpload() {
       if (e.key.toLowerCase() === "a" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         if (filteredRecent.length <= RECENT_PREVIEW_LIMIT) return;
         e.preventDefault();
-        setShowAllRecent((prev) => !prev);
+        if (e.shiftKey) {
+          // Shift+A: toggle show-all
+          setShowAllRecent((prev) => !prev);
+        } else {
+          // A: next page (wraps), exits show-all if active
+          if (showAllRecent) {
+            setShowAllRecent(false);
+            setRecentPage(0);
+          } else {
+            setRecentPage((prev) => (prev + 1) % totalPages);
+          }
+        }
         return;
       }
       if (e.key.toLowerCase() === "z" && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -1045,6 +1072,8 @@ export function VideoUpload() {
     filteredRecent.length,
     zeroQuickTagCount,
     visibleRecent,
+    totalPages,
+    showAllRecent,
     cycleRecentSort,
     resetRecentView,
     resetRecentViewAll,
@@ -1220,6 +1249,7 @@ export function VideoUpload() {
       const result = await deleteAllVideos();
       setRecentVideos([]);
       setShowAllRecent(false);
+      setRecentPage(0);
       setRecentFetchDone(true);
       setClipBytes(0);
       setCurrentSourceBytes(0);
@@ -1709,7 +1739,7 @@ export function VideoUpload() {
         role="button"
         tabIndex={0}
         aria-label="Upload climbing video"
-        aria-keyshortcuts="Enter Space / Shift+/ O C S D R V Shift+V A Z 1 2 3 4 5 6 7 8 9 0 Control+Alt+O Meta+Alt+O"
+        aria-keyshortcuts="Enter Space / Shift+/ O C S D R V Shift+V A Shift+A Z 1 2 3 4 5 6 7 8 9 0 Control+Alt+O Meta+Alt+O"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -2105,7 +2135,7 @@ export function VideoUpload() {
             )}
             {showShortcutHelp && (
               <div className="text-sm font-pixel text-cyan-300/80 text-center px-2 leading-tight">
-                keys: ? toggle · / focus filter · Enter load · Shift+Enter force load first match · ↑↓ select · Home/End jump first/last · PgUp/PgDn jump cursor by 5 · #tag + Tab/Enter complete (↑↓ picks suggestion) · quoted phrase term · -/! exclude term · Alt/Ctrl/Cmd+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
+                keys: ? toggle · / focus filter · Enter load · Shift+Enter force load first match · ↑↓ select · Home/End jump first/last · PgUp/PgDn jump cursor by 5 · #tag + Tab/Enter complete (↑↓ picks suggestion) · quoted phrase term · -/! exclude term · Alt/Ctrl/Cmd+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A next page · Shift+A show all · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
               </div>
             )}
             {visibleRecent.length > 0 ? (
@@ -2276,10 +2306,58 @@ export function VideoUpload() {
                 {recentVideos.length > 0 ? "no matching clips" : "no local clips"}
               </span>
             )}
-            {hiddenRecentCount > 0 && !showAllRecent && (
-              <span className="text-sm font-pixel text-text-muted/60 text-center">
-                +{hiddenRecentCount} more clip{hiddenRecentCount === 1 ? "" : "s"}
-              </span>
+            {/* Pagination controls */}
+            {sortedRecent.length > RECENT_PREVIEW_LIMIT && (
+              <div className="flex items-center justify-center gap-2 pt-1">
+                {!showAllRecent && totalPages > 1 && (
+                  <>
+                    <button
+                      onClick={() => setRecentPage((p) => Math.max(0, p - 1))}
+                      disabled={clampedPage <= 0}
+                      className="retro-btn px-2 py-1 text-xs disabled:opacity-30"
+                      aria-label="Previous page"
+                    >
+                      ◀
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => (
+                      <button
+                        key={`page-${i}`}
+                        onClick={() => setRecentPage(i)}
+                        className={`px-2 py-1 text-xs font-pixel rounded border transition-colors ${
+                          i === clampedPage
+                            ? "border-cyan-300 text-cyan-100 bg-cyan-500/15 shadow-[0_0_6px_rgba(0,229,255,0.25)]"
+                            : "border-border text-text-muted hover:text-white hover:border-cyan-400/60"
+                        }`}
+                        aria-label={`Page ${i + 1}`}
+                        aria-current={i === clampedPage ? "page" : undefined}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setRecentPage((p) => Math.min(totalPages - 1, p + 1))}
+                      disabled={clampedPage >= totalPages - 1}
+                      className="retro-btn px-2 py-1 text-xs disabled:opacity-30"
+                      aria-label="Next page"
+                    >
+                      ▶
+                    </button>
+                    <span className="text-sm font-pixel text-text-muted/50 ml-1">
+                      {clampedPage * RECENT_PREVIEW_LIMIT + 1}–{Math.min((clampedPage + 1) * RECENT_PREVIEW_LIMIT, sortedRecent.length)} of {sortedRecent.length}
+                    </span>
+                  </>
+                )}
+                <button
+                  onClick={() => {
+                    setShowAllRecent((prev) => !prev);
+                    if (showAllRecent) setRecentPage(0);
+                  }}
+                  className={`retro-btn px-2.5 py-1 text-xs ${showAllRecent ? "text-cyan-200" : "text-text-muted"}`}
+                  aria-label={showAllRecent ? `Show paginated (${RECENT_PREVIEW_LIMIT} per page)` : `Show all ${sortedRecent.length} clips`}
+                >
+                  {showAllRecent ? "paginate" : "show all"}
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -2295,10 +2373,10 @@ export function VideoUpload() {
   const actionsBusy = isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered;
 
   return (
-    <div className="flex items-center gap-x-4 gap-y-2 flex-wrap text-sm">
-      {/* ── Source thumbnail ── */}
+    <div className="vcr-deck flex items-center gap-x-4 gap-y-2 flex-wrap">
+      {/* ── Source thumbnail with CRT effect ── */}
       {thumbnails.length > 0 && (
-        <div className="relative shrink-0 rounded border border-cyan-500/30 overflow-hidden shadow-[0_0_8px_rgba(0,229,255,0.12)]" style={{ height: 64 }}>
+        <div className="relative shrink-0 rounded overflow-hidden crt-scanlines" style={{ height: 64 }}>
           <Image
             src={thumbnails[0]}
             alt="Source preview"
@@ -2309,69 +2387,64 @@ export function VideoUpload() {
           />
         </div>
       )}
-      {/* ── Clip identity ── */}
-      <div className="flex items-center gap-2 min-w-0">
+      {/* ── Tape label ── */}
+      <div className="flex flex-col gap-0.5 min-w-0">
         {videoName && (
-          <span className="font-pixel text-text-muted max-w-[250px] truncate" title={videoName}>
+          <span className="vcr-osd text-sm max-w-[280px] truncate" title={videoName}>
             {videoName}
           </span>
         )}
         {videoInfo && (
-          <span className="font-retro led-text whitespace-nowrap">
+          <span className="tape-counter text-xs whitespace-nowrap">
             {videoInfo.duration.toFixed(0)}s · {videoInfo.width}x{videoInfo.height} · {videoInfo.fps.toFixed(0)}fps
           </span>
         )}
       </div>
 
-      {/* ── Storage stats ── */}
-      <span className="font-pixel text-text-muted/60 whitespace-nowrap" title="source: this clip / library total">
-        src:{formatBytesShort(currentSourceBytes)}/{formatBytesShort(clipBytes)}
-      </span>
-      <span className="font-pixel text-text-muted/60 whitespace-nowrap" title="outputs: this clip / total · disk: this clip / total">
-        out:{clipOutputCount ?? "?"}/{outputCount ?? "?"} · {formatBytesShort(clipOutputBytes)}/{formatBytesShort(outputBytes)}
-      </span>
+      {/* ── Storage counter ── */}
+      <div className="flex flex-col gap-0.5">
+        <span className="tape-counter text-[11px] whitespace-nowrap" title="source: this clip / library total">
+          SRC {formatBytesShort(currentSourceBytes)}/{formatBytesShort(clipBytes)}
+        </span>
+        <span className="tape-counter text-[11px] whitespace-nowrap" title="outputs: this clip / total">
+          OUT {clipOutputCount ?? "?"}/{outputCount ?? "?"} · {formatBytesShort(clipOutputBytes)}/{formatBytesShort(outputBytes)}
+        </span>
+      </div>
 
-      {/* ── Spacer pushes actions right ── */}
+      {/* ── Spacer ── */}
       <div className="flex-1" />
 
-      {/* ── Navigation ── */}
-      <div className="flex items-center gap-2">
+      {/* ── VCR Navigation ── */}
+      <div className="flex items-center gap-1.5">
         <Tooltip text={isRecentNavViewScoped ? "Load previous clip from current recent view" : "Load previous recent clip"}>
           <button
             onClick={() => void handleLoadAdjacent(-1)}
             disabled={actionsBusy || refreshingRecent}
-            className="font-pixel text-sm text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase px-2 py-1 border border-cyan-400/30 rounded"
+            className="vcr-btn !px-2.5 !py-1"
             aria-keyshortcuts="Alt+P"
           >
-            ◀
+            ◀◀
           </button>
         </Tooltip>
-        <span
-          className="font-pixel text-sm text-cyan-200/50 uppercase cursor-default"
-          title={isRecentNavViewScoped ? "Navigating filtered view" : "Navigating all clips"}
-        >
-          {isRecentNavViewScoped ? "view" : "all"}
+        <span className="vcr-osd text-xs text-cyan-200/40 uppercase cursor-default" title={isRecentNavViewScoped ? "Navigating filtered view" : "Navigating all clips"}>
+          {isRecentNavViewScoped ? "VIEW" : "ALL"}
         </span>
         <Tooltip text={isRecentNavViewScoped ? "Load next clip from current recent view" : "Load next recent clip"}>
           <button
             onClick={() => void handleLoadAdjacent(1)}
             disabled={actionsBusy || refreshingRecent}
-            className="font-pixel text-sm text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase px-2 py-1 border border-cyan-400/30 rounded"
+            className="vcr-btn !px-2.5 !py-1"
             aria-keyshortcuts="Alt+N"
           >
-            ▶
+            ▶▶
           </button>
         </Tooltip>
       </div>
 
-      {/* ── Primary actions ── */}
-      <div className="flex items-center gap-2.5">
+      {/* ── VCR Tape Controls ── */}
+      <div className="flex items-center gap-1.5">
         <Tooltip text="Replace the current video with a new one">
-          <button
-            onClick={openPicker}
-            disabled={actionsBusy}
-            className="font-pixel text-sm text-neon-magenta hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
-          >
+          <button onClick={openPicker} disabled={actionsBusy} className="vcr-btn vcr-btn--magenta !px-3 !py-1">
             SWAP
           </button>
         </Tooltip>
@@ -2379,28 +2452,20 @@ export function VideoUpload() {
           <button
             onClick={handleClearVideo}
             disabled={isAnalyzing || isRendering || clearingOutputs || pruningFiltered}
-            className="font-pixel text-sm text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            className="vcr-btn !px-3 !py-1"
             aria-keyshortcuts="Alt+X"
           >
-            EJECT
+            ⏏ EJECT
           </button>
         </Tooltip>
-        <span className="text-text-muted/30 text-sm">│</span>
+        <span className="text-text-muted/20 text-sm select-none">│</span>
         <Tooltip text="Rename current clip label in local library">
-          <button
-            onClick={() => void handleRenameCurrent()}
-            disabled={actionsBusy}
-            className="font-pixel text-sm text-cyan-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
-          >
+          <button onClick={() => void handleRenameCurrent()} disabled={actionsBusy} className="vcr-btn !px-2.5 !py-1 !text-[11px]">
             REN
           </button>
         </Tooltip>
         <Tooltip text="Delete this clip from local library and clear the current session">
-          <button
-            onClick={() => void handleDeleteCurrent()}
-            disabled={actionsBusy}
-            className="font-pixel text-sm text-red-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
-          >
+          <button onClick={() => void handleDeleteCurrent()} disabled={actionsBusy} className="vcr-btn vcr-btn--danger !px-2.5 !py-1 !text-[11px]">
             DEL
           </button>
         </Tooltip>
@@ -2408,18 +2473,14 @@ export function VideoUpload() {
           <button
             onClick={() => void handleClearCurrentOutputs()}
             disabled={actionsBusy || !clipOutputCount || clipOutputCount <= 0}
-            className="font-pixel text-sm text-red-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            className="vcr-btn vcr-btn--danger !px-2.5 !py-1 !text-[11px]"
             aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
           >
             {clearingOutputs ? "CLR…" : "CLR OUT"}
           </button>
         </Tooltip>
         <Tooltip text="Remove every clip from local library and reset to upload screen">
-          <button
-            onClick={() => void handleClearLibrary()}
-            disabled={actionsBusy}
-            className="font-pixel text-sm text-red-400/50 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
-          >
+          <button onClick={() => void handleClearLibrary()} disabled={actionsBusy} className="vcr-btn vcr-btn--danger !px-2.5 !py-1 !text-[11px]">
             CLR LIB
           </button>
         </Tooltip>

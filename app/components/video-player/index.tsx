@@ -114,13 +114,14 @@ export function VideoPlayer() {
 
   if (!hasComparison) {
     return (
-      <div className="flex flex-col gap-1">
-        <div className="flex justify-end">
-          <span className="text-[10px] font-pixel uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
-            J / K / L / , / .
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <span className="vcr-status text-sm">▶ PLAY</span>
+          <span className="vcr-osd text-sm text-text-muted/60">
+            ◀◀ J &nbsp; ▶❚❚ K &nbsp; ▶▶ L &nbsp; ◀ , &nbsp; ▶ .
           </span>
         </div>
-        <div className="neon-video-frame overflow-hidden">
+        <div className="neon-video-frame overflow-hidden crt-scanlines vhs-tracking relative">
           <video
             ref={singleRef}
             key={outputId}
@@ -129,11 +130,19 @@ export function VideoPlayer() {
             autoPlay
             loop
             playsInline
-          aria-label="Rendered climb video (keyboard: J/K/L, comma/period frame step, Space)"
-          aria-keyshortcuts="J K L Comma Period Space"
+            aria-label="Rendered climb video (keyboard: J/K/L, comma/period frame step, Space)"
+            aria-keyshortcuts="J K L Comma Period Space"
             onTimeUpdate={onTimeUpdate}
             className="w-full max-h-[70vh] object-contain"
           />
+          {/* VCR OSD overlay */}
+          <div className="absolute top-3 left-4 pointer-events-none z-10 flex items-center gap-2">
+            <span className="vcr-osd text-sm">SENDIT</span>
+            <span className="vcr-osd text-sm text-text-muted/50">SP</span>
+          </div>
+          <div className="absolute top-3 right-4 pointer-events-none z-10">
+            <span className="tape-counter text-sm">{outputId.slice(0, 8)}</span>
+          </div>
         </div>
       </div>
     );
@@ -141,12 +150,12 @@ export function VideoPlayer() {
 
   return (
     <div className="flex flex-col sm:flex-row gap-3">
-      <div className="flex flex-col gap-1 flex-1 min-w-0">
+      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] font-pixel text-center uppercase tracking-[0.2em]" style={{ color: "var(--neon-cyan)", textShadow: "0 0 6px rgba(0,229,255,0.4)" }}>smart ramp</span>
-          <span className="text-[10px] font-pixel uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>J / K / L / , / .</span>
+          <span className="vcr-status text-sm">▶ SMART RAMP</span>
+          <span className="vcr-osd text-sm text-text-muted/50">◀◀ J · ▶❚❚ K · ▶▶ L</span>
         </div>
-        <div className="neon-video-frame overflow-hidden">
+        <div className="neon-video-frame overflow-hidden crt-scanlines vhs-tracking relative">
           <video
             ref={smartRef}
             key={outputId}
@@ -163,11 +172,14 @@ export function VideoPlayer() {
             onSeeked={syncSeek}
             onTimeUpdate={onTimeUpdate}
           />
+          <div className="absolute top-3 left-4 pointer-events-none z-10">
+            <span className="vcr-osd text-sm">SENDIT · SP</span>
+          </div>
         </div>
       </div>
-      <div className="flex flex-col gap-1 flex-1 min-w-0">
-        <span className="text-[10px] font-pixel text-center uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>uniform speed</span>
-        <div className="neon-video-frame overflow-hidden" style={{ borderColor: "rgba(224,64,251,0.08)", boxShadow: "0 0 15px rgba(224,64,251,0.05)" }}>
+      <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+        <span className="vcr-osd text-sm text-text-muted/50 text-center">UNIFORM SPEED</span>
+        <div className="neon-video-frame overflow-hidden crt-scanlines relative" style={{ borderColor: "rgba(224,64,251,0.08)", boxShadow: "0 0 15px rgba(224,64,251,0.05)" }}>
           <video
             ref={compRef}
             key={comparisonId}
@@ -178,6 +190,9 @@ export function VideoPlayer() {
             aria-hidden="true"
             className="w-full max-h-[70vh] object-contain"
           />
+          <div className="absolute top-3 right-4 pointer-events-none z-10">
+            <span className="vcr-osd text-sm text-text-muted/40">REF</span>
+          </div>
         </div>
       </div>
     </div>

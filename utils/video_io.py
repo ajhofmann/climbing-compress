@@ -64,6 +64,27 @@ def _video_info_ffprobe(path: str) -> dict[str, float | int] | None:
     width = int(stream.get("width") or 0)
     height = int(stream.get("height") or 0)
 
+    # Detect rotation metadata — ffmpeg auto-rotates during decode, so we
+    # must report the *display* dimensions (post-rotation) to keep the
+    # scale filter from stretching the frame.
+    rotation = 0
+    for sd in (stream.get("side_data_list") or []):
+        if isinstance(sd, dict) and "rotation" in sd:
+            try:
+                rotation = int(float(sd["rotation"]))
+            except (TypeError, ValueError):
+                pass
+            break
+    if rotation == 0:
+        rot_tag = (stream.get("tags") or {}).get("rotate")
+        if rot_tag is not None:
+            try:
+                rotation = int(rot_tag)
+            except (TypeError, ValueError):
+                pass
+    if abs(rotation) in (90, 270):
+        width, height = height, width
+
     format_obj = payload.get("format") if isinstance(payload.get("format"), dict) else {}
     duration = 0.0
     for candidate in (stream.get("duration"), format_obj.get("duration")):
