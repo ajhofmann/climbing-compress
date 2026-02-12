@@ -22,7 +22,7 @@ const retroFont = VT323({
 
 function RackScrew() {
   return (
-    <svg width="12" height="12" viewBox="0 0 12 12" className="opacity-40">
+    <svg width="12" height="12" viewBox="0 0 12 12" className="opacity-40" aria-hidden="true">
       <circle cx="6" cy="6" r="5" fill="#333" stroke="#555" strokeWidth="0.5" />
       <line x1="3" y1="6" x2="9" y2="6" stroke="#222" strokeWidth="1.2" />
       <circle cx="6" cy="6" r="2" fill="none" stroke="#444" strokeWidth="0.3" />

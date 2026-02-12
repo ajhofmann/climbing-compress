@@ -263,107 +263,141 @@ export function TimelineEditor() {
     marginBottom: 8,
   } : undefined;
 
+  const isPins = settings.editMode === "pins";
+  const hasPoints = isPins ? pins.length > 0 : keyframes.length > 0;
+  const canSort = isPins ? pins.length > 1 : keyframes.length > 1;
+  const hasCrux = cruxPoints.length > 0;
+  const hasConvertSource = isPins ? keyframes.length > 0 : pins.length > 0;
+
+  const shortcutLines = [
+    "Click — add point",
+    "Drag — move point",
+    "Right-click — delete point",
+    "Del / Backspace — delete hovered",
+    "Arrow keys — nudge hovered",
+    ...(isPins
+      ? ["Scroll — resize pin radius", "[ ] — resize hovered pin"]
+      : []),
+  ].join("\n");
+
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex justify-between items-center px-1">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-text">speed curve editor</span>
-          <div className="flex rounded border border-border overflow-hidden">
-            <button
-              onClick={() => updateSettings({ editMode: "pins" })}
-              className={`px-2 py-0.5 text-[10px] font-pixel uppercase ${settings.editMode === "pins" ? "bg-accent/15 text-accent" : "text-text-muted hover:text-text"}`}
-            >
-              pins
-            </button>
-            <button
-              onClick={() => updateSettings({ editMode: "keyframes" })}
-              className={`px-2 py-0.5 text-[10px] font-pixel uppercase border-l border-border ${settings.editMode === "keyframes" ? "bg-warm/15 text-warm" : "text-text-muted hover:text-text"}`}
-            >
-              keyframes
-            </button>
+    <div className="flex flex-col gap-1.5">
+      {/* ── Row 1: Title + Mode Toggle + Crux Badge + Help ── */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-text tracking-wide">speed curve editor</span>
+          <div className="flex rounded-md border-2 border-border overflow-hidden">
+            <Tooltip text="Gaussian attractors — smooth bell-curve influence on speed around each point">
+              <button
+                onClick={() => updateSettings({ editMode: "pins" })}
+                className={`px-3 py-1.5 text-xs font-pixel uppercase tracking-wider transition-colors ${isPins ? "bg-accent/20 text-accent border-accent/30" : "text-text-muted hover:text-text hover:bg-white/5"}`}
+              >
+                pins
+              </button>
+            </Tooltip>
+            <Tooltip text="Linear interpolation — connect speed values directly between keyframe points">
+              <button
+                onClick={() => updateSettings({ editMode: "keyframes" })}
+                className={`px-3 py-1.5 text-xs font-pixel uppercase tracking-wider border-l-2 border-border transition-colors ${!isPins ? "bg-warm/20 text-warm border-warm/30" : "text-text-muted hover:text-text hover:bg-white/5"}`}
+              >
+                keyframes
+              </button>
+            </Tooltip>
           </div>
-        </div>
-        <div className="flex gap-3 text-[10px] text-text-muted">
-          <span>click to add</span>
-          <span>drag to move</span>
-          {settings.editMode === "pins" && <span>scroll to resize</span>}
-          {settings.editMode === "pins" && <span>[ ] resize hovered</span>}
-          <span>right-click to delete</span>
-          <span>del to delete hovered</span>
-          <span>arrows to nudge hovered</span>
-          {cruxPoints.length > 0 && <span className="text-neon-magenta">crux: {cruxPoints.length}</span>}
-          {(settings.editMode === "pins" ? pins.length > 0 : keyframes.length > 0) && (
-            <Tooltip text={settings.editMode === "pins" ? "Remove all speed pins from the timeline" : "Remove all keyframes from the timeline"}>
-              <button
-                onClick={() => settings.editMode === "pins" ? setPins([]) : setKeyframes([])}
-                className="text-danger hover:underline"
+          {hasCrux && (
+            <Tooltip text={`${cruxPoints.length} crux marker${cruxPoints.length > 1 ? "s" : ""} detected — key moments of action in the video`}>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-pixel uppercase tracking-wider border"
+                style={{
+                  background: "rgba(224, 64, 251, 0.1)",
+                  borderColor: "rgba(224, 64, 251, 0.3)",
+                  color: "var(--neon-magenta)",
+                  boxShadow: "0 0 8px rgba(224, 64, 251, 0.15)",
+                }}
               >
-                clear all
-              </button>
-            </Tooltip>
-          )}
-          {settings.editMode === "pins" && pins.length > 1 && (
-            <Tooltip text="Sort pins by timeline time">
-              <button
-                onClick={sortPinsByTime}
-                className="text-cyan-300 hover:underline"
-              >
-                sort pins
-              </button>
-            </Tooltip>
-          )}
-          {settings.editMode === "keyframes" && keyframes.length > 1 && (
-            <Tooltip text="Sort keyframes by timeline time">
-              <button
-                onClick={sortKeyframesByTime}
-                className="text-cyan-300 hover:underline"
-              >
-                sort keyframes
-              </button>
-            </Tooltip>
-          )}
-          {settings.editMode === "pins" && cruxPoints.length > 0 && (
-            <Tooltip text="Auto-generate speed pins at detected crux markers in the current trim range">
-              <button
-                onClick={applyCruxPins}
-                className="text-neon-magenta hover:underline"
-              >
-                from crux
-              </button>
-            </Tooltip>
-          )}
-          {settings.editMode === "pins" && keyframes.length > 0 && (
-            <Tooltip text="Convert current keyframes into editable pins">
-              <button
-                onClick={convertKeyframesToPins}
-                className="text-cyan-300 hover:underline"
-              >
-                from keyframes
-              </button>
-            </Tooltip>
-          )}
-          {settings.editMode === "keyframes" && cruxPoints.length > 0 && (
-            <Tooltip text="Auto-generate keyframes from detected crux markers in the current trim range">
-              <button
-                onClick={applyCruxKeyframes}
-                className="text-neon-magenta hover:underline"
-              >
-                from crux
-              </button>
-            </Tooltip>
-          )}
-          {settings.editMode === "keyframes" && pins.length > 0 && (
-            <Tooltip text="Convert current pins into keyframes">
-              <button
-                onClick={convertPinsToKeyframes}
-                className="text-cyan-300 hover:underline"
-              >
-                from pins
-              </button>
+                <span className="w-1.5 h-1.5 rounded-full bg-current" style={{ boxShadow: "0 0 4px var(--neon-magenta)" }} />
+                crux: {cruxPoints.length}
+              </span>
             </Tooltip>
           )}
         </div>
+        <Tooltip text={shortcutLines}>
+          <button className="retro-btn px-2.5 py-1.5 text-xs leading-none" aria-label="Keyboard shortcuts">
+            ?
+          </button>
+        </Tooltip>
       </div>
+
+      {/* ── Row 2: Action Buttons (grouped) ── */}
+      {(hasCrux || hasConvertSource || canSort || hasPoints) && (
+        <div className="flex items-center gap-1.5 px-1 flex-wrap">
+          {/* Generate group */}
+          {hasCrux && (
+            <Tooltip text={isPins
+              ? "Auto-generate speed pins at detected crux markers in the current trim range"
+              : "Auto-generate keyframes from detected crux markers in the current trim range"
+            }>
+              <button
+                onClick={isPins ? applyCruxPins : applyCruxKeyframes}
+                className="retro-btn px-3 py-1.5 text-xs"
+                style={{ color: "var(--neon-magenta)", borderColor: "rgba(224, 64, 251, 0.4)" }}
+              >
+                from crux
+              </button>
+            </Tooltip>
+          )}
+
+          {/* Convert group */}
+          {hasConvertSource && (
+            <>
+              {(hasCrux) && <div className="w-px h-5 bg-border/60 mx-0.5" />}
+              <Tooltip text={isPins
+                ? "Convert current keyframes into editable pins"
+                : "Convert current pins into keyframes"
+              }>
+                <button
+                  onClick={isPins ? convertKeyframesToPins : convertPinsToKeyframes}
+                  className="retro-btn px-3 py-1.5 text-xs"
+                  style={{ color: "var(--neon-cyan)" }}
+                >
+                  {isPins ? "from keyframes" : "from pins"}
+                </button>
+              </Tooltip>
+            </>
+          )}
+
+          {/* Sort group */}
+          {canSort && (
+            <>
+              {(hasCrux || hasConvertSource) && <div className="w-px h-5 bg-border/60 mx-0.5" />}
+              <Tooltip text={isPins ? "Sort pins by timeline time" : "Sort keyframes by timeline time"}>
+                <button
+                  onClick={isPins ? sortPinsByTime : sortKeyframesByTime}
+                  className="retro-btn px-3 py-1.5 text-xs"
+                  style={{ color: "var(--neon-cyan)" }}
+                >
+                  sort {isPins ? "pins" : "keyframes"}
+                </button>
+              </Tooltip>
+            </>
+          )}
+
+          {/* Clear group — pushed right */}
+          {hasPoints && (
+            <>
+              <div className="flex-1" />
+              <Tooltip text={isPins ? "Remove all speed pins from the timeline" : "Remove all keyframes from the timeline"}>
+                <button
+                  onClick={() => isPins ? setPins([]) : setKeyframes([])}
+                  className="retro-btn px-3 py-1.5 text-xs"
+                  style={{ color: "var(--danger)", borderColor: "rgba(255, 23, 68, 0.3)" }}
+                >
+                  clear all
+                </button>
+              </Tooltip>
+            </>
+          )}
+        </div>
+      )}
       <div className="relative">
         <canvas
           ref={canvasRef}

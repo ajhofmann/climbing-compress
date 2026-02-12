@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 
 export function Tooltip({ text, children, className, style }: { text: string; children: React.ReactNode; className?: string; style?: React.CSSProperties }) {
@@ -8,11 +8,6 @@ export function Tooltip({ text, children, className, style }: { text: string; ch
   const [pos, setPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const ref = useRef<HTMLDivElement>(null);
   const timeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const show = useCallback(() => {
     if (timeout.current) clearTimeout(timeout.current);
@@ -32,7 +27,6 @@ export function Tooltip({ text, children, className, style }: { text: string; ch
 
   const tooltipContent =
     visible &&
-    mounted &&
     typeof document !== "undefined" &&
     createPortal(
       <div

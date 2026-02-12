@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import shutil
+import time
 import uuid
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from pydantic import BaseModel, Field
 from pipeline.cache import (
     load_analysis, has_cache, content_hash, load_flow_scores,
     load_camera_motion, clear_cache, clear_cache_by_hash, has_cache_by_hash,
+    CACHE_DIR,
 )
 from pipeline.orchestrate import (
     run_analysis, run_render, compute_scores_and_curve, curve_stats, detect_crux_points,
@@ -40,9 +42,11 @@ OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "data/output"))
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 VIDEO_NAME_INDEX = INPUT_DIR / "_video_names.json"
+RENDER_HISTORY_INDEX = OUTPUT_DIR / "_render_history.json"
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "512"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 ALLOWED_VIDEO_EXTS = (".mov", ".mp4", ".avi", ".mkv")
+THUMB_PROFILE = "h480_q88"
 
 _cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
 
@@ -96,7 +100,42 @@ def _persist_video_names() -> None:
         logger.warning("Failed to persist %s: %s", VIDEO_NAME_INDEX, exc)
 
 
+def _load_render_history() -> list[dict[str, object]]:
+    if not RENDER_HISTORY_INDEX.exists():
+        return []
+    try:
+        raw = json.loads(RENDER_HISTORY_INDEX.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("Failed to load %s: %s", RENDER_HISTORY_INDEX, exc)
+        return []
+    if not isinstance(raw, list):
+        return []
+    entries: list[dict[str, object]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        output_id = item.get("output_id")
+        video_id = item.get("video_id")
+        if not isinstance(output_id, str) or not output_id:
+            continue
+        if not isinstance(video_id, str) or not video_id:
+            continue
+        entries.append(item)
+    return entries
+
+
+def _persist_render_history() -> None:
+    try:
+        RENDER_HISTORY_INDEX.parent.mkdir(parents=True, exist_ok=True)
+        tmp = RENDER_HISTORY_INDEX.with_suffix(".tmp")
+        tmp.write_text(json.dumps(_render_history, indent=2), encoding="utf-8")
+        tmp.replace(RENDER_HISTORY_INDEX)
+    except OSError as exc:
+        logger.warning("Failed to persist %s: %s", RENDER_HISTORY_INDEX, exc)
+
+
 _video_names: dict[str, str] = _load_video_names()
+_render_history: list[dict[str, object]] = _load_render_history()
 
 # Scan existing input videos on startup
 _video_names_dirty = False
@@ -217,6 +256,138 @@ def _get_video_path(video_id: str, *, require_exists: bool = True) -> Path:
     return path
 
 
+def _resolve_output_owner_video_id(path: Path) -> str | None:
+    """Resolve source video ownership for an output file."""
+    stem = path.stem
+
+    # Metadata index is authoritative when available.
+    for entry in _render_history:
+        output_id = entry.get("output_id")
+        if output_id != stem:
+            continue
+        owner = entry.get("video_id")
+        if isinstance(owner, str) and owner:
+            return owner
+
+    # New format: "<content_hash>__<random_id>"
+    if "__" in stem:
+        maybe_hash, _, _ = stem.partition("__")
+        if maybe_hash:
+            owner = _file_hashes.get(maybe_hash)
+            if owner:
+                return owner
+
+    # Legacy format: "<video_id>"
+    if stem in _videos:
+        return stem
+
+    return None
+
+
+def _output_file_stems() -> set[str]:
+    stems: set[str] = set()
+    if not OUTPUT_DIR.exists():
+        return stems
+    for path in OUTPUT_DIR.iterdir():
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        stems.add(path.stem)
+    return stems
+
+
+def _prune_render_history(*, persist: bool = True) -> bool:
+    if not _render_history:
+        return False
+
+    existing_stems = _output_file_stems()
+    kept: list[dict[str, object]] = []
+    changed = False
+
+    for entry in _render_history:
+        output_id = entry.get("output_id")
+        if not isinstance(output_id, str) or output_id not in existing_stems:
+            changed = True
+            continue
+
+        comparison_id = entry.get("comparison_id")
+        if isinstance(comparison_id, str) and comparison_id and comparison_id not in existing_stems:
+            entry = dict(entry)
+            entry["comparison_id"] = None
+            changed = True
+
+        kept.append(entry)
+
+    if changed:
+        _render_history.clear()
+        _render_history.extend(kept)
+        if persist:
+            _persist_render_history()
+
+    return changed
+
+
+def _record_render_history_entry(
+    req: RenderRequest,
+    source_path: Path,
+    video_hash: str | None,
+    payload: dict[str, object],
+) -> None:
+    output_id = payload.get("output_id")
+    if not isinstance(output_id, str) or not output_id:
+        return
+
+    comparison_id_raw = payload.get("comparison_id")
+    comparison_id = comparison_id_raw if isinstance(comparison_id_raw, str) and comparison_id_raw else None
+
+    output_path = OUTPUT_DIR / f"{output_id}.mp4"
+    comparison_path = OUTPUT_DIR / f"{comparison_id}.mp4" if comparison_id else None
+    stats = payload.get("stats")
+
+    entry: dict[str, object] = {
+        "output_id": output_id,
+        "comparison_id": comparison_id,
+        "video_id": req.video_id,
+        "video_hash": video_hash,
+        "video_filename": _display_filename(req.video_id, source_path),
+        "created_at": int(time.time() * 1000),
+        "stats": stats if isinstance(stats, dict) else {},
+        "settings": {
+            "mode": req.mode,
+            "edit_mode": req.edit_mode,
+            "target_duration": req.target_duration,
+            "trim_start": req.trim_start,
+            "trim_end": req.trim_end,
+            "min_speed": req.min_speed,
+            "max_speed": req.max_speed,
+            "sensitivity": req.sensitivity,
+            "smoothing": req.smoothing,
+            "scale": req.scale,
+            "output_fps": req.output_fps,
+            "crf": req.crf,
+            "output_aspect": req.output_aspect,
+            "auto_reframe": req.auto_reframe,
+            "debug_overlay": req.debug_overlay,
+            "include_audio": req.include_audio,
+            "stabilize": req.stabilize,
+            "stabilize_strength": req.stabilize_strength,
+            "stabilize_smoothness": req.stabilize_smoothness,
+            "stabilize_crop": req.stabilize_crop,
+            "use_feature_stabilize": req.use_feature_stabilize,
+            "feature_stabilize_weight": req.feature_stabilize_weight,
+            "render_comparison": req.render_comparison,
+            "render_chapters": req.render_chapters,
+        },
+        "output_bytes": _safe_file_size(output_path),
+        "comparison_bytes": _safe_file_size(comparison_path) if comparison_path is not None else 0,
+    }
+
+    _render_history.insert(0, entry)
+    _prune_render_history(persist=False)
+    _persist_render_history()
+
+
 def _clear_output_videos() -> int:
     """Remove rendered output videos from local output directory."""
     deleted = 0
@@ -230,24 +401,28 @@ def _clear_output_videos() -> int:
             deleted += 1
         except OSError as exc:
             raise HTTPException(500, f"Failed to delete output video: {exc}") from exc
+    if deleted > 0:
+        _prune_render_history()
     return deleted
 
 
 def _clear_output_videos_for_source(video_id: str) -> int:
-    """Remove rendered output files that share the deleted source video id stem."""
+    """Remove rendered output files for one source video id."""
     deleted = 0
     for path in OUTPUT_DIR.iterdir():
         if not path.is_file():
             continue
-        if path.stem != video_id:
-            continue
         if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        if _resolve_output_owner_video_id(path) != video_id:
             continue
         try:
             path.unlink()
             deleted += 1
         except OSError as exc:
             raise HTTPException(500, f"Failed to delete output video: {exc}") from exc
+    if deleted > 0:
+        _prune_render_history()
     return deleted
 
 
@@ -283,9 +458,9 @@ def _output_video_totals_for_source(video_id: str) -> tuple[int, int]:
     for path in OUTPUT_DIR.iterdir():
         if not path.is_file():
             continue
-        if path.stem != video_id:
-            continue
         if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        if _resolve_output_owner_video_id(path) != video_id:
             continue
         total += 1
         total_bytes += _safe_file_size(path)
@@ -311,8 +486,11 @@ def _output_totals_by_source() -> dict[str, tuple[int, int]]:
             continue
         if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
             continue
-        count, byte_total = totals.get(path.stem, (0, 0))
-        totals[path.stem] = (count + 1, byte_total + _safe_file_size(path))
+        owner = _resolve_output_owner_video_id(path)
+        if owner is None:
+            continue
+        count, byte_total = totals.get(owner, (0, 0))
+        totals[owner] = (count + 1, byte_total + _safe_file_size(path))
     return totals
 
 
@@ -344,10 +522,61 @@ def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
     for t in thumbs:
         img = Image.fromarray(t)
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=80)
+        img.save(buf, format="JPEG", quality=88)
         b64 = base64.b64encode(buf.getvalue()).decode()
         urls.append(f"data:image/jpeg;base64,{b64}")
     return urls
+
+
+def _thumb_cache_dir(video_id: str) -> Path | None:
+    """Return the disk cache directory for a video's thumbnails, or None if unhashed."""
+    ch = _video_hashes.get(video_id)
+    if not ch:
+        return None
+    return CACHE_DIR / ch
+
+
+def _save_thumbs_to_disk(video_id: str, thumbs: list[str], profile: str) -> None:
+    """Persist encoded thumbnail data URLs to disk for fast reload."""
+    cache = _thumb_cache_dir(video_id)
+    if not cache:
+        return
+    cache.mkdir(parents=True, exist_ok=True)
+    manifest = {"profile": profile, "count": len(thumbs)}
+    try:
+        (cache / "thumbs.json").write_text(json.dumps(manifest))
+        for i, data_url in enumerate(thumbs):
+            # Strip data URL prefix and write raw JPEG bytes
+            _, _, b64_data = data_url.partition(",")
+            (cache / f"thumb_{i}.jpg").write_bytes(base64.b64decode(b64_data))
+    except OSError as exc:
+        logger.warning("Failed to save thumbnail cache for %s: %s", video_id, exc)
+
+
+def _load_thumbs_from_disk(video_id: str) -> list[str] | None:
+    """Load thumbnails from disk cache if they exist and match current profile."""
+    cache = _thumb_cache_dir(video_id)
+    if not cache:
+        return None
+    manifest_path = cache / "thumbs.json"
+    if not manifest_path.exists():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text())
+        if manifest.get("profile") != THUMB_PROFILE:
+            return None
+        count = manifest.get("count", 0)
+        thumbs: list[str] = []
+        for i in range(count):
+            jpg_path = cache / f"thumb_{i}.jpg"
+            if not jpg_path.exists():
+                return None
+            b64 = base64.b64encode(jpg_path.read_bytes()).decode()
+            thumbs.append(f"data:image/jpeg;base64,{b64}")
+        return thumbs
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        logger.warning("Failed to load thumbnail cache for %s: %s", video_id, exc)
+        return None
 
 
 def _get_video_info_cached(video_id: str, path: Path) -> dict:
@@ -373,13 +602,26 @@ def _get_video_info_cached(video_id: str, path: Path) -> dict:
 
 
 def _get_thumbnails_cached(video_id: str, path: Path, n: int = 8) -> list[str]:
+    # 1. In-memory cache
     entry = _video_meta_cache.get(video_id)
     if entry:
         thumbs = entry.get("thumbnails")
-        if isinstance(thumbs, list):
+        profile = entry.get("thumb_profile")
+        if isinstance(thumbs, list) and profile == THUMB_PROFILE:
             return thumbs
+    # 2. Disk cache
+    disk_thumbs = _load_thumbs_from_disk(video_id)
+    if disk_thumbs is not None:
+        meta = _video_meta_cache.setdefault(video_id, {})
+        meta["thumbnails"] = disk_thumbs
+        meta["thumb_profile"] = THUMB_PROFILE
+        return disk_thumbs
+    # 3. Generate fresh thumbnails via ffmpeg
     thumbs = _encode_thumbnails(generate_thumbnails(str(path), n=n))
-    _video_meta_cache.setdefault(video_id, {})["thumbnails"] = thumbs
+    meta = _video_meta_cache.setdefault(video_id, {})
+    meta["thumbnails"] = thumbs
+    meta["thumb_profile"] = THUMB_PROFILE
+    _save_thumbs_to_disk(video_id, thumbs, THUMB_PROFILE)
     return thumbs
 
 
@@ -405,6 +647,9 @@ def _has_cached_analysis(video_id: str, path: Path) -> bool:
         return has_cache_by_hash(cache_key)
     # Fallback for unusual cases where hashing fails.
     return has_cache(str(path))
+
+
+_prune_render_history()
 
 
 # ---- Endpoints ----
@@ -469,7 +714,8 @@ async def upload_video(file: UploadFile = File(...)):
         _persist_video_names()
         info = get_video_info(str(dest))
         thumbs = _encode_thumbnails(generate_thumbnails(str(dest), n=8))
-        _video_meta_cache[video_id] = {"info": info, "thumbnails": thumbs}
+        _video_meta_cache[video_id] = {"info": info, "thumbnails": thumbs, "thumb_profile": THUMB_PROFILE}
+        _save_thumbs_to_disk(video_id, thumbs, THUMB_PROFILE)
         output_count, output_bytes = _output_video_totals_for_source(video_id)
 
         return {
@@ -521,10 +767,27 @@ async def list_videos():
             continue
         _unreadable_warned.pop(vid, None)
         output_count, output_bytes = output_totals.get(vid, (0, 0))
+        thumb: str | None = None
+        cache_entry = _video_meta_cache.get(vid)
+        if cache_entry:
+            cached_thumbs = cache_entry.get("thumbnails")
+            if isinstance(cached_thumbs, list) and cached_thumbs:
+                first = cached_thumbs[0]
+                if isinstance(first, str):
+                    thumb = first
+        if thumb is None:
+            # Try disk cache so listing shows thumbnails without lazy fetch
+            disk_thumbs = _load_thumbs_from_disk(vid)
+            if disk_thumbs:
+                thumb = disk_thumbs[0]
+                meta = _video_meta_cache.setdefault(vid, {})
+                meta["thumbnails"] = disk_thumbs
+                meta["thumb_profile"] = THUMB_PROFILE
         result.append({
             "video_id": vid,
             "filename": _display_filename(vid, path),
             "info": info,
+            "thumbnail": thumb,
             "cached": _has_cached_analysis(vid, path),
             "output_count": output_count,
             "source_bytes": _safe_file_size(path),
@@ -642,6 +905,22 @@ async def library_stats(video_id: str | None = None):
         stats["clip_outputs"] = clip_outputs
         stats["clip_output_bytes"] = clip_output_bytes
     return stats
+
+
+@app.get("/api/renders")
+async def list_renders(video_id: str | None = None, limit: int = 100):
+    """List persisted render-history entries, newest first."""
+    _prune_render_history()
+    bounded_limit = max(1, min(limit, 500))
+    rows = _render_history
+    if video_id:
+        rows = [entry for entry in rows if entry.get("video_id") == video_id]
+    ordered = sorted(
+        rows,
+        key=lambda entry: int(entry.get("created_at", 0)) if isinstance(entry.get("created_at"), (int, float)) else 0,
+        reverse=True,
+    )
+    return ordered[:bounded_limit]
 
 
 @app.patch("/api/videos/{video_id}")
@@ -796,7 +1075,17 @@ async def render_video_endpoint(req: RenderRequest):
     path = _get_video_path(req.video_id)
 
     def worker(emit):
-        run_render(str(path), req, OUTPUT_DIR, emit)
+        output_prefix = _cache_key_for_video(req.video_id, path)
+        def emit_with_history(payload: dict):
+            emit(payload)
+            if not payload.get("done"):
+                return
+            try:
+                _record_render_history_entry(req, path, output_prefix, payload)
+            except (OSError, ValueError) as exc:
+                logger.warning("Failed to record render history for %s: %s", req.video_id, exc)
+
+        run_render(str(path), req, OUTPUT_DIR, emit_with_history, output_prefix=output_prefix)
 
     return sse_response(worker)
 

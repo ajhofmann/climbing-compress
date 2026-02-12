@@ -15,6 +15,10 @@ export function ToggleSwitch({ label, checked, onChange, color = "#00e5ff", titl
       onClick={() => { if (!disabled) onChange(!checked); }}
       className={`flex flex-col items-center gap-1 select-none group ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
       style={{ minWidth: 64 }}
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      aria-disabled={disabled}
     >
       <span className="rack-section-label text-center">{label}</span>
 

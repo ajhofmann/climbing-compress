@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "climb-ramp"
 version = "0.3.0"
@@ -31,3 +35,7 @@ dev = [
 
 [project.scripts]
 climb-ramp = "server:app"
+
+[tool.setuptools]
+packages = ["pipeline", "utils"]
+py-modules = ["server", "eval"]

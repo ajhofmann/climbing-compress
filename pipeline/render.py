@@ -210,16 +210,20 @@ def _mux_audio(
     if not Path(concat_audio).exists():
         return video_path
 
-    # Mux audio with rendered video
+    # Mux audio with rendered video — use the video stream length as
+    # the authority.  Previously -shortest was used, which clipped the
+    # video when the time-stretched audio was shorter (e.g. segment
+    # extraction failures near the end of the video).
     muxed_path = str(tmpdir / "muxed.mp4")
     cmd = [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
         "-i", str(video_path),
         "-i", concat_audio,
+        "-map", "0:v:0",
+        "-map", "1:a:0",
         "-c:v", "copy",
         "-c:a", "aac",
         "-b:a", "192k",
-        "-shortest",
         "-movflags", "+faststart",
         muxed_path,
     ]

@@ -126,7 +126,7 @@ export const DEFAULT_SETTINGS: Settings = {
   crf: 23,
   outputAspect: "original",
   autoReframe: false,
-  debugOverlay: true,
+  debugOverlay: false,
   trimStart: 0,
   trimEnd: 0,
   analyzeStride: 1,

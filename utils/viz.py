@@ -54,7 +54,8 @@ def generate_thumbnails(video_path: str, n: int = 8) -> list[np.ndarray]:
         return []
 
     thumbnails = []
-    thumb_h = 160
+    # Higher source resolution keeps previews crisp when scaled in UI.
+    thumb_h = 480
 
     for i in range(n):
         t = duration * (i + 0.5) / n

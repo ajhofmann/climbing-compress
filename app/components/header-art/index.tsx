@@ -327,6 +327,8 @@ export function HeaderArt() {
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
         style={{ borderRadius: 6 }}
+        role="presentation"
+        aria-hidden="true"
       />
 
       {/* neon border */}
