@@ -151,7 +151,7 @@ class SolveRequest(BaseModel):
     keyframes: list[Keyframe] = []
 
 class RenderRequest(SolveRequest):
-    scale: float = 0.5
+    scale: float = 1.0
     output_fps: float = 30
     crf: int = 23
     output_aspect: str = "original"

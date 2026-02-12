@@ -63,6 +63,15 @@ const STYLE_TEMPLATES: Array<{
     },
   },
   {
+    label: "Hybrid 65",
+    tip: "Action-leaning hybrid preset from eval runs.",
+    overrides: {
+      mode: "hybrid",
+      progressActionBlend: 0.65,
+      smoothing: 0.9,
+    },
+  },
+  {
     label: "Social Vertical",
     tip: "Punchy pacing for short-form clips.",
     overrides: {

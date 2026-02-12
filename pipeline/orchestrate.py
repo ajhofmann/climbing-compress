@@ -15,13 +15,18 @@ from typing import Any
 import cv2
 import numpy as np
 
-from pipeline.pose import extract_poses, interpolate_missing_poses
+from pipeline.pose import extract_poses, extract_poses_with_diagnostics, interpolate_missing_poses
 from pipeline.movement import score_movement, score_progress, score_com_velocity, analyze_rest_signals
 from pipeline.speed_curve import (
     solve_speed_curve, solve_constant_progress, get_output_duration,
     detect_rest, solve_hybrid_curve, curve_from_keyframes,
 )
-from pipeline.constants import SPEED_FLOOR, SPEED_CEIL
+from pipeline.constants import (
+    SPEED_FLOOR, SPEED_CEIL,
+    POSE_ADAPTIVE_SANITIZE_DROP_PCT,
+    POSE_ADAPTIVE_SANITIZE_DROP_MIN_FRAMES,
+    POSE_ADAPTIVE_MIN_IMPROVEMENT_PCT,
+)
 from pipeline.render import render_preview
 from pipeline.stabilize import (
     compute_stabilization_offsets, stabilization_stats, compute_anchor_trajectory,
@@ -377,13 +382,40 @@ def run_analysis(
     and optionally ``tracker_model``.
     """
     cached = load_analysis(video_path, expected_stride=req.stride) if not req.force else None
+    tracks = None
 
     if cached:
         poses, fps, _ = cached
-        emit({"progress": 0.5, "message": "Loaded from cache"})
+        emit({"progress": 0.5, "message": "Loaded poses from cache"})
+
+        # Older caches may have poses/scores but no track artifacts.
+        # Backfill tracks so debug overlays and flow masking are complete.
+        if req.use_tracker and HAS_TRACKER:
+            cached_tracks = load_tracks(video_path, expected_stride=req.stride)
+            if cached_tracks:
+                tracks, _ = cached_tracks
+                emit({"progress": 0.54, "message": "Loaded tracks from cache"})
+            else:
+                emit({"progress": 0.50, "message": "Backfilling tracks..."})
+
+                def track_progress(p: float) -> None:
+                    emit({
+                        "progress": 0.50 + p * 0.04,
+                        "message": f"Backfilling tracks... {int(p * 100)}%",
+                    })
+
+                tracker_model = getattr(req, "tracker_model", None)
+                tracks, _ = track_video(
+                    video_path,
+                    stride=req.stride,
+                    progress_cb=track_progress,
+                    model_name=tracker_model,
+                )
+                if tracks:
+                    save_tracks(video_path, tracks, fps=fps, stride=req.stride)
+                    emit({"progress": 0.54, "message": "Cached backfilled tracks"})
     else:
         # --- Phase 1: Person tracking (optional) ---
-        tracks = None
         if req.use_tracker and HAS_TRACKER:
             emit({"progress": 0.02, "message": "Tracking persons..."})
 
@@ -411,18 +443,89 @@ def run_analysis(
         # --- Phase 2: Pose detection ---
         emit({"progress": 0.12, "message": "Detecting poses..."})
 
-        def pose_progress(p: float) -> None:
-            emit({
-                "progress": 0.12 + p * 0.38,
-                "message": f"Detecting poses... {int(p * 100)}%",
-            })
+        use_tracked_pose = bool(tracks)
+        if use_tracked_pose:
+            def tracked_pose_progress(p: float) -> None:
+                emit({
+                    "progress": 0.12 + p * 0.30,
+                    "message": f"Detecting poses (tracker-guided)... {int(p * 100)}%",
+                })
 
-        poses, fps, raw_anchor = extract_poses(
-            video_path,
-            stride=req.stride,
-            tracks=tracks,
-            progress_cb=pose_progress,
-        )
+            poses, fps, raw_anchor, tracked_diag = extract_poses_with_diagnostics(
+                video_path,
+                stride=req.stride,
+                tracks=tracks,
+                progress_cb=tracked_pose_progress,
+            )
+            tracked_drop_pct = float(tracked_diag.get("sanitize_discard_pct", 0.0))
+            tracked_drop_frames = int(tracked_diag.get("sanitize_discarded_frames", 0))
+
+            should_retry_full_frame = (
+                tracked_drop_pct >= POSE_ADAPTIVE_SANITIZE_DROP_PCT
+                and tracked_drop_frames >= POSE_ADAPTIVE_SANITIZE_DROP_MIN_FRAMES
+            )
+
+            if should_retry_full_frame:
+                emit({
+                    "progress": 0.42,
+                    "message": (
+                        f"Tracker-guided poses unstable ({tracked_drop_pct:.1f}% dropped). "
+                        "Retrying full-frame poses..."
+                    ),
+                })
+
+                def fallback_pose_progress(p: float) -> None:
+                    emit({
+                        "progress": 0.42 + p * 0.08,
+                        "message": f"Detecting poses (full-frame retry)... {int(p * 100)}%",
+                    })
+
+                fallback_poses, fallback_fps, fallback_raw_anchor, fallback_diag = (
+                    extract_poses_with_diagnostics(
+                        video_path,
+                        stride=req.stride,
+                        tracks=None,
+                        progress_cb=fallback_pose_progress,
+                    )
+                )
+                fallback_drop_pct = float(fallback_diag.get("sanitize_discard_pct", 0.0))
+                improvement = tracked_drop_pct - fallback_drop_pct
+
+                if improvement >= POSE_ADAPTIVE_MIN_IMPROVEMENT_PCT:
+                    poses, fps, raw_anchor = fallback_poses, fallback_fps, fallback_raw_anchor
+                    emit({
+                        "progress": 0.50,
+                        "message": (
+                            "Adaptive pose chooser: using full-frame "
+                            f"({fallback_drop_pct:.1f}% dropped vs {tracked_drop_pct:.1f}%)"
+                        ),
+                    })
+                else:
+                    emit({
+                        "progress": 0.50,
+                        "message": (
+                            "Adaptive pose chooser: keeping tracker-guided "
+                            f"({tracked_drop_pct:.1f}% dropped; full-frame {fallback_drop_pct:.1f}%)"
+                        ),
+                    })
+            else:
+                emit({
+                    "progress": 0.50,
+                    "message": f"Tracker-guided poses stable ({tracked_drop_pct:.1f}% dropped)",
+                })
+        else:
+            def pose_progress(p: float) -> None:
+                emit({
+                    "progress": 0.12 + p * 0.38,
+                    "message": f"Detecting poses... {int(p * 100)}%",
+                })
+
+            poses, fps, raw_anchor = extract_poses(
+                video_path,
+                stride=req.stride,
+                tracks=None,
+                progress_cb=pose_progress,
+            )
 
         if tracks:
             save_tracks(video_path, tracks, fps=fps, stride=req.stride)
@@ -450,9 +553,9 @@ def run_analysis(
             emit({"progress": 0.58, "message": "Loaded flow scores from cache"})
         else:
             emit({"progress": 0.55, "message": "Computing optical flow..."})
-            tracks_for_flow = None
-            if HAS_TRACKER:
-                cached_tracks = load_tracks(video_path)
+            tracks_for_flow = tracks
+            if tracks_for_flow is None and HAS_TRACKER:
+                cached_tracks = load_tracks(video_path, expected_stride=req.stride)
                 if cached_tracks:
                     tracks_for_flow, _ = cached_tracks
 
@@ -479,9 +582,9 @@ def run_analysis(
             emit({"progress": 0.67, "message": "Loaded camera motion from cache"})
         else:
             emit({"progress": 0.65, "message": "Estimating camera motion..."})
-            tracks_for_cam = None
-            if HAS_TRACKER:
-                cached_tracks = load_tracks(video_path)
+            tracks_for_cam = tracks
+            if tracks_for_cam is None and HAS_TRACKER:
+                cached_tracks = load_tracks(video_path, expected_stride=req.stride)
                 if cached_tracks:
                     tracks_for_cam, _ = cached_tracks
 

@@ -18,6 +18,11 @@ def _isolate_upload_store(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(server, "_unreadable_warned", {})
 
 
+def test_render_request_defaults_preserve_source_resolution():
+    req = server.RenderRequest(video_id="clip")
+    assert req.scale == 1.0
+
+
 def test_solve_requires_prior_analysis(monkeypatch, tmp_path: Path):
     video_path = tmp_path / "vid.mp4"
     video_path.write_bytes(b"fake-video")

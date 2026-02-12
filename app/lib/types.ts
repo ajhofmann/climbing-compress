@@ -121,7 +121,7 @@ export const DEFAULT_SETTINGS: Settings = {
   handWeight: 2.0,
   footWeight: 1.0,
   coreWeight: 3.0,
-  scale: 0.5,
+  scale: 1.0,
   outputFps: 30,
   crf: 23,
   outputAspect: "original",

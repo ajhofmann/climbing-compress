@@ -52,6 +52,13 @@ TRACK_FALLBACK_CONF: float = 0.15
 # Resolution multiplier for fallback re-detection (relative to base).
 TRACK_FALLBACK_RESOLUTION: int = 960
 
+# Adaptive pose extraction fallback:
+# If tracker-guided pose sanitization drops too many frames, retry full-frame
+# extraction and switch when it materially improves quality.
+POSE_ADAPTIVE_SANITIZE_DROP_PCT: float = 60.0
+POSE_ADAPTIVE_SANITIZE_DROP_MIN_FRAMES: int = 120
+POSE_ADAPTIVE_MIN_IMPROVEMENT_PCT: float = 8.0
+
 # Percentile used for score normalization.
 # Normalizing to the 95th percentile (not max) prevents outlier spikes
 # from squashing the rest of the signal.

@@ -153,30 +153,56 @@ def extract_poses(
     tracks: list[dict | None] | None = None,
     progress_cb: Callable[[float], None] | None = None,
 ) -> tuple[list[dict | None], float, tuple[np.ndarray, np.ndarray]]:
+    """Run pose detection and return stabilized pose series."""
+    poses, fps, raw_anchor, _ = _extract_poses_impl(
+        video_path=video_path,
+        scale=scale,
+        stride=stride,
+        max_short_side=max_short_side,
+        tracks=tracks,
+        progress_cb=progress_cb,
+    )
+    return poses, fps, raw_anchor
+
+
+def extract_poses_with_diagnostics(
+    video_path: str,
+    scale: float = 0.5,
+    stride: int = 1,
+    max_short_side: int = 960,
+    tracks: list[dict | None] | None = None,
+    progress_cb: Callable[[float], None] | None = None,
+) -> tuple[list[dict | None], float, tuple[np.ndarray, np.ndarray], dict[str, float | int | str]]:
+    """Run pose detection and return diagnostics for adaptive selection."""
+    return _extract_poses_impl(
+        video_path=video_path,
+        scale=scale,
+        stride=stride,
+        max_short_side=max_short_side,
+        tracks=tracks,
+        progress_cb=progress_cb,
+    )
+
+
+def _extract_poses_impl(
+    video_path: str,
+    scale: float = 0.5,
+    stride: int = 1,
+    max_short_side: int = 960,
+    tracks: list[dict | None] | None = None,
+    progress_cb: Callable[[float], None] | None = None,
+) -> tuple[list[dict | None], float, tuple[np.ndarray, np.ndarray], dict[str, float | int | str]]:
     """
     Run pose detection on video frames.
 
-    When tracks are provided, crops each frame to the tracked person's
-    bounding box before running pose detection. This gives:
-    - Higher effective resolution on the climber
-    - No confusion from belayer or other persons
-    - Better detection on overhangs (tracked crop stays on the right person)
-
-    Landmarks are mapped back to full-frame normalized coordinates
-    so downstream code is unaffected.
+    When tracks are provided, runs multi-pose detection and picks the pose
+    nearest the tracked bbox center to reject belayer detections.
 
     Returns:
-        (poses, fps, raw_anchor):
-          - poses has one entry per source frame
-          - raw_anchor is the pre-smoothing anchor trajectory (x, y)
-            used by stabilization
+        (poses, fps, raw_anchor, diagnostics)
     """
     model_path = _ensure_model()
 
-    # When tracker data is available, detect multiple poses on the full
-    # frame and pick the one closest to the tracked bbox.  This avoids
-    # cropping (which often shrinks the climber too small for MediaPipe)
-    # while still using the tracker to reject the belayer.
     num_poses = 3 if (tracks is not None and len(tracks) > 0) else 1
 
     vid_options = vision.PoseLandmarkerOptions(
@@ -191,6 +217,8 @@ def extract_poses(
     raw_poses: list[tuple[int, dict | None]] = []
     fps = 0.0
     total_frames = 0
+    detected_frames = 0
+    missing_frames = 0
 
     with vision.PoseLandmarker.create_from_options(vid_options) as landmarker:
         for frame_idx, frame_rgb, meta in iter_video_frames(
@@ -212,7 +240,7 @@ def extract_poses(
             result = landmarker.detect_for_video(mp_image, timestamp_ms)
 
             if result.pose_landmarks and len(result.pose_landmarks) > 0:
-                # Pick the pose closest to the tracker bbox (if available)
+                detected_frames += 1
                 lm_list = _pick_tracked_pose(
                     result.pose_landmarks,
                     tracks[frame_idx] if (
@@ -228,24 +256,24 @@ def extract_poses(
 
                 raw_poses.append((frame_idx, landmarks))
             else:
-                # Pose failed — if we have a track, store bbox-derived
-                # fallback data so movement scoring has something
-                if (
-                    use_tracks
-                    and frame_idx < len(tracks)
-                    and tracks[frame_idx] is not None
-                ):
-                    raw_poses.append(
-                        (frame_idx, _bbox_fallback(tracks[frame_idx]))
-                    )
-                else:
-                    raw_poses.append((frame_idx, None))
+                missing_frames += 1
+                raw_poses.append((frame_idx, None))
 
             if progress_cb and total_frames > 0:
                 progress_cb(frame_idx / total_frames)
 
     if not total_frames:
-        return [], 0.0
+        empty_anchor = (np.array([]), np.array([]))
+        diagnostics: dict[str, float | int | str] = {
+            "mode": "tracked" if use_tracks else "full_frame",
+            "frame_count": 0,
+            "detected_frames": 0,
+            "missing_frames": 0,
+            "sanitize_discarded_frames": 0,
+            "sanitize_discard_pct": 0.0,
+            "sanitize_threshold": 0.0,
+        }
+        return [], 0.0, empty_anchor, diagnostics
 
     # Expand to full frame count
     poses: list[dict | None] = [None] * total_frames
@@ -254,7 +282,7 @@ def extract_poses(
             poses[fi] = pose
 
     # Discard anomalous poses (teleporting landmarks, skeleton collapse)
-    poses = sanitize_poses(poses, fps)
+    poses, sanitize_stats = sanitize_poses(poses, fps, return_stats=True)
 
     # Fill gaps (from stride, detection failures, and sanitization)
     poses = interpolate_missing_poses(poses)
@@ -267,7 +295,16 @@ def extract_poses(
     # Temporal smoothing: One Euro Filter kills jitter, stays responsive
     poses = smooth_poses(poses, fps, min_cutoff=1.0, beta=0.5)
 
-    return poses, fps, raw_anchor
+    diagnostics = {
+        "mode": "tracked" if use_tracks else "full_frame",
+        "frame_count": int(total_frames),
+        "detected_frames": int(detected_frames),
+        "missing_frames": int(missing_frames),
+        "sanitize_discarded_frames": int(sanitize_stats["discarded_frames"]),
+        "sanitize_discard_pct": float(sanitize_stats["discard_pct"]),
+        "sanitize_threshold": float(sanitize_stats["threshold"]),
+    }
+    return poses, fps, raw_anchor, diagnostics
 
 
 def _bbox_fallback(track: dict) -> dict | None:
@@ -347,7 +384,8 @@ def sanitize_poses(
     displacement_k: float = 5.0,
     min_displacement_floor: float = 0.15,
     bone_deviation_max: float = 2.0,
-) -> list[dict | None]:
+    return_stats: bool = False,
+) -> list[dict | None] | tuple[list[dict | None], dict[str, float]]:
     """Detect and discard anomalous pose frames.
 
     Two-pass approach:
@@ -367,10 +405,18 @@ def sanitize_poses(
 
     Returns:
         poses list with anomalous entries set to None.
+        If return_stats=True, returns ``(poses, stats)`` where stats includes:
+        discarded_frames, discard_pct, threshold.
     """
     n = len(poses)
+    stats: dict[str, float] = {
+        "discarded_frames": 0.0,
+        "discard_pct": 0.0,
+        "threshold": float(min_displacement_floor),
+    }
+
     if n < 3:
-        return poses
+        return (poses, stats) if return_stats else poses
 
     # --- Pass 1: collect displacement and bone-length stats ---------------
     displacements: list[tuple[int, float]] = []  # (frame_idx, displacement)
@@ -394,7 +440,7 @@ def sanitize_poses(
         last_good_idx = i
 
     if len(displacements) < 3:
-        return poses
+        return (poses, stats) if return_stats else poses
 
     # Adaptive displacement threshold: median + k * MAD
     d_vals = np.array([d for _, d in displacements])
@@ -404,6 +450,7 @@ def sanitize_poses(
     if d_mad < 1e-9:
         d_mad = float(np.std(d_vals))
     d_threshold = max(d_median + displacement_k * d_mad, min_displacement_floor)
+    stats["threshold"] = float(d_threshold)
 
     # Median bone lengths for proportion check
     bone_medians: dict[str, float] = {}
@@ -446,14 +493,17 @@ def sanitize_poses(
     for i in bad_indices:
         poses[i] = None
 
+    pct = 100.0 * len(bad_indices) / n
+    stats["discarded_frames"] = float(len(bad_indices))
+    stats["discard_pct"] = float(pct)
+
     if bad_indices:
-        pct = 100.0 * len(bad_indices) / n
         print(
             f"sanitize_poses: discarded {len(bad_indices)}/{n} frames "
             f"({pct:.1f}%) — threshold {d_threshold:.4f}"
         )
 
-    return poses
+    return (poses, stats) if return_stats else poses
 
 
 def interpolate_missing_poses(poses: list) -> list:

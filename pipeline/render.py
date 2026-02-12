@@ -240,7 +240,7 @@ def render_preview(
     speed_curve: np.ndarray,
     fps: float,
     output_path: str | None = None,
-    scale: float = 0.5,
+    scale: float = 1.0,
     output_fps: float = 30.0,
     crf: int = 23,
     debug_overlay_fn: Callable[[np.ndarray, int, float], np.ndarray] | None = None,
