@@ -6,6 +6,8 @@ import pytest
 from pipeline.speed_curve import (
     solve_speed_curve,
     solve_constant_progress,
+    solve_hybrid_curve,
+    curve_from_keyframes,
     get_output_duration,
     get_time_mapping,
     detect_rest,
@@ -169,6 +171,63 @@ class TestSolveConstantProgress:
         assert len(curve) == 0
 
 
+class TestSolveHybridCurve:
+    """Tests for hybrid-mode speed curve solver."""
+
+    def test_hits_target_duration(self):
+        fps = 30
+        n = 300
+        progress = np.random.rand(n)
+        action = np.random.rand(n)
+        target = 6.0
+
+        curve = solve_hybrid_curve(
+            progress, action, fps,
+            target_duration=target,
+            blend=0.5,
+            min_speed=0.25,
+            max_speed=10.0,
+        )
+        actual = get_output_duration(curve, fps)
+        assert abs(actual - target) < target * 0.05
+
+    def test_blend_changes_shape(self):
+        fps = 30
+        n = 300
+        # Progress favours middle, action favours edges to ensure different shapes.
+        progress = np.zeros(n) + 0.1
+        progress[100:200] = 0.9
+        action = np.zeros(n) + 0.1
+        action[:80] = 0.9
+        action[220:] = 0.9
+
+        low_blend = solve_hybrid_curve(
+            progress, action, fps, target_duration=6.0, blend=0.1
+        )
+        high_blend = solve_hybrid_curve(
+            progress, action, fps, target_duration=6.0, blend=0.9
+        )
+
+        # Curves should differ materially across blend settings.
+        assert np.mean(np.abs(low_blend - high_blend)) > 0.2
+
+    def test_respects_bounds(self):
+        fps = 30
+        n = 300
+        progress = np.random.rand(n)
+        action = np.random.rand(n)
+
+        curve = solve_hybrid_curve(
+            progress, action, fps,
+            target_duration=5.0,
+            blend=0.4,
+            min_speed=0.5,
+            max_speed=8.0,
+        )
+        assert curve.min() >= 0.5 - 1e-3
+        assert curve.max() <= 8.0 + 1e-3
+
+
 class TestDetectRest:
     """Tests for rest section detection."""
 
@@ -199,6 +258,48 @@ class TestDetectRest:
         progress = np.zeros(100)
         rest = detect_rest(progress, fps, threshold_s=0)
         assert not rest.any()
+
+
+class TestCurveFromKeyframes:
+    """Tests for explicit keyframe-based curve construction."""
+
+    def test_interpolates_between_keyframes(self):
+        fps = 30
+        n = 120
+        curve = curve_from_keyframes(
+            n_frames=n,
+            fps=fps,
+            keyframes=[(0.0, 1.0), (2.0, 0.5), (4.0, 2.0)],
+            min_speed=0.25,
+            max_speed=4.0,
+        )
+        assert len(curve) == n
+        assert curve[0] == pytest.approx(1.0, abs=0.05)
+        assert curve[int(2 * fps)] == pytest.approx(0.5, abs=0.08)
+        assert curve[-1] == pytest.approx(2.0, abs=0.1)
+
+    def test_clamps_speed_bounds(self):
+        fps = 30
+        curve = curve_from_keyframes(
+            n_frames=90,
+            fps=fps,
+            keyframes=[(0.0, 0.01), (1.0, 99.0)],
+            min_speed=0.5,
+            max_speed=5.0,
+        )
+        assert curve.min() >= 0.5 - 1e-3
+        assert curve.max() <= 5.0 + 1e-3
+
+    def test_single_keyframe_makes_constant_curve(self):
+        fps = 30
+        curve = curve_from_keyframes(
+            n_frames=90,
+            fps=fps,
+            keyframes=[(1.0, 1.25)],
+            min_speed=0.5,
+            max_speed=3.0,
+        )
+        assert np.allclose(curve, 1.25, atol=1e-6)
 
 
 class TestDetectRestEnhanced:

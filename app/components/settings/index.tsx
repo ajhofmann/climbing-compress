@@ -24,10 +24,75 @@ function Module({ area, label, children }: { area: string; label: string; childr
   );
 }
 
+const STYLE_TEMPLATES: Array<{
+  label: string;
+  tip: string;
+  overrides: Partial<Settings>;
+}> = [
+  {
+    label: "Cinematic",
+    tip: "Smooth, dramatic pacing for aesthetic edits.",
+    overrides: {
+      mode: "progress",
+      targetDuration: 24,
+      minSpeed: 0.18,
+      maxSpeed: 8,
+      smoothing: 0.7,
+      outputFps: 24,
+      debugOverlay: false,
+      renderComparison: false,
+      renderChapters: false,
+      outputAspect: "original",
+      autoReframe: false,
+      includeAudio: true,
+    },
+  },
+  {
+    label: "Coaching",
+    tip: "Analysis-focused style with chapters and diagnostics.",
+    overrides: {
+      mode: "hybrid",
+      progressActionBlend: 0.55,
+      targetDuration: 20,
+      debugOverlay: true,
+      includeAudio: false,
+      renderComparison: true,
+      renderChapters: true,
+      outputAspect: "original",
+      autoReframe: false,
+    },
+  },
+  {
+    label: "Hybrid 65",
+    tip: "Action-leaning hybrid preset from eval runs.",
+    overrides: {
+      mode: "hybrid",
+      progressActionBlend: 0.65,
+      smoothing: 0.9,
+    },
+  },
+  {
+    label: "Social Vertical",
+    tip: "Punchy pacing for short-form clips.",
+    overrides: {
+      mode: "action",
+      targetDuration: 12,
+      minSpeed: 0.35,
+      maxSpeed: 16,
+      outputFps: 30,
+      scale: 0.7,
+      outputAspect: "vertical",
+      autoReframe: true,
+      renderChapters: true,
+    },
+  },
+];
+
 export function SettingsPanel() {
-  const store = useStore();
-  const { settings, updateSettings, stats, analysis } = store;
-  const s = settings;
+  const s = useStore((state) => state.settings);
+  const updateSettings = useStore((state) => state.updateSettings);
+  const stats = useStore((state) => state.stats);
+  const analysis = useStore((state) => state.analysis);
   const u = (k: keyof Settings, v: Settings[keyof Settings]) => updateSettings({ [k]: v });
 
   return (
@@ -44,6 +109,8 @@ export function SettingsPanel() {
                 {([
                   { key: "progress" as const, label: "PROGRESS", tip: "50% of video = 50% up the wall.\nStalling = fast-forward." },
                   { key: "action" as const, label: "ACTION", tip: "Big moves get slow-mo,\nchalk-ups get skipped." },
+                  { key: "dynamic" as const, label: "DYNAMIC", tip: "Slow down when center of mass moves fast.\nHighlights dynos and big moves." },
+                  { key: "hybrid" as const, label: "HYBRID", tip: "Blend progress + action scoring.\nDial between steady pacing and move highlights." },
                 ]).map(({ key, label, tip }) => (
                   <Tooltip key={key} text={tip}>
                     <button
@@ -66,8 +133,20 @@ export function SettingsPanel() {
             <LedCounter label="DURATION" value={s.targetDuration} min={3} max={120} step={1} onChange={(v) => u("targetDuration", v)} title="Target output duration in seconds.\nThe speed curve stretches to hit this." />
 
             {/* Speed faders */}
-            {s.mode === "action" && (
+            {(s.mode === "action" || s.mode === "dynamic" || s.mode === "hybrid") && (
               <Fader label="SENS" value={s.sensitivity} min={0.01} max={0.99} step={0.01} onChange={(v) => u("sensitivity", v)} title="Sensitivity: lower = more generous slow-mo on moves" />
+            )}
+            {s.mode === "hybrid" && (
+              <Fader
+                label="BLEND"
+                value={s.progressActionBlend}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={(v) => u("progressActionBlend", v)}
+                color="#e040fb"
+                title="Hybrid blend: 0 = pure progress pacing, 1 = pure action highlights"
+              />
             )}
             <Fader label="MAX" value={s.maxSpeed} min={1} max={30} step={0.5} onChange={(v) => u("maxSpeed", v)} color="#76ff03" title="Max Speed: how fast to skip through rest and chalk-ups" />
 
@@ -142,10 +221,24 @@ export function SettingsPanel() {
                     </span>
                   </Tooltip>
                 )}
+                {analysis.tracker_unavailable && (
+                  <Tooltip text="Tracking requested but dependencies missing — install ultralytics and supervision">
+                    <span className="flex items-center gap-1 text-[11px] font-pixel text-red-400 uppercase">
+                      <span className="pilot-light pilot-light-red pilot-light-breathe" />TRK ERR
+                    </span>
+                  </Tooltip>
+                )}
                 {analysis.flow_available && (
                   <Tooltip text="Optical flow data is available">
                     <span className="flex items-center gap-1 text-[11px] font-pixel text-neon-magenta uppercase">
                       <span className="pilot-light pilot-light-magenta pilot-light-breathe" />FLW
+                    </span>
+                  </Tooltip>
+                )}
+                {analysis.flow_unavailable && (
+                  <Tooltip text="Flow scoring requested but dependencies missing">
+                    <span className="flex items-center gap-1 text-[11px] font-pixel text-red-400 uppercase">
+                      <span className="pilot-light pilot-light-red pilot-light-breathe" />FLW ERR
                     </span>
                   </Tooltip>
                 )}
@@ -162,8 +255,8 @@ export function SettingsPanel() {
         </Module>
 
         {/* ═══ MIXER (body map or faders) ═══ */}
-        <Module area="mixer" label={s.mode === "action" ? "Weights" : "Speed"}>
-          {s.mode === "action" ? (
+        <Module area="mixer" label={s.mode === "action" ? "Weights" : s.mode === "progress" ? "Speed" : "Hybrid"}>
+          {s.mode === "action" && (
             <BodyMap
               handWeight={s.handWeight}
               footWeight={s.footWeight}
@@ -172,11 +265,29 @@ export function SettingsPanel() {
               onFootChange={(v) => u("footWeight", v)}
               onCoreChange={(v) => u("coreWeight", v)}
             />
-          ) : (
+          )}
+          {s.mode === "progress" && (
             <div className="flex gap-2 justify-center">
               <Fader label="V-BIAS" value={s.verticalBias} min={0} max={1} step={0.05} onChange={(v) => u("verticalBias", v)} color="#00e5ff" title="Vertical Bias: 0.5 = equal weight, 1.0 = vertical movement only" />
               <Fader label="DOWN" value={s.downWeight} min={0} max={1} step={0.05} onChange={(v) => u("downWeight", v)} color="#e040fb" title="Down Weight: 0 = ignore downclimbing, 1 = count it equally" />
               <Fader label="REST" value={s.restThreshold} min={0} max={2} step={0.05} onChange={(v) => u("restThreshold", v)} color="#ff6e40" title="Rest Skip: seconds of stillness before fast-forwarding" />
+            </div>
+          )}
+          {s.mode === "hybrid" && (
+            <div className="flex items-center gap-3 flex-wrap justify-center">
+              <BodyMap
+                handWeight={s.handWeight}
+                footWeight={s.footWeight}
+                coreWeight={s.coreWeight}
+                onHandChange={(v) => u("handWeight", v)}
+                onFootChange={(v) => u("footWeight", v)}
+                onCoreChange={(v) => u("coreWeight", v)}
+              />
+              <div className="flex gap-2 justify-center">
+                <Fader label="V-BIAS" value={s.verticalBias} min={0} max={1} step={0.05} onChange={(v) => u("verticalBias", v)} color="#00e5ff" title="Hybrid progress weighting toward vertical movement" />
+                <Fader label="DOWN" value={s.downWeight} min={0} max={1} step={0.05} onChange={(v) => u("downWeight", v)} color="#e040fb" title="Hybrid progress downclimb weighting" />
+                <Fader label="REST" value={s.restThreshold} min={0} max={2} step={0.05} onChange={(v) => u("restThreshold", v)} color="#ff6e40" title="Hybrid rest detection duration threshold" />
+              </div>
             </div>
           )}
         </Module>
@@ -186,10 +297,10 @@ export function SettingsPanel() {
           <div className="flex gap-2 flex-wrap justify-center">
             <Knob label="Smooth" info="Seconds of curve blur -- higher = smoother transitions" value={s.smoothing} min={0.05} max={2} step={0.05} onChange={(v) => u("smoothing", v)} />
             <Knob label="Min Spd" info="Slowest allowed speed (0.05 = 20x slow-mo)" value={s.minSpeed} min={0.05} max={1} step={0.01} onChange={(v) => u("minSpeed", v)} />
-            {s.mode === "action" && (
+            {(s.mode === "action" || s.mode === "hybrid") && (
               <Knob label="Steep" info="Steepness of speed transitions -- higher = sharper" value={s.steepness} min={1} max={50} step={1} onChange={(v) => u("steepness", v)} />
             )}
-            {s.mode === "progress" && (
+            {(s.mode === "progress" || s.mode === "hybrid") && (
               <Knob label="P.Floor" info="Minimum progress rate even during rest" value={s.progressFloor} min={0} max={0.2} step={0.005} onChange={(v) => u("progressFloor", v)} />
             )}
           </div>
@@ -211,6 +322,23 @@ export function SettingsPanel() {
               onChange={(v) => u("outputFps", v)}
               title="Output frame rate: 24 = cinematic, 30 = standard, 60 = smooth"
             />
+            <RotarySelect
+              label="ASPECT"
+              value={s.outputAspect}
+              options={[
+                { value: "original", label: "ORI" },
+                { value: "vertical", label: "9:16" },
+                { value: "square", label: "1:1" },
+              ]}
+              onChange={(v) => {
+                if (v === "original") {
+                  updateSettings({ outputAspect: v, autoReframe: false });
+                } else {
+                  u("outputAspect", v);
+                }
+              }}
+              title="Output aspect ratio: original frame, vertical social (9:16), or square (1:1)"
+            />
           </div>
         </Module>
 
@@ -222,10 +350,33 @@ export function SettingsPanel() {
           <span>Options</span>
         </div>
         <div className="dashboard-module-body">
+          <div className="flex items-center gap-2 flex-wrap mb-3">
+            <span className="rack-section-label">TEMPLATES</span>
+            {STYLE_TEMPLATES.map((tpl) => (
+              <Tooltip key={tpl.label} text={tpl.tip}>
+                <button
+                  onClick={() => updateSettings(tpl.overrides)}
+                  className="retro-btn px-2 py-1 text-[10px] font-pixel uppercase tracking-wide"
+                >
+                  {tpl.label}
+                </button>
+              </Tooltip>
+            ))}
+          </div>
+
           <div className="flex items-start gap-4 flex-wrap">
             <ToggleSwitch label="AUD" checked={s.includeAudio} onChange={(v) => u("includeAudio", v)} title="Include time-stretched audio from source" />
             <ToggleSwitch label="OVL" checked={s.debugOverlay} onChange={(v) => u("debugOverlay", v)} color="#76ff03" title="Show skeleton + speed badge overlay on video" />
             <ToggleSwitch label="A/B" checked={s.renderComparison} onChange={(v) => u("renderComparison", v)} color="#e040fb" title="Also render a uniform-speed version for comparison" />
+            <ToggleSwitch label="CHPT" checked={s.renderChapters} onChange={(v) => u("renderChapters", v)} color="#e040fb" title="Overlay auto chapters (START / CRUX / SEND)" />
+            <ToggleSwitch
+              label="REFR"
+              checked={s.outputAspect === "original" ? false : s.autoReframe}
+              onChange={(v) => u("autoReframe", v)}
+              color="#00e5ff"
+              disabled={s.outputAspect === "original"}
+              title="For vertical/square exports, follow the climber center while cropping"
+            />
             <ToggleSwitch label="STAB" checked={s.stabilize} onChange={(v) => u("stabilize", v)} color="#ff6e40" title="Enable pose-anchored video stabilization" />
             {s.stabilize && (
               <>

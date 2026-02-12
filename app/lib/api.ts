@@ -1,17 +1,91 @@
-import { AnalysisData, Pin, Settings, SolveResult } from "./types";
+import { AnalysisData, Keyframe, Pin, Settings, SolveResult, VideoInfo } from "./types";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export async function uploadVideo(file: File) {
+type SseProgress = {
+  progress?: number;
+  message?: string;
+  done?: boolean;
+};
+
+interface UploadResult {
+  video_id: string;
+  filename: string;
+  info: VideoInfo;
+  thumbnails: string[];
+  cached: boolean;
+  output_count: number;
+  source_bytes: number;
+  output_bytes: number;
+  reused: boolean;
+}
+
+async function readErrorMessage(res: Response): Promise<string> {
+  const text = await res.text();
+  if (!text) return `${res.status} ${res.statusText}`;
+  try {
+    const parsed = JSON.parse(text) as { detail?: unknown; message?: unknown };
+    if (typeof parsed.detail === "string") return parsed.detail;
+    if (typeof parsed.message === "string") return parsed.message;
+  } catch {
+    // Fall through to raw text.
+  }
+  return text;
+}
+
+async function consumeSseJson<T>(
+  res: Response,
+  onProgress: (progress: number, message: string) => void,
+): Promise<T | null> {
+  if (!res.body) throw new Error("No response body");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result: T | null = null;
+
+  const handleEvent = (block: string) => {
+    const lines = block.split(/\r?\n/);
+    const dataLines: string[] = [];
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line.startsWith("data:")) continue;
+      dataLines.push(line.slice(5).trimStart());
+    }
+    if (dataLines.length === 0) return;
+
+    try {
+      const payload = JSON.parse(dataLines.join("\n")) as SseProgress & T;
+      onProgress(payload.progress ?? 0, payload.message ?? "");
+      if (payload.done) result = payload;
+    } catch {
+      // Ignore malformed events and keep consuming stream.
+    }
+  };
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split(/\r?\n\r?\n/);
+    buffer = chunks.pop() ?? "";
+    for (const chunk of chunks) {
+      if (chunk.trim()) handleEvent(chunk);
+    }
+  }
+
+  buffer += decoder.decode();
+  if (buffer.trim()) handleEvent(buffer);
+
+  return result;
+}
+
+export async function uploadVideo(file: File): Promise<UploadResult> {
   const form = new FormData();
   form.append("file", file);
   const res = await fetch(`${API}/api/upload`, { method: "POST", body: form });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json();
-}
-
-export async function listVideos() {
-  const res = await fetch(`${API}/api/videos`);
+  if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();
 }
 
@@ -23,10 +97,12 @@ export async function analyzeVideo(
   useTracker: boolean = true,
   useFlow: boolean = true,
   trackerModel: string = "yolo26m",
+  signal?: AbortSignal,
 ): Promise<AnalysisData | null> {
   const res = await fetch(`${API}/api/analyze`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal,
     body: JSON.stringify({
       video_id: videoId,
       stride,
@@ -37,43 +113,26 @@ export async function analyzeVideo(
     }),
   });
 
-  if (!res.ok) throw new Error(await res.text());
-  if (!res.body) throw new Error("No response body");
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let result: AnalysisData | null = null;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const text = decoder.decode(value);
-    for (const line of text.split("\n")) {
-      if (line.startsWith("data: ")) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          onProgress(data.progress, data.message);
-          if (data.done) result = data;
-        } catch {
-          // skip malformed SSE lines
-        }
-      }
-    }
-  }
-  return result;
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return consumeSseJson<AnalysisData>(res, onProgress);
 }
 
 export async function solveCurve(
   videoId: string,
   settings: Settings,
   pins: Pin[],
+  keyframes: Keyframe[],
+  signal?: AbortSignal,
 ): Promise<SolveResult> {
   const res = await fetch(`${API}/api/solve`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal,
     body: JSON.stringify({
       video_id: videoId,
       mode: settings.mode,
+      edit_mode: settings.editMode,
+      progress_action_blend: settings.progressActionBlend,
       target_duration: settings.targetDuration,
       sensitivity: settings.sensitivity,
       max_speed: settings.maxSpeed,
@@ -90,9 +149,10 @@ export async function solveCurve(
       trim_start: settings.trimStart,
       trim_end: settings.trimEnd,
       pins,
+      keyframes,
     }),
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();
 }
 
@@ -108,18 +168,49 @@ interface RenderResult {
   };
 }
 
+export interface VideoListItem {
+  video_id: string;
+  filename: string;
+  info: VideoInfo;
+  cached: boolean;
+  output_count: number;
+  source_bytes: number;
+  output_bytes: number;
+}
+
+interface VideoMetaResult {
+  video_id: string;
+  filename: string;
+  info: VideoInfo;
+  thumbnails: string[];
+  cached: boolean;
+  output_count: number;
+  source_bytes: number;
+  output_bytes: number;
+}
+
+interface RenameVideoResult {
+  video_id: string;
+  filename: string;
+}
+
 export async function renderVideo(
   videoId: string,
   settings: Settings,
   pins: Pin[],
+  keyframes: Keyframe[],
   onProgress: (progress: number, message: string) => void,
+  signal?: AbortSignal,
 ): Promise<RenderResult | null> {
   const res = await fetch(`${API}/api/render`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    signal,
     body: JSON.stringify({
       video_id: videoId,
       mode: settings.mode,
+      edit_mode: settings.editMode,
+      progress_action_blend: settings.progressActionBlend,
       target_duration: settings.targetDuration,
       sensitivity: settings.sensitivity,
       max_speed: settings.maxSpeed,
@@ -136,9 +227,12 @@ export async function renderVideo(
       trim_start: settings.trimStart,
       trim_end: settings.trimEnd,
       pins,
+      keyframes,
       scale: settings.scale,
       output_fps: settings.outputFps,
       crf: settings.crf,
+      output_aspect: settings.outputAspect,
+      auto_reframe: settings.autoReframe,
       debug_overlay: settings.debugOverlay,
       stabilize: settings.stabilize,
       stabilize_strength: settings.stabilizeStrength,
@@ -148,33 +242,94 @@ export async function renderVideo(
       use_feature_stabilize: settings.useFeatureStabilize,
       feature_stabilize_weight: settings.featureStabilizeWeight,
       render_comparison: settings.renderComparison,
+      render_chapters: settings.renderChapters,
     }),
   });
 
-  if (!res.ok) throw new Error(await res.text());
-  if (!res.body) throw new Error("No response body");
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return consumeSseJson<RenderResult>(res, onProgress);
+}
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let result: RenderResult | null = null;
+export async function listVideos(): Promise<VideoListItem[]> {
+  const res = await fetch(`${API}/api/videos`, { cache: "no-store" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const text = decoder.decode(value);
-    for (const line of text.split("\n")) {
-      if (line.startsWith("data: ")) {
-        try {
-          const data = JSON.parse(line.slice(6));
-          onProgress(data.progress, data.message);
-          if (data.done) result = data;
-        } catch {
-          // skip malformed SSE lines
-        }
-      }
-    }
-  }
-  return result;
+export async function getVideoMeta(videoId: string): Promise<VideoMetaResult> {
+  const res = await fetch(`${API}/api/video-meta/${videoId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
+export interface DeleteVideoResult {
+  video_id: string;
+  deleted: boolean;
+  deleted_outputs: number;
+  deleted_bytes: number;
+  deleted_output_bytes: number;
+}
+
+export interface LibraryStats {
+  clips: number;
+  outputs: number;
+  clip_bytes: number;
+  output_bytes: number;
+  clip_outputs?: number;
+  clip_output_bytes?: number;
+}
+
+export async function deleteVideo(videoId: string): Promise<DeleteVideoResult> {
+  const res = await fetch(`${API}/api/videos/${videoId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
+export async function deleteAllVideos(): Promise<{
+  deleted: number;
+  video_ids: string[];
+  deleted_outputs: number;
+  deleted_bytes: number;
+  deleted_output_bytes: number;
+}> {
+  const res = await fetch(`${API}/api/videos`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
+export async function deleteAllOutputs(): Promise<{ deleted_outputs: number; deleted_output_bytes: number }> {
+  const res = await fetch(`${API}/api/outputs`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
+export async function deleteOutputsForVideo(videoId: string): Promise<{
+  video_id: string;
+  deleted_outputs: number;
+  deleted_output_bytes: number;
+}> {
+  const res = await fetch(`${API}/api/outputs/${videoId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
+export async function getLibraryStats(videoId?: string): Promise<LibraryStats> {
+  const url = videoId
+    ? `${API}/api/library-stats?video_id=${encodeURIComponent(videoId)}`
+    : `${API}/api/library-stats`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
+export async function renameVideo(videoId: string, filename: string): Promise<RenameVideoResult> {
+  const res = await fetch(`${API}/api/videos/${videoId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ filename }),
+  });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
 }
 
 export function videoUrl(id: string) {

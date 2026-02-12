@@ -5,7 +5,10 @@ import { useStore } from "@/lib/store";
 import { videoUrl } from "@/lib/api";
 
 export function VideoPlayer() {
-  const { outputId, comparisonId, isRendering, setPlaybackTime } = useStore();
+  const outputId = useStore((state) => state.outputId);
+  const comparisonId = useStore((state) => state.comparisonId);
+  const outputFps = useStore((state) => state.settings.outputFps);
+  const setPlaybackTime = useStore((state) => state.setPlaybackTime);
   const smartRef = useRef<HTMLVideoElement>(null);
   const compRef = useRef<HTMLVideoElement>(null);
   const singleRef = useRef<HTMLVideoElement>(null);
@@ -34,22 +37,104 @@ export function VideoPlayer() {
     }
   }, []);
 
+  const safePlay = useCallback((video: HTMLVideoElement | null) => {
+    if (!video) return;
+    void video.play().catch(() => {
+      // Ignore autoplay/play promise interruptions.
+    });
+  }, []);
+
+  const togglePlayback = useCallback(() => {
+    const primary = smartRef.current ?? singleRef.current;
+    if (!primary) return;
+    if (primary.paused) {
+      safePlay(primary);
+      if (smartRef.current && compRef.current) safePlay(compRef.current);
+    } else {
+      primary.pause();
+      if (compRef.current) compRef.current.pause();
+    }
+  }, [safePlay]);
+
+  const seekBy = useCallback((deltaSeconds: number) => {
+    const primary = smartRef.current ?? singleRef.current;
+    if (!primary) return;
+    const duration = Number.isFinite(primary.duration) ? primary.duration : 0;
+    const next = Math.max(0, Math.min(duration || primary.currentTime + deltaSeconds, primary.currentTime + deltaSeconds));
+    primary.currentTime = next;
+    if (smartRef.current && compRef.current) {
+      compRef.current.currentTime = smartRef.current.currentTime;
+    }
+  }, []);
+
+  const stepFrame = useCallback((direction: -1 | 1, frames: number = 1) => {
+    const fps = Math.max(1, outputFps);
+    seekBy((direction * frames) / fps);
+  }, [outputFps, seekBy]);
+
+  useEffect(() => {
+    if (!outputId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") return;
+
+      const key = e.key.toLowerCase();
+      if (e.code === "Space" || key === "k") {
+        e.preventDefault();
+        togglePlayback();
+        return;
+      }
+      if (key === "j") {
+        e.preventDefault();
+        seekBy(-1);
+        return;
+      }
+      if (key === "l") {
+        e.preventDefault();
+        seekBy(1);
+        return;
+      }
+      if (e.key === ",") {
+        e.preventDefault();
+        stepFrame(-1, e.shiftKey ? 5 : 1);
+        return;
+      }
+      if (e.key === ".") {
+        e.preventDefault();
+        stepFrame(1, e.shiftKey ? 5 : 1);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [outputId, togglePlayback, seekBy, stepFrame]);
+
   if (!outputId) return null;
 
   if (!hasComparison) {
     return (
-      <div className="neon-video-frame overflow-hidden">
-        <video
-          ref={singleRef}
-          key={outputId}
-          src={videoUrl(outputId)}
-          controls
-          autoPlay
-          loop
-          playsInline
-          onTimeUpdate={onTimeUpdate}
-          className="w-full max-h-[70vh] object-contain"
-        />
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-end">
+          <span className="text-[10px] font-pixel uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>
+            J / K / L / , / .
+          </span>
+        </div>
+        <div className="neon-video-frame overflow-hidden">
+          <video
+            ref={singleRef}
+            key={outputId}
+            src={videoUrl(outputId)}
+            controls
+            autoPlay
+            loop
+            playsInline
+          aria-label="Rendered climb video (keyboard: J/K/L, comma/period frame step, Space)"
+          aria-keyshortcuts="J K L Comma Period Space"
+            onTimeUpdate={onTimeUpdate}
+            className="w-full max-h-[70vh] object-contain"
+          />
+        </div>
       </div>
     );
   }
@@ -57,7 +142,10 @@ export function VideoPlayer() {
   return (
     <div className="flex flex-col sm:flex-row gap-3">
       <div className="flex flex-col gap-1 flex-1 min-w-0">
-        <span className="text-[10px] font-pixel text-center uppercase tracking-[0.2em]" style={{ color: "var(--neon-cyan)", textShadow: "0 0 6px rgba(0,229,255,0.4)" }}>smart ramp</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-pixel text-center uppercase tracking-[0.2em]" style={{ color: "var(--neon-cyan)", textShadow: "0 0 6px rgba(0,229,255,0.4)" }}>smart ramp</span>
+          <span className="text-[10px] font-pixel uppercase tracking-[0.2em]" style={{ color: "var(--text-muted)" }}>J / K / L / , / .</span>
+        </div>
         <div className="neon-video-frame overflow-hidden">
           <video
             ref={smartRef}
@@ -67,6 +155,8 @@ export function VideoPlayer() {
             autoPlay
             loop
             playsInline
+            aria-label="Rendered climb video smart ramp comparison (keyboard: J/K/L, comma/period frame step, Space)"
+            aria-keyshortcuts="J K L Comma Period Space"
             className="w-full max-h-[70vh] object-contain"
             onPlay={syncPlay}
             onPause={syncPause}
@@ -85,6 +175,7 @@ export function VideoPlayer() {
             loop
             playsInline
             muted
+            aria-hidden="true"
             className="w-full max-h-[70vh] object-contain"
           />
         </div>

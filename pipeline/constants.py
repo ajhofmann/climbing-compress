@@ -28,11 +28,36 @@ TRACK_EDGE_FILL_MAX_FRAMES: int = 15
 # Default (30) is short for climbing; 90 lets it survive brief occlusions.
 BYTETRACK_LOST_TRACK_BUFFER: int = 90
 
+# Consecutive misses before entering SEARCHING state (relaxed gate).
+TRACK_SEARCH_GAP_FRAMES: int = 4
+
+# Max-jump multiplier applied in SEARCHING state so the tracker can
+# reach further for the climber without a full reset.
+TRACK_SEARCH_MAX_JUMP_SCALE: float = 3.0
+
+# Minimum confidence to accept a high-confidence re-lock in SEARCHING
+# state regardless of distance from last known position.
+TRACK_RELOCK_CONF: float = 0.6
+
+# Rolling window (detections) for track quality monitoring.
+TRACK_QUALITY_WINDOW: int = 10
+
+# If rolling mean confidence drops below this while LOCKED, transition
+# to SEARCHING proactively (likely tracking the wrong person).
+TRACK_QUALITY_MIN_CONF: float = 0.35
+
 # Confidence for fallback re-detection when primary detection misses.
 TRACK_FALLBACK_CONF: float = 0.15
 
 # Resolution multiplier for fallback re-detection (relative to base).
 TRACK_FALLBACK_RESOLUTION: int = 960
+
+# Adaptive pose extraction fallback:
+# If tracker-guided pose sanitization drops too many frames, retry full-frame
+# extraction and switch when it materially improves quality.
+POSE_ADAPTIVE_SANITIZE_DROP_PCT: float = 60.0
+POSE_ADAPTIVE_SANITIZE_DROP_MIN_FRAMES: int = 120
+POSE_ADAPTIVE_MIN_IMPROVEMENT_PCT: float = 8.0
 
 # Percentile used for score normalization.
 # Normalizing to the 95th percentile (not max) prevents outlier spikes

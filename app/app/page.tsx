@@ -6,82 +6,310 @@ import { analyzeVideo, solveCurve, renderVideo } from "@/lib/api";
 import { VideoUpload } from "@/components/video-upload";
 import { VideoPlayer } from "@/components/video-player";
 import { TimelineEditor } from "@/components/timeline-editor";
-import { DebugCharts } from "@/components/debug-charts";
 import { SettingsPanel } from "@/components/settings";
 import { ProgressBar } from "@/components/progress-bar";
 import { Tooltip } from "@/components/tooltip";
 import { HeaderArt } from "@/components/header-art";
 
 export default function Home() {
-  const store = useStore();
+  const videoId = useStore((s) => s.videoId);
+  const analysis = useStore((s) => s.analysis);
+  const analysisParams = useStore((s) => s.analysisParams);
+  const settings = useStore((s) => s.settings);
+  const pins = useStore((s) => s.pins);
+  const keyframes = useStore((s) => s.keyframes);
+  const isAnalyzing = useStore((s) => s.isAnalyzing);
+  const isRendering = useStore((s) => s.isRendering);
+
+  const setCurve = useStore((s) => s.setCurve);
+  const setAnalysis = useStore((s) => s.setAnalysis);
+  const setAnalyzing = useStore((s) => s.setAnalyzing);
+  const setRendering = useStore((s) => s.setRendering);
+  const setProgress = useStore((s) => s.setProgress);
+  const updateSettings = useStore((s) => s.updateSettings);
+  const setOutputId = useStore((s) => s.setOutputId);
+  const setComparisonId = useStore((s) => s.setComparisonId);
+
   const solveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { videoId, analysis, settings, pins } = store;
+  const autoSolveAbortRef = useRef<AbortController | null>(null);
+  const analyzeAbortRef = useRef<AbortController | null>(null);
+  const analyzeSolveAbortRef = useRef<AbortController | null>(null);
+  const analyzeRunRef = useRef(0);
+  const renderAbortRef = useRef<AbortController | null>(null);
+  const renderRunRef = useRef(0);
+  const suspendAutoSolveRef = useRef(false);
+
+  const isAbortError = (e: unknown) => e instanceof Error && e.name === "AbortError";
 
   useEffect(() => {
-    if (!videoId || !analysis) return;
+    return () => {
+      analyzeAbortRef.current?.abort();
+      analyzeSolveAbortRef.current?.abort();
+      autoSolveAbortRef.current?.abort();
+      renderAbortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!videoId || !analysis || suspendAutoSolveRef.current) return;
     if (solveTimeout.current) clearTimeout(solveTimeout.current);
+    autoSolveAbortRef.current?.abort();
     solveTimeout.current = setTimeout(async () => {
+      const controller = new AbortController();
+      autoSolveAbortRef.current = controller;
       try {
-        const result = await solveCurve(videoId, settings, pins);
-        store.setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions);
+        const result = await solveCurve(videoId, settings, pins, keyframes, controller.signal);
+        if (controller.signal.aborted) return;
+        setCurve(result.curve, result.times, result.stats, result.scores, result.rest_regions, result.crux_points);
       } catch (e) {
+        if (isAbortError(e)) return;
         console.error("solve:", e);
+      } finally {
+        if (autoSolveAbortRef.current === controller) {
+          autoSolveAbortRef.current = null;
+        }
       }
     }, 80);
-    return () => { if (solveTimeout.current) clearTimeout(solveTimeout.current); };
-  }, [videoId, analysis, settings, pins]);
+    return () => {
+      if (solveTimeout.current) clearTimeout(solveTimeout.current);
+      autoSolveAbortRef.current?.abort();
+    };
+  }, [videoId, analysis, settings, pins, keyframes, setCurve]);
 
   const handleAnalyze = useCallback(async () => {
     if (!videoId) return;
+    const runId = analyzeRunRef.current + 1;
+    analyzeRunRef.current = runId;
+    suspendAutoSolveRef.current = true;
+    analyzeAbortRef.current?.abort();
+    analyzeSolveAbortRef.current?.abort();
+    autoSolveAbortRef.current?.abort();
+    const analyzeController = new AbortController();
+    analyzeAbortRef.current = analyzeController;
+    let solveController: AbortController | null = null;
+
     const currentParams: AnalysisParams = {
       stride: settings.analyzeStride,
       useTracker: settings.useTracker,
       useFlow: settings.useFlow,
     };
-    const cached = store.analysisParams;
+    const cached = analysisParams;
     const paramsMatch = cached && cached.stride === currentParams.stride && cached.useTracker === currentParams.useTracker && cached.useFlow === currentParams.useFlow;
     const force = !!(analysis && paramsMatch);
-    store.setAnalyzing(true);
-    store.setProgress(0, force ? "Re-analyzing (fresh)..." : "Starting analysis...");
+    setAnalyzing(true);
+    setProgress(0, force ? "Re-analyzing (fresh)..." : "Starting analysis...");
     try {
-      const result = await analyzeVideo(videoId, settings.analyzeStride, force, (p, msg) => { store.setProgress(p, msg); }, settings.useTracker, settings.useFlow, settings.trackerModel);
+      const result = await analyzeVideo(
+        videoId,
+        settings.analyzeStride,
+        force,
+        (p, msg) => {
+          if (analyzeRunRef.current !== runId) return;
+          setProgress(p, msg);
+        },
+        settings.useTracker,
+        settings.useFlow,
+        settings.trackerModel,
+        analyzeController.signal,
+      );
+      if (analyzeController.signal.aborted || analyzeRunRef.current !== runId) return;
       if (result) {
-        store.setAnalysis(result, currentParams);
-        if (settings.trimEnd === 0) store.updateSettings({ trimEnd: result.duration });
-        store.setProgress(0.95, "Computing speed curve...");
+        setAnalysis(result, currentParams);
+        if (settings.trimEnd === 0) updateSettings({ trimEnd: result.duration });
+        if (analyzeRunRef.current !== runId) return;
+        setProgress(0.95, "Computing speed curve...");
         const updatedSettings = { ...settings, trimEnd: settings.trimEnd === 0 ? result.duration : settings.trimEnd };
-        const solveResult = await solveCurve(videoId, updatedSettings, pins);
-        store.setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions);
-        store.setProgress(0, "Analysis complete!");
+        solveController = new AbortController();
+        analyzeSolveAbortRef.current = solveController;
+        const solveResult = await solveCurve(videoId, updatedSettings, pins, keyframes, solveController.signal);
+        if (solveController.signal.aborted || analyzeRunRef.current !== runId) return;
+        setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions, solveResult.crux_points);
+        setProgress(0, "Analysis complete!");
       }
     } catch (e: unknown) {
+      if (isAbortError(e)) return;
+      if (analyzeRunRef.current !== runId) return;
       const msg = e instanceof Error ? e.message : "Unknown error";
-      store.setProgress(0, `Error: ${msg}`);
+      setProgress(0, `Error: ${msg}`);
     } finally {
-      store.setAnalyzing(false);
+      if (analyzeSolveAbortRef.current === solveController) {
+        analyzeSolveAbortRef.current = null;
+      }
+      if (analyzeRunRef.current === runId && analyzeAbortRef.current === analyzeController) {
+        analyzeAbortRef.current = null;
+        suspendAutoSolveRef.current = false;
+        setAnalyzing(false);
+      }
     }
-  }, [videoId, analysis, settings, pins]);
+  }, [videoId, analysis, analysisParams, settings, pins, keyframes, setAnalyzing, setProgress, setAnalysis, updateSettings, setCurve]);
+
+  const handleCancelAnalyze = useCallback(() => {
+    analyzeRunRef.current += 1;
+    if (solveTimeout.current) {
+      clearTimeout(solveTimeout.current);
+      solveTimeout.current = null;
+    }
+    autoSolveAbortRef.current?.abort();
+    autoSolveAbortRef.current = null;
+    analyzeSolveAbortRef.current?.abort();
+    analyzeSolveAbortRef.current = null;
+    analyzeAbortRef.current?.abort();
+    analyzeAbortRef.current = null;
+    suspendAutoSolveRef.current = false;
+    setAnalyzing(false);
+    setProgress(0, "Analysis cancelled");
+  }, [setAnalyzing, setProgress]);
 
   const handleRender = useCallback(async () => {
     if (!videoId) return;
-    store.setRendering(true);
-    store.setProgress(0, "Starting render...");
+    renderAbortRef.current?.abort();
+    const renderController = new AbortController();
+    renderAbortRef.current = renderController;
+    const runId = renderRunRef.current + 1;
+    renderRunRef.current = runId;
+    setRendering(true);
+    setProgress(0, "Starting render...");
     try {
-      const result = await renderVideo(videoId, settings, pins, (p, msg) => { store.setProgress(p, msg); });
+      const result = await renderVideo(
+        videoId,
+        settings,
+        pins,
+        keyframes,
+        (p, msg) => {
+          if (renderRunRef.current !== runId) return;
+          setProgress(p, msg);
+        },
+        renderController.signal,
+      );
+      if (renderController.signal.aborted || renderRunRef.current !== runId) return;
       if (result?.output_id) {
-        store.setOutputId(result.output_id);
-        store.setComparisonId(result.comparison_id ?? null);
-        store.setProgress(0, `Done! ${result.stats?.output_duration}s video ready`);
+        setOutputId(result.output_id);
+        setComparisonId(result.comparison_id ?? null);
+        setProgress(0, `Done! ${result.stats?.output_duration}s video ready`);
       }
     } catch (e: unknown) {
+      if (isAbortError(e)) return;
       const msg = e instanceof Error ? e.message : "Unknown error";
-      store.setProgress(0, `Error: ${msg}`);
+      setProgress(0, `Error: ${msg}`);
     } finally {
-      store.setRendering(false);
+      if (renderRunRef.current === runId && renderAbortRef.current === renderController) {
+        renderAbortRef.current = null;
+        setRendering(false);
+      }
     }
-  }, [videoId, settings, pins]);
+  }, [videoId, settings, pins, keyframes, setRendering, setProgress, setOutputId, setComparisonId]);
+
+  const handleQuickRender = useCallback(async () => {
+    if (!videoId) return;
+    renderAbortRef.current?.abort();
+    const renderController = new AbortController();
+    renderAbortRef.current = renderController;
+    const runId = renderRunRef.current + 1;
+    renderRunRef.current = runId;
+    setRendering(true);
+    setProgress(0, "Starting quick preview render...");
+    try {
+      const draftSettings = {
+        ...settings,
+        scale: Math.min(settings.scale, 0.35),
+        outputFps: Math.min(settings.outputFps, 24),
+        crf: Math.max(settings.crf, 30),
+        includeAudio: false,
+        debugOverlay: false,
+        renderComparison: false,
+      };
+      const result = await renderVideo(
+        videoId,
+        draftSettings,
+        pins,
+        keyframes,
+        (p, msg) => {
+          if (renderRunRef.current !== runId) return;
+          setProgress(p, `[preview] ${msg}`);
+        },
+        renderController.signal,
+      );
+      if (renderController.signal.aborted || renderRunRef.current !== runId) return;
+      if (result?.output_id) {
+        setOutputId(result.output_id);
+        setComparisonId(null);
+        setProgress(0, "Quick preview ready");
+      }
+    } catch (e: unknown) {
+      if (isAbortError(e)) return;
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setProgress(0, `Error: ${msg}`);
+    } finally {
+      if (renderRunRef.current === runId && renderAbortRef.current === renderController) {
+        renderAbortRef.current = null;
+        setRendering(false);
+      }
+    }
+  }, [videoId, settings, pins, keyframes, setRendering, setProgress, setOutputId, setComparisonId]);
+
+  const handleCancelRender = useCallback(() => {
+    renderRunRef.current += 1;
+    renderAbortRef.current?.abort();
+    renderAbortRef.current = null;
+    setRendering(false);
+    setProgress(0, "Render cancelled");
+  }, [setRendering, setProgress]);
+
+  useEffect(() => {
+    if (!isRendering) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleCancelRender();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isRendering, handleCancelRender]);
 
   const hasAnalysis = !!analysis;
+
+  const handleTransportShortcuts = useCallback((e: KeyboardEvent) => {
+    const target = e.target as HTMLElement | null;
+    const tag = target?.tagName;
+    if (target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || tag === "BUTTON") return;
+
+    if (!(e.ctrlKey || e.metaKey)) return;
+
+    const key = e.key.toLowerCase();
+
+    if (key === "a" && e.shiftKey) {
+      if (!videoId || isRendering) return;
+      e.preventDefault();
+      if (isAnalyzing) {
+        handleCancelAnalyze();
+      } else {
+        handleAnalyze();
+      }
+      return;
+    }
+
+    if (e.key === "Enter") {
+      if (!videoId || !hasAnalysis || isAnalyzing || isRendering) return;
+      e.preventDefault();
+      if (e.shiftKey) {
+        handleRender();
+      } else {
+        handleQuickRender();
+      }
+    }
+  }, [
+    videoId,
+    hasAnalysis,
+    isAnalyzing,
+    isRendering,
+    handleAnalyze,
+    handleCancelAnalyze,
+    handleRender,
+    handleQuickRender,
+  ]);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleTransportShortcuts);
+    return () => window.removeEventListener("keydown", handleTransportShortcuts);
+  }, [handleTransportShortcuts]);
 
   return (
     <main className="max-w-[1400px] mx-auto px-8 py-6 flex flex-col gap-4">
@@ -98,38 +326,78 @@ export default function Home() {
           <VideoUpload />
         ) : (
           <>
+            {/* Clip info bar */}
+            <VideoUpload />
+
             {/* Transport bar */}
-            <div className="flex items-center gap-3 mb-2">
-              <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb."}>
+            <div className="flex items-center gap-3 mt-2 mb-2">
+              <Tooltip text={"Detect the climber's pose in every frame.\nComputes movement scores and identifies\nrest vs action sections of the climb.\nShortcut: Ctrl/Cmd + Shift + A"}>
                 <button
-                  onClick={handleAnalyze}
-                  disabled={!videoId || store.isAnalyzing}
+                  onClick={isAnalyzing ? handleCancelAnalyze : handleAnalyze}
+                  disabled={!videoId}
+                  aria-keyshortcuts="Control+Shift+A Meta+Shift+A"
                   className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
-                    store.isAnalyzing ? "retro-btn-primary opacity-70"
+                    isAnalyzing ? "retro-btn"
                       : videoId && !hasAnalysis ? "retro-btn-primary pulse-border"
                       : "retro-btn"
                   } disabled:opacity-30 disabled:cursor-not-allowed`}
+                  style={isAnalyzing ? {
+                    borderColor: "var(--danger)",
+                    color: "var(--danger)",
+                    textShadow: "0 0 8px rgba(255,23,68,0.35)",
+                  } : {}}
                 >
-                  {store.isAnalyzing ? "ANALYZING..." : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
+                  {isAnalyzing ? "CANCEL" : hasAnalysis ? "RE-ANALYZE" : "ANALYZE"}
                 </button>
               </Tooltip>
               <div className="flex-1 min-w-0">
                 <ProgressBar />
               </div>
-              {/* Video info inline */}
-              <VideoUpload />
-              <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel."}>
+              <Tooltip text={"Fast local preview render.\nUses lower resolution + higher CRF + no audio\nfor rapid iteration while tuning curve edits.\nShortcut: Ctrl/Cmd + Enter"}>
                 <button
-                  onClick={handleRender}
-                  disabled={!videoId || !hasAnalysis || store.isRendering}
-                  className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
-                    store.isRendering ? "retro-btn opacity-70" : hasAnalysis ? "retro-btn-primary" : "retro-btn"
+                  onClick={handleQuickRender}
+                  disabled={!videoId || !hasAnalysis || isRendering}
+                  aria-keyshortcuts="Control+Enter Meta+Enter"
+                  className={`px-4 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
+                    hasAnalysis ? "retro-btn" : "retro-btn"
                   } disabled:opacity-30 disabled:cursor-not-allowed`}
-                  style={store.isRendering ? { borderColor: "var(--neon-orange)", color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.5)" } : {}}
+                  style={hasAnalysis ? { borderColor: "var(--neon-magenta)", color: "var(--neon-magenta)", textShadow: "0 0 8px rgba(224,64,251,0.35)" } : {}}
                 >
-                  {store.isRendering ? "RENDERING..." : "RENDER"}
+                  PREVIEW
                 </button>
               </Tooltip>
+              <Tooltip text={"Export the speed-ramped video using\nyour current curve and settings.\nIncludes stabilization, audio, and overlays\nif enabled in the Output panel.\nShortcut: Ctrl/Cmd + Shift + Enter"}>
+                <button
+                  onClick={handleRender}
+                  disabled={!videoId || !hasAnalysis || isRendering}
+                  aria-keyshortcuts="Control+Shift+Enter Meta+Shift+Enter"
+                  className={`px-5 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap ${
+                    isRendering ? "retro-btn opacity-70" : hasAnalysis ? "retro-btn-primary" : "retro-btn"
+                  } disabled:opacity-30 disabled:cursor-not-allowed`}
+                  style={isRendering ? { borderColor: "var(--neon-orange)", color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.45)" } : {}}
+                >
+                  {isRendering ? "RENDERING..." : "RENDER"}
+                </button>
+              </Tooltip>
+              {isRendering && (
+                <button
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    handleCancelRender();
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleCancelRender();
+                  }}
+                  onClick={handleCancelRender}
+                  aria-keyshortcuts="Escape"
+                  className="px-3 py-1.5 rounded text-xs font-pixel uppercase tracking-widest transition-all whitespace-nowrap retro-btn"
+                  style={{ borderColor: "var(--danger)", color: "var(--danger)", textShadow: "0 0 8px rgba(255,23,68,0.45)" }}
+                  title="Cancel the active render request (Esc also works)"
+                >
+                  CANCEL
+                </button>
+              )}
             </div>
             <TimelineEditor />
           </>
@@ -139,9 +407,6 @@ export default function Home() {
       <div className="neon-divider w-full" />
       {/* Settings Dashboard */}
       <SettingsPanel />
-
-      {/* Debug Charts */}
-      <DebugCharts />
 
       {/* Footer */}
       <footer className="relative mt-4 pt-4 pb-3 flex flex-col items-center gap-3">

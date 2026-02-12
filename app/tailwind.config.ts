@@ -32,8 +32,8 @@ const config: Config = {
         "panel-bg": "var(--panel-bg)",
       },
       fontFamily: {
-        pixel: ["'Press Start 2P'", "monospace"],
-        retro: ["'VT323'", "'Courier New'", "monospace"],
+        pixel: ["var(--font-pixel)", "monospace"],
+        retro: ["var(--font-retro)", "'Courier New'", "monospace"],
       },
       boxShadow: {
         "glow-cyan": "0 0 8px rgba(0,229,255,0.4), 0 0 20px rgba(0,229,255,0.15)",

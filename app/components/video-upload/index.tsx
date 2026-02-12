@@ -1,35 +1,2481 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { uploadVideo } from "@/lib/api";
+import { deleteAllOutputs, deleteAllVideos, deleteOutputsForVideo, deleteVideo, getLibraryStats, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
 
+const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
+const RECENT_PREVIEW_LIMIT = 6;
+const RECENT_CURSOR_PAGE_STEP = 5;
+const RECENT_PREF_KEY = "sendit.recentPrefs";
+const RECENT_SORT_MODES = ["recent", "name", "duration", "outputs", "size", "fps", "resolution"] as const;
+const RECENT_FILTER_SIMPLE_TAGS = ["#cached", "#uncached", "#out", "#noout", "#short", "#long", "#portrait", "#landscape", "#square"] as const;
+const RECENT_FILTER_SIMPLE_TAG_ALIASES = {
+  "#cache": "#cached",
+  "#warm": "#cached",
+  "#nocache": "#uncached",
+  "#cold": "#uncached",
+  "#vertical": "#portrait",
+  "#vert": "#portrait",
+  "#horizontal": "#landscape",
+  "#horiz": "#landscape",
+  "#sq": "#square",
+} as const;
+const RECENT_FILTER_SIMPLE_TAG_ALIAS_SUGGESTIONS = Object.keys(RECENT_FILTER_SIMPLE_TAG_ALIASES) as (keyof typeof RECENT_FILTER_SIMPLE_TAG_ALIASES)[];
+const RECENT_FILTER_TAG_TEMPLATES = ["#out>=1", "#out=0", "#out!=0", "#out=..0", "#src>3k", "#mb>0b", "#src>10m", "#mb>10m", "#src=2k..", "#dur>5", "#dur<5", "#dur!=5", "#dur>90s", "#dur>1m30s", "#dur=..2", "#ar>=1.3", "#ar=1.3..1.8", "#fc<=30", "#px>=2mp", "#px=1mp..3mp", "#ext=mp4", "#ext=mp4,mov", "#ext*=mp", "#res=1920x1080", "#res>=1920x1080", "#res=1280x720..1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name*=clip", "#id*=abc", "#id=abc123,def456"] as const;
+const RECENT_COMPARATOR_FAMILIES = ["#out", "#src", "#mb", "#dur", "#fps", "#w", "#h", "#ar", "#fc", "#px", "#res"] as const;
+const RECENT_COMPARATOR_TYPO_FAMILIES = ["#out", "#outputs", "#src", "#source", "#sourcebytes", "#mb", "#render", "#outputbytes", "#dur", "#time", "#duration", "#fps", "#framerate", "#w", "#width", "#h", "#height", "#ar", "#aspect", "#ratio", "#fc", "#frames", "#px", "#pixels", "#mp", "#res", "#resolution", "#ext", "#format", "#name", "#file", "#filename", "#id", "#video", "#videoid", "#vid"] as const;
+const RECENT_RANGE_HINT_TAGS_BY_FAMILY: Record<(typeof RECENT_COMPARATOR_FAMILIES)[number], readonly string[]> = {
+  "#out": ["#out=0..2", "#out=..0"],
+  "#src": ["#src=2k..4k", "#src=2k.."],
+  "#mb": ["#mb=0b..1m", "#mb=..1m"],
+  "#dur": ["#dur=1..2", "#dur=..2", "#dur=0:01..0:06"],
+  "#fps": ["#fps=24..60", "#fps=..30"],
+  "#w": ["#w=720..1920", "#w=..1080"],
+  "#h": ["#h=720..1920", "#h=..1920"],
+  "#ar": ["#ar=1.3..1.8", "#ar=..1.4"],
+  "#fc": ["#fc=25..200", "#fc=..30"],
+  "#px": ["#px=1mp..3mp", "#px=..2mp"],
+  "#res": ["#res=1280x720..1920x1080", "#res=..1920x1080"],
+};
+const RECENT_FILTER_RANGE_SUGGESTIONS = ["#out=0..2", "#out=..0", "#src=2k..4k", "#src=2k..", "#mb=0b..1m", "#mb=..1m", "#dur=1..2", "#dur=..2", "#ar=1.3..1.8", "#ar=..1.4", "#fc=25..200", "#fc=..30", "#px=1mp..3mp", "#px=..2mp", "#res=1280x720..1920x1080", "#res=..1920x1080"] as const;
+const RECENT_FILTER_META_SUGGESTIONS = ["#fps>=24", "#fps<=60", "#fps=24..60", "#w>=1080", "#w=..1080", "#h>=1080", "#h=..1920", "#ar>=1.3", "#ar<=1.8", "#ar=1.3..1.8", "#fc>=25", "#fc<=30", "#fc=25..200", "#px>=2mp", "#px<=4mp", "#px=1mp..3mp", "#res=1920x1080", "#res>=1920x1080", "#res!=1920x1080", "#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name!=clip.mp4", "#name*=clip", "#name^=recent_", "#name$=.mp4", "#id*=abc", "#id^=c9b0", "#id=deadbeef00", "#id=abc123,def456"] as const;
+const RECENT_FILTER_TAGS = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_TAG_TEMPLATES] as const;
+const RECENT_OUTPUT_HINT_TAGS = ["#out>=1", "#out=0", "#out!=0"] as const;
+const RECENT_STORAGE_HINT_TAGS = ["#src>3k", "#mb>0b", "#src>10m"] as const;
+const RECENT_DURATION_HINT_TAGS = ["#dur>5", "#dur!=5", "#dur>90s", "#dur>1m30s"] as const;
+const RECENT_EXTENSION_HINT_TAGS = ["#ext=mp4", "#ext=mp4,mov", "#ext!=mp4", "#ext*=mp"] as const;
+const RECENT_NAME_HINT_TAGS = ["#name=clip.mp4", "#name=clip.mp4,other.mp4", "#name!=clip.mp4", "#name*=clip"] as const;
+const RECENT_ID_HINT_TAGS = ["#id*=abc", "#id^=c9b0", "#id=deadbeef00", "#id=abc123,def456"] as const;
+const RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY = {
+  "#fps": ["#fps>=24", "#fps=24..60"],
+  "#w": ["#w>=1080", "#w=..1080"],
+  "#h": ["#h>=1080", "#h=..1920"],
+  "#ar": ["#ar>=1.3", "#ar=1.3..1.8"],
+  "#fc": ["#fc>=25", "#fc=25..200"],
+  "#px": ["#px>=2mp", "#px=1mp..3mp"],
+  "#res": ["#res=1920x1080", "#res>=1920x1080", "#res!=1920x1080"],
+} as const;
+type ComparatorOperator = "<" | "<=" | ">" | ">=" | "=" | "!=";
+type ExtensionComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
+type ExtensionComparatorTerm = { operator: ExtensionComparatorOperator; values: string[] };
+type ResolutionComparatorOperator = ComparatorOperator;
+type ResolutionPair = { width: number; height: number };
+type ResolutionRangeFilter = { min: ResolutionPair | null; max: ResolutionPair | null };
+type NameComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
+type NameComparatorTerm = { operator: NameComparatorOperator; values: string[] };
+type IdComparatorOperator = "=" | "!=" | "*=" | "^=" | "$=";
+type IdComparatorTerm = { operator: IdComparatorOperator; values: string[] };
+type NumericRangeFilter = { min: number | null; max: number | null };
+type RecentSortMode = (typeof RECENT_SORT_MODES)[number];
+
+function normalizeComparatorOperator(raw: string): ComparatorOperator | null {
+  if (raw === "≤") return "<=";
+  if (raw === "≥") return ">=";
+  if (raw === "≠") return "!=";
+  if (raw === "<=" || raw === "=<") return "<=";
+  if (raw === ">=" || raw === "=>") return ">=";
+  if (raw === "=" || raw === "==") return "=";
+  if (raw === "!=" || raw === "<>") return "!=";
+  if (raw === "<" || raw === ">") return raw;
+  return null;
+}
+
+function normalizeNumericRange(left: number, right: number): NumericRangeFilter {
+  return left <= right ? { min: left, max: right } : { min: right, max: left };
+}
+
+function matchesNumericRange(value: number, range: NumericRangeFilter): boolean {
+  if (range.min != null && value < range.min) return false;
+  if (range.max != null && value > range.max) return false;
+  return true;
+}
+
+function parseDurationLiteralSeconds(raw: string): number | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (/^\d+(?:\.\d+)?$/.test(value)) {
+    const seconds = Number(value);
+    return Number.isFinite(seconds) ? seconds : null;
+  }
+  const secondsMatch = value.match(/^(\d+(?:\.\d+)?)s$/);
+  if (secondsMatch) {
+    const seconds = Number(secondsMatch[1]);
+    return Number.isFinite(seconds) ? seconds : null;
+  }
+  const clockMatch = value.match(/^(\d+):(\d{1,2}(?:\.\d+)?)$/);
+  if (clockMatch) {
+    const minutes = Number(clockMatch[1]);
+    const seconds = Number(clockMatch[2]);
+    if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || seconds >= 60) return null;
+    return minutes * 60 + seconds;
+  }
+  const clockHmsMatch = value.match(/^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/);
+  if (clockHmsMatch) {
+    const hours = Number(clockHmsMatch[1]);
+    const minutes = Number(clockHmsMatch[2]);
+    const seconds = Number(clockHmsMatch[3]);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+    if (minutes >= 60 || seconds >= 60) return null;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+  const hoursMatch = value.match(/^(\d+)h(?:(\d+)m)?(?:(\d+(?:\.\d+)?)s?)?$/);
+  if (hoursMatch) {
+    const hours = Number(hoursMatch[1]);
+    const minutes = hoursMatch[2] ? Number(hoursMatch[2]) : 0;
+    const seconds = hoursMatch[3] ? Number(hoursMatch[3]) : 0;
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+    if (minutes >= 60 || seconds >= 60) return null;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+  const decimalMinutesMatch = value.match(/^(\d+(?:\.\d+)?)m$/);
+  if (decimalMinutesMatch) {
+    const minutes = Number(decimalMinutesMatch[1]);
+    return Number.isFinite(minutes) ? minutes * 60 : null;
+  }
+  const minutesMatch = value.match(/^(\d+)m(?:(\d+(?:\.\d+)?)s?)?$/);
+  if (!minutesMatch) return null;
+  const minutes = Number(minutesMatch[1]);
+  const seconds = minutesMatch[2] ? Number(minutesMatch[2]) : 0;
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return null;
+  return minutes * 60 + seconds;
+}
+
+function parseDecimalLiteral(raw: string): number | null {
+  const token = raw.trim();
+  if (!/^\d+(?:\.\d+)?$/.test(token)) return null;
+  const value = Number(token);
+  return Number.isFinite(value) ? value : null;
+}
+
+function parseIntegerLiteral(raw: string): number | null {
+  const token = raw.trim();
+  if (!/^\d+$/.test(token)) return null;
+  const value = Number(token);
+  return Number.isFinite(value) ? value : null;
+}
+
+function parsePixelAreaLiteral(raw: string): number | null {
+  const token = raw.trim().toLowerCase();
+  const match = token.match(/^(\d+(?:\.\d+)?)(mp|m|k)?$/);
+  if (!match) return null;
+  const base = Number(match[1]);
+  if (!Number.isFinite(base)) return null;
+  const unit = match[2] ?? "";
+  if (unit === "k") return base * 1_000;
+  if (unit === "m" || unit === "mp") return base * 1_000_000;
+  return base;
+}
+
+function parseOpenRangeParts(
+  leftRaw: string,
+  rightRaw: string,
+  parseValue: (token: string) => number | null,
+): NumericRangeFilter | null {
+  const leftToken = leftRaw.trim();
+  const rightToken = rightRaw.trim();
+  const hasLeft = leftToken.length > 0;
+  const hasRight = rightToken.length > 0;
+  if (!hasLeft && !hasRight) return null;
+  const left = hasLeft ? parseValue(leftToken) : null;
+  const right = hasRight ? parseValue(rightToken) : null;
+  if ((left != null && !Number.isFinite(left)) || (right != null && !Number.isFinite(right))) return null;
+  if (hasLeft && left == null) return null;
+  if (hasRight && right == null) return null;
+  if (left != null && right != null) return normalizeNumericRange(left, right);
+  if (left != null) return { min: left, max: null };
+  if (right != null) return { min: null, max: right };
+  return null;
+}
+
+function parseOutputComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#(?:out|outputs)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = Number(comparatorMatch[2]);
+  if (!Number.isFinite(value)) return null;
+  return { operator, value };
+}
+
+function parseOutputRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:out|outputs)(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
+}
+
+function parseSourceBytesRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:src|source|sourcebytes)(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseByteLiteral);
+}
+
+function parseByteLiteral(raw: string): number | null {
+  const match = raw.trim().toLowerCase().match(/^(\d+(?:\.\d+)?)(?:\s*)(kib|mib|gib|ki|mi|gi|kb|mb|gb|b|k|m|g)?$/);
+  if (!match) return null;
+  const amount = Number(match[1]);
+  if (!Number.isFinite(amount)) return null;
+  const unit = match[2] ?? "b";
+  const multiplier = unit === "k" || unit === "kb" || unit === "ki" || unit === "kib"
+    ? 1024
+    : unit === "m" || unit === "mb" || unit === "mi" || unit === "mib"
+      ? 1024 * 1024
+      : unit === "g" || unit === "gb" || unit === "gi" || unit === "gib"
+        ? 1024 * 1024 * 1024
+        : 1;
+  return amount * multiplier;
+}
+
+function parseSourceBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
+  const comparatorMatch = term.match(/^#(?:src|source|sourcebytes)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const valueBytes = parseByteLiteral(comparatorMatch[2]);
+  if (valueBytes == null || !Number.isFinite(valueBytes)) return null;
+  return { operator, valueBytes };
+}
+
+function parseOutputBytesComparatorTerm(term: string): { operator: ComparatorOperator; valueBytes: number } | null {
+  const comparatorMatch = term.match(/^#(?:mb|render|outputbytes)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const valueBytes = parseByteLiteral(comparatorMatch[2]);
+  if (valueBytes == null || !Number.isFinite(valueBytes)) return null;
+  return { operator, valueBytes };
+}
+
+function parseOutputBytesRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:mb|render|outputbytes)(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseByteLiteral);
+}
+
+function parseDurationComparatorTerm(term: string): { operator: ComparatorOperator; valueSeconds: number } | null {
+  const comparatorMatch = term.match(/^#(?:dur|time|duration)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const valueSeconds = parseDurationLiteralSeconds(comparatorMatch[2]);
+  if (valueSeconds == null || !Number.isFinite(valueSeconds)) return null;
+  return { operator, valueSeconds };
+}
+
+function parseDurationRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:dur|time|duration)(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseDurationLiteralSeconds);
+}
+
+function parseAspectRatioLiteral(raw: string): number | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  const ratioMatch = value.match(/^(\d+(?:\.\d+)?)\s*:\s*(\d+(?:\.\d+)?)$/);
+  if (ratioMatch) {
+    const width = Number(ratioMatch[1]);
+    const height = Number(ratioMatch[2]);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || height <= 0) return null;
+    const ratio = width / height;
+    return Number.isFinite(ratio) && ratio > 0 ? ratio : null;
+  }
+  const ratio = parseDecimalLiteral(value);
+  if (ratio == null || ratio <= 0) return null;
+  return ratio;
+}
+
+function parseAspectComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#(?:ar|aspect|ratio)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parseAspectRatioLiteral(comparatorMatch[2]);
+  if (value == null) return null;
+  return { operator, value };
+}
+
+function parseAspectRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:ar|aspect|ratio)(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseAspectRatioLiteral);
+}
+
+function parseFrameCountComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#(?:fc|frames)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parseIntegerLiteral(comparatorMatch[2]);
+  if (value == null) return null;
+  return { operator, value };
+}
+
+function parseFrameCountRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:fc|frames)(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
+}
+
+function parsePixelAreaComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#(?:px|pixels|mp)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/i);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parsePixelAreaLiteral(comparatorMatch[2]);
+  if (value == null || !Number.isFinite(value)) return null;
+  return { operator, value };
+}
+
+function parsePixelAreaRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:px|pixels|mp)(?:==|=)(.*?)\.\.(.*)$/i);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parsePixelAreaLiteral);
+}
+
+function parseExtensionComparatorTerm(term: string): ExtensionComparatorTerm | null {
+  const comparatorMatch = term.match(/^#(?:ext|format)(\*=|\^=|\$=|==|=|!=|<>)([a-z0-9.,|]+)$/i);
+  if (!comparatorMatch) return null;
+  const operator: ExtensionComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "=="
+    ? "="
+    : comparatorMatch[1] === "!=" || comparatorMatch[1] === "<>"
+      ? "!="
+      : comparatorMatch[1] === "*=" || comparatorMatch[1] === "^=" || comparatorMatch[1] === "$="
+        ? comparatorMatch[1]
+        : "=";
+  const rawValue = comparatorMatch[2].trim().toLowerCase();
+  if (!rawValue) return null;
+  if (operator === "=" || operator === "!=") {
+    const values = rawValue
+      .replace(/\|/g, ",")
+      .split(",")
+      .map((entry) => entry.trim().replace(/^\./, ""))
+      .filter((entry, idx, arr) => entry.length > 0 && arr.indexOf(entry) === idx);
+    if (values.length <= 0) return null;
+    return { operator, values };
+  }
+  if (rawValue.includes(",") || rawValue.includes("|")) return null;
+  const value = rawValue.replace(/^\./, "");
+  if (!value) return null;
+  return { operator, values: [value] };
+}
+
+function parseResolutionPairLiteral(raw: string): ResolutionPair | null {
+  const match = raw.trim().match(/^(\d{1,5})\s*(?:x|×|\*|:)\s*(\d{1,5})$/i);
+  if (!match) return null;
+  const width = parseIntegerLiteral(match[1]);
+  const height = parseIntegerLiteral(match[2]);
+  if (width == null || height == null || width <= 0 || height <= 0) return null;
+  return { width, height };
+}
+
+function parseResolutionRangeTerm(term: string): ResolutionRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:res|resolution)(?:==|=)(.*?)\.\.(.*)$/i);
+  if (!rangeMatch) return null;
+  const leftToken = rangeMatch[1].trim();
+  const rightToken = rangeMatch[2].trim();
+  const hasLeft = leftToken.length > 0;
+  const hasRight = rightToken.length > 0;
+  if (!hasLeft && !hasRight) return null;
+  const left = hasLeft ? parseResolutionPairLiteral(leftToken) : null;
+  const right = hasRight ? parseResolutionPairLiteral(rightToken) : null;
+  if (hasLeft && !left) return null;
+  if (hasRight && !right) return null;
+  if (left && right) {
+    return {
+      min: { width: Math.min(left.width, right.width), height: Math.min(left.height, right.height) },
+      max: { width: Math.max(left.width, right.width), height: Math.max(left.height, right.height) },
+    };
+  }
+  if (left) return { min: left, max: null };
+  if (right) return { min: null, max: right };
+  return null;
+}
+
+function parseResolutionComparatorTerm(term: string): { operator: ResolutionComparatorOperator; width: number; height: number } | null {
+  const comparatorMatch = term.match(/^#(?:res|resolution)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(.+)$/i);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parseResolutionPairLiteral(comparatorMatch[2]);
+  if (!value) return null;
+  return { operator, width: value.width, height: value.height };
+}
+
+function parseNameComparatorTerm(term: string): NameComparatorTerm | null {
+  const comparatorMatch = term.match(/^#(?:name|file|filename)(\*=|\^=|\$=|==|=|!=|<>)(.+)$/i);
+  if (!comparatorMatch) return null;
+  const operator: NameComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "=="
+    ? "="
+    : comparatorMatch[1] === "!=" || comparatorMatch[1] === "<>"
+      ? "!="
+      : comparatorMatch[1] === "*=" || comparatorMatch[1] === "^=" || comparatorMatch[1] === "$="
+        ? comparatorMatch[1]
+        : "=";
+  const rawValue = comparatorMatch[2].trim().toLowerCase();
+  if (/^[<>=!≤≥≠]/.test(rawValue)) return null;
+  if (!rawValue) return null;
+  if (operator === "=" || operator === "!=") {
+    const values = rawValue
+      .replace(/\|/g, ",")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry, idx, arr) => entry.length > 0 && arr.indexOf(entry) === idx);
+    if (values.length <= 0) return null;
+    return { operator, values };
+  }
+  return { operator, values: [rawValue] };
+}
+
+function parseIdComparatorTerm(term: string): IdComparatorTerm | null {
+  const comparatorMatch = term.match(/^#(?:id|video|videoid|vid)(\*=|\^=|\$=|==|=|!=|<>)([a-z0-9,_|-]+)$/i);
+  if (!comparatorMatch) return null;
+  const operator: IdComparatorOperator = comparatorMatch[1] === "=" || comparatorMatch[1] === "=="
+    ? "="
+    : comparatorMatch[1] === "!=" || comparatorMatch[1] === "<>"
+      ? "!="
+      : comparatorMatch[1] === "*=" || comparatorMatch[1] === "^=" || comparatorMatch[1] === "$="
+        ? comparatorMatch[1]
+        : "=";
+  const rawValue = comparatorMatch[2].trim().toLowerCase();
+  if (!rawValue) return null;
+  if (operator === "=" || operator === "!=") {
+    const values = rawValue
+      .replace(/\|/g, ",")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry, idx, arr) => entry.length > 0 && arr.indexOf(entry) === idx);
+    if (values.length <= 0) return null;
+    return { operator, values };
+  }
+  return { operator, values: [rawValue] };
+}
+
+function parseFpsComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#(?:fps|framerate)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+(?:\.\d+)?)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parseDecimalLiteral(comparatorMatch[2]);
+  if (value == null) return null;
+  return { operator, value };
+}
+
+function parseFpsRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:fps|framerate)(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseDecimalLiteral);
+}
+
+function parseWidthComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#(?:w|width)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parseIntegerLiteral(comparatorMatch[2]);
+  if (value == null) return null;
+  return { operator, value };
+}
+
+function parseWidthRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:w|width)(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
+}
+
+function parseHeightComparatorTerm(term: string): { operator: ComparatorOperator; value: number } | null {
+  const comparatorMatch = term.match(/^#(?:h|height)(<=|=<|>=|=>|!=|<>|==|=|<|>|≤|≥|≠)(\d+)$/);
+  if (!comparatorMatch) return null;
+  const operator = normalizeComparatorOperator(comparatorMatch[1]);
+  if (!operator) return null;
+  const value = parseIntegerLiteral(comparatorMatch[2]);
+  if (value == null) return null;
+  return { operator, value };
+}
+
+function parseHeightRangeTerm(term: string): NumericRangeFilter | null {
+  const rangeMatch = term.match(/^#(?:h|height)(?:==|=)(.*?)\.\.(.*)$/);
+  if (!rangeMatch) return null;
+  return parseOpenRangeParts(rangeMatch[1], rangeMatch[2], parseIntegerLiteral);
+}
+
+function remapVideoMetaAliasForTarget(tag: string, targetTerm: string): string {
+  const normalizedTarget = targetTerm.toLowerCase();
+  if (normalizedTarget.startsWith("#pixels") && tag.startsWith("#px")) {
+    return `#pixels${tag.slice(3)}`;
+  }
+  if (normalizedTarget.startsWith("#mp") && tag.startsWith("#px")) {
+    return `#mp${tag.slice(3)}`;
+  }
+  if (normalizedTarget.startsWith("#videoid") && tag.startsWith("#id")) {
+    return `#videoid${tag.slice(3)}`;
+  }
+  if (normalizedTarget.startsWith("#outputbytes") && tag.startsWith("#mb")) {
+    return `#outputbytes${tag.slice(3)}`;
+  }
+  if (normalizedTarget.startsWith("#sourcebytes") && tag.startsWith("#src")) {
+    return `#sourcebytes${tag.slice(4)}`;
+  }
+  if (normalizedTarget.startsWith("#render") && tag.startsWith("#mb")) {
+    return `#render${tag.slice(3)}`;
+  }
+  if (normalizedTarget.startsWith("#outputs") && tag.startsWith("#out")) {
+    return `#outputs${tag.slice(4)}`;
+  }
+  if (normalizedTarget.startsWith("#source") && tag.startsWith("#src")) {
+    return `#source${tag.slice(4)}`;
+  }
+  if (normalizedTarget.startsWith("#video") && tag.startsWith("#id")) {
+    return `#video${tag.slice(3)}`;
+  }
+  if (normalizedTarget.startsWith("#vid") && tag.startsWith("#id")) {
+    return `#vid${tag.slice(3)}`;
+  }
+  if (normalizedTarget.startsWith("#duration") && tag.startsWith("#dur")) {
+    return `#duration${tag.slice(4)}`;
+  }
+  if (normalizedTarget.startsWith("#time") && tag.startsWith("#dur")) {
+    return `#time${tag.slice(4)}`;
+  }
+  if (normalizedTarget.startsWith("#aspect") && tag.startsWith("#ar")) {
+    return `#aspect${tag.slice(3)}`;
+  }
+  if (normalizedTarget.startsWith("#ratio") && tag.startsWith("#ar")) {
+    return `#ratio${tag.slice(3)}`;
+  }
+  if (normalizedTarget.startsWith("#filename") && tag.startsWith("#name")) {
+    return `#filename${tag.slice(5)}`;
+  }
+  if (normalizedTarget.startsWith("#file") && tag.startsWith("#name")) {
+    return `#file${tag.slice(5)}`;
+  }
+  if (normalizedTarget.startsWith("#resolution") && tag.startsWith("#res")) {
+    return `#resolution${tag.slice(4)}`;
+  }
+  if (normalizedTarget.startsWith("#format") && tag.startsWith("#ext")) {
+    return `#format${tag.slice(4)}`;
+  }
+  if (normalizedTarget.startsWith("#framerate") && tag.startsWith("#fps")) {
+    return `#framerate${tag.slice(4)}`;
+  }
+  if (normalizedTarget.startsWith("#width") && tag.startsWith("#w")) {
+    return `#width${tag.slice(2)}`;
+  }
+  if (normalizedTarget.startsWith("#height") && tag.startsWith("#h")) {
+    return `#height${tag.slice(2)}`;
+  }
+  if (normalizedTarget.startsWith("#frames") && tag.startsWith("#fc")) {
+    return `#frames${tag.slice(3)}`;
+  }
+  return tag;
+}
+
+function normalizeRecentFilterTerms(sourceTerms: string[]): string[] {
+  const dedupedTerms: string[] = [];
+  for (const token of sourceTerms) {
+    const lower = token.toLowerCase();
+    const isTagToken = lower.startsWith("#") || lower.startsWith("-#") || lower.startsWith("!#") || lower.startsWith("+#");
+    if (isTagToken && dedupedTerms.some((entry) => entry.toLowerCase() === lower)) continue;
+    dedupedTerms.push(token);
+  }
+  return dedupedTerms;
+}
+
+function parseRecentFilterQuery(source: string): string[] {
+  const terms: string[] = [];
+  const text = source.trim();
+  let buffer = "";
+  let activeQuote: "'" | '"' | null = null;
+  let escaped = false;
+  for (const char of text) {
+    if (activeQuote) {
+      if (escaped) {
+        buffer += char;
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === activeQuote) {
+        activeQuote = null;
+        continue;
+      }
+      buffer += char;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      const canStartQuotedSegment = buffer.length === 0
+        || buffer === "-"
+        || buffer === "!"
+        || buffer === "+"
+        || /[=><!^*$]$/.test(buffer);
+      if (canStartQuotedSegment) {
+        activeQuote = char;
+        continue;
+      }
+    }
+    if (/\s/.test(char)) {
+      if (buffer.length > 0) {
+        terms.push(buffer);
+        buffer = "";
+      }
+      continue;
+    }
+    buffer += char;
+  }
+  if (escaped) buffer += "\\";
+  if (buffer.length > 0) terms.push(buffer);
+  return terms;
+}
+
+function stringifyRecentFilterTerms(sourceTerms: string[]): string {
+  return sourceTerms
+    .filter((term) => term.length > 0)
+    .map((term) => {
+      const shouldQuote = /\s/.test(term) || term.startsWith("'") || term.startsWith('"');
+      if (!shouldQuote) return term;
+      const escaped = term.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      return `"${escaped}"`;
+    })
+    .join(" ");
+}
+
+function withExcludePrefix(term: string, prefix: "-" | "!" | null): string {
+  if (!prefix) return term;
+  const normalizedTerm = term.startsWith("-") || term.startsWith("!")
+    ? term.slice(1)
+    : term;
+  return `${prefix}${normalizedTerm}`;
+}
+
+function withIncludePrefix(term: string, includePrefix: boolean): string {
+  if (!includePrefix) return term;
+  const normalizedTerm = term.startsWith("+") || term.startsWith("-") || term.startsWith("!")
+    ? term.slice(1)
+    : term;
+  return `+${normalizedTerm}`;
+}
+
+function applyParsedTermPrefix(term: string, excludePrefix: "-" | "!" | null, includePrefix: boolean): string {
+  if (excludePrefix) return withExcludePrefix(term, excludePrefix);
+  return withIncludePrefix(term, includePrefix);
+}
+
+function levenshteinDistance(left: string, right: string): number {
+  if (left === right) return 0;
+  if (left.length === 0) return right.length;
+  if (right.length === 0) return left.length;
+  const prev = Array.from({ length: right.length + 1 }, (_, idx) => idx);
+  for (let i = 0; i < left.length; i += 1) {
+    const curr = [i + 1];
+    for (let j = 0; j < right.length; j += 1) {
+      const cost = left[i] === right[j] ? 0 : 1;
+      curr[j + 1] = Math.min(
+        curr[j] + 1,
+        prev[j + 1] + 1,
+        prev[j] + cost,
+      );
+    }
+    for (let j = 0; j < curr.length; j += 1) prev[j] = curr[j];
+  }
+  return prev[right.length];
+}
+
+function formatBytesShort(bytes: number | null) {
+  if (bytes == null || !Number.isFinite(bytes)) return "?";
+  const safe = Math.max(0, Math.round(bytes));
+  if (safe < 1024) return `${safe}b`;
+  if (safe < 1024 * 1024) return `${(safe / 1024).toFixed(safe < 10 * 1024 ? 1 : 0)}k`;
+  if (safe < 1024 * 1024 * 1024) return `${(safe / (1024 * 1024)).toFixed(safe < 10 * 1024 * 1024 ? 1 : 0)}m`;
+  return `${(safe / (1024 * 1024 * 1024)).toFixed(safe < 10 * 1024 * 1024 * 1024 ? 1 : 0)}g`;
+}
+
+function formatBytesVerbose(bytes: number | null) {
+  if (bytes == null || !Number.isFinite(bytes)) return "unknown size";
+  const safe = Math.max(0, bytes);
+  if (safe < 1024) return `${safe.toFixed(0)} B`;
+  if (safe < 1024 * 1024) return `${(safe / 1024).toFixed(1)} KB`;
+  if (safe < 1024 * 1024 * 1024) return `${(safe / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(safe / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
 export function VideoUpload() {
-  const { videoId, videoInfo, thumbnails, setVideo, setProgress } = useStore();
+  const videoId = useStore((state) => state.videoId);
+  const outputId = useStore((state) => state.outputId);
+  const videoName = useStore((state) => state.videoName);
+  const videoInfo = useStore((state) => state.videoInfo);
+  const setVideo = useStore((state) => state.setVideo);
+  const setVideoName = useStore((state) => state.setVideoName);
+  const clearVideo = useStore((state) => state.clearVideo);
+  const setProgress = useStore((state) => state.setProgress);
+  const progressMessage = useStore((state) => state.progressMessage);
+  const isAnalyzing = useStore((state) => state.isAnalyzing);
+  const isRendering = useStore((state) => state.isRendering);
   const [isDragging, setIsDragging] = useState(false);
+  const [recentVideos, setRecentVideos] = useState<VideoListItem[]>([]);
+  const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
+  const [renamingVideoId, setRenamingVideoId] = useState<string | null>(null);
+  const [recentFetchDone, setRecentFetchDone] = useState(false);
+  const [refreshingRecent, setRefreshingRecent] = useState(false);
+  const [clearingLibrary, setClearingLibrary] = useState(false);
+  const [clearingOutputs, setClearingOutputs] = useState(false);
+  const [clearingFilteredOutputs, setClearingFilteredOutputs] = useState(false);
+  const [pruningFiltered, setPruningFiltered] = useState(false);
+  const [clipBytes, setClipBytes] = useState<number | null>(null);
+  const [currentSourceBytes, setCurrentSourceBytes] = useState<number | null>(null);
+  const [outputCount, setOutputCount] = useState<number | null>(null);
+  const [outputBytes, setOutputBytes] = useState<number | null>(null);
+  const [clipOutputCount, setClipOutputCount] = useState<number | null>(null);
+  const [clipOutputBytes, setClipOutputBytes] = useState<number | null>(null);
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+  const [showAllRecent, setShowAllRecent] = useState(false);
+  const [showZeroQuickTags, setShowZeroQuickTags] = useState(false);
+  const [recentFilter, setRecentFilter] = useState("");
+  const [recentFilterFocused, setRecentFilterFocused] = useState(false);
+  const [recentCursorIdx, setRecentCursorIdx] = useState(-1);
+  const [recentTagCursorIdx, setRecentTagCursorIdx] = useState(-1);
+  const [recentSort, setRecentSort] = useState<RecentSortMode>("recent");
+  const [recentSortReversed, setRecentSortReversed] = useState(false);
+  const [recentOutputScope, setRecentOutputScope] = useState<"all" | "with" | "none">("all");
+  const [recentCacheScope, setRecentCacheScope] = useState<"all" | "cached" | "uncached">("all");
+  const recentFilterInputRef = useRef<HTMLInputElement>(null);
+
+  const cycleRecentSort = useCallback(() => {
+    setRecentSort((prev) => {
+      const idx = RECENT_SORT_MODES.indexOf(prev);
+      if (idx < 0) return "recent";
+      return RECENT_SORT_MODES[(idx + 1) % RECENT_SORT_MODES.length] ?? "recent";
+    });
+  }, []);
+
+  const resetRecentView = useCallback(() => {
+    setRecentFilter("");
+    setRecentOutputScope("all");
+    setRecentCacheScope("all");
+  }, []);
+  const resetRecentViewAll = useCallback(() => {
+    resetRecentView();
+    setRecentSort("recent");
+    setRecentSortReversed(false);
+    setShowAllRecent(false);
+    setShowZeroQuickTags(false);
+    setShowShortcutHelp(false);
+    setRecentCursorIdx(-1);
+  }, [resetRecentView]);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(RECENT_PREF_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { sort?: string; showAll?: boolean; showZeroQuickTags?: boolean; outputScope?: string; cacheScope?: string; filter?: string; shortcutHelp?: boolean; sortReverse?: boolean };
+      if (parsed.sort && RECENT_SORT_MODES.includes(parsed.sort as RecentSortMode)) {
+        setRecentSort(parsed.sort as RecentSortMode);
+      }
+      if (typeof parsed.sortReverse === "boolean") {
+        setRecentSortReversed(parsed.sortReverse);
+      }
+      if (typeof parsed.showAll === "boolean") {
+        setShowAllRecent(parsed.showAll);
+      }
+      if (typeof parsed.showZeroQuickTags === "boolean") {
+        setShowZeroQuickTags(parsed.showZeroQuickTags);
+      }
+      if (parsed.outputScope === "all" || parsed.outputScope === "with" || parsed.outputScope === "none") {
+        setRecentOutputScope(parsed.outputScope);
+      }
+      if (parsed.cacheScope === "all" || parsed.cacheScope === "cached" || parsed.cacheScope === "uncached") {
+        setRecentCacheScope(parsed.cacheScope);
+      }
+      if (typeof parsed.filter === "string") {
+        setRecentFilter(parsed.filter.slice(0, 120));
+      }
+      if (typeof parsed.shortcutHelp === "boolean") {
+        setShowShortcutHelp(parsed.shortcutHelp);
+      }
+    } catch {
+      // ignore malformed local preferences
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(RECENT_PREF_KEY, JSON.stringify({
+        sort: recentSort,
+        sortReverse: recentSortReversed,
+        showAll: showAllRecent,
+        showZeroQuickTags,
+        outputScope: recentOutputScope,
+        cacheScope: recentCacheScope,
+        filter: recentFilter,
+        shortcutHelp: showShortcutHelp,
+      }));
+    } catch {
+      // ignore storage write failures
+    }
+  }, [recentSort, recentSortReversed, showAllRecent, showZeroQuickTags, recentOutputScope, recentCacheScope, recentFilter, showShortcutHelp]);
+
+  const shortName = (name: string) => {
+    if (name.length <= 14) return name;
+    const dot = name.lastIndexOf(".");
+    if (dot <= 0 || dot === name.length - 1) {
+      return `${name.slice(0, 8)}…${name.slice(-4)}`;
+    }
+    const stem = name.slice(0, dot);
+    const ext = name.slice(dot);
+    if (stem.length <= 8) return name;
+    return `${stem.slice(0, 6)}…${ext}`;
+  };
+
+  const formatDuration = (seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
+    const total = Math.round(seconds);
+    const hours = Math.floor(total / 3600);
+    const mins = Math.floor((total % 3600) / 60);
+    const secs = total % 60;
+    if (hours > 0) return `${hours}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  const applyRecent = useCallback((items: VideoListItem[]) => {
+    setRecentVideos(items);
+    setShowAllRecent((prev) => (items.length > RECENT_PREVIEW_LIMIT ? prev : false));
+  }, []);
+
+  const normalizedRecentFilter = recentFilter.trim().toLowerCase();
+  const recentFilterTerms = useMemo(
+    () => parseRecentFilterQuery(normalizedRecentFilter),
+    [normalizedRecentFilter],
+  );
+  const parsedRecentFilterTerms = useMemo(
+    () => recentFilterTerms.map((raw, idx) => {
+      const excludePrefix: "-" | "!" | null = raw.startsWith("-")
+        ? "-"
+        : raw.startsWith("!")
+          ? "!"
+          : null;
+      const hasIncludePrefix = excludePrefix == null && raw.startsWith("+");
+      const isExclude = excludePrefix != null && raw.length > 1;
+      const term = isExclude || hasIncludePrefix ? raw.slice(1) : raw;
+      return { idx, raw, term, isExclude, excludePrefix: isExclude ? excludePrefix : null, includePrefix: hasIncludePrefix };
+    }).filter((item) => item.term.length > 0),
+    [recentFilterTerms],
+  );
+  const includeRecentFilterTerms = useMemo(
+    () => parsedRecentFilterTerms.filter((item) => !item.isExclude).map((item) => item.term),
+    [parsedRecentFilterTerms],
+  );
+  const excludeRecentFilterTerms = useMemo(
+    () => parsedRecentFilterTerms.filter((item) => item.isExclude).map((item) => item.term),
+    [parsedRecentFilterTerms],
+  );
+  const isRecognizedRecentTagTerm = useCallback((term: string) => {
+    if (RECENT_FILTER_SIMPLE_TAGS.includes(term as typeof RECENT_FILTER_SIMPLE_TAGS[number])) return true;
+    if (term in RECENT_FILTER_SIMPLE_TAG_ALIASES) return true;
+    if (parseSourceBytesRangeTerm(term) !== null) return true;
+    if (parseSourceBytesComparatorTerm(term) !== null) return true;
+    if (parseOutputBytesRangeTerm(term) !== null) return true;
+    if (parseOutputBytesComparatorTerm(term) !== null) return true;
+    if (parseOutputRangeTerm(term) !== null) return true;
+    if (parseOutputComparatorTerm(term) !== null) return true;
+    if (parseDurationRangeTerm(term) !== null) return true;
+    if (parseDurationComparatorTerm(term) !== null) return true;
+    if (parseFpsRangeTerm(term) !== null) return true;
+    if (parseFpsComparatorTerm(term) !== null) return true;
+    if (parseWidthRangeTerm(term) !== null) return true;
+    if (parseWidthComparatorTerm(term) !== null) return true;
+    if (parseHeightRangeTerm(term) !== null) return true;
+    if (parseHeightComparatorTerm(term) !== null) return true;
+    if (parseAspectRangeTerm(term) !== null) return true;
+    if (parseAspectComparatorTerm(term) !== null) return true;
+    if (parseFrameCountRangeTerm(term) !== null) return true;
+    if (parseFrameCountComparatorTerm(term) !== null) return true;
+    if (parsePixelAreaRangeTerm(term) !== null) return true;
+    if (parsePixelAreaComparatorTerm(term) !== null) return true;
+    if (parseExtensionComparatorTerm(term) !== null) return true;
+    if (parseResolutionRangeTerm(term) !== null) return true;
+    if (parseResolutionComparatorTerm(term) !== null) return true;
+    if (parseNameComparatorTerm(term) !== null) return true;
+    return parseIdComparatorTerm(term) !== null;
+  }, []);
+  const unknownRecentTagTerms = useMemo(() => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const item of parsedRecentFilterTerms) {
+      if (!item.term.startsWith("#")) continue;
+      if (isRecognizedRecentTagTerm(item.term)) continue;
+      if (seen.has(item.term)) continue;
+      seen.add(item.term);
+      out.push(item.term);
+    }
+    return out;
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownOutputHintConfig = useMemo(() => {
+    const unknownOutputTerms = parsedRecentFilterTerms.filter(
+      (item) => (item.term.startsWith("#out") || item.term.startsWith("#outputs")) && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownOutputTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownOutputTerms[unknownOutputTerms.length - 1];
+    const base = RECENT_OUTPUT_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
+    return {
+      termIndex: target.idx,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownStorageHintConfig = useMemo(() => {
+    const unknownStorageTerms = parsedRecentFilterTerms.filter(
+      (item) => (item.term.startsWith("#src") || item.term.startsWith("#source") || item.term.startsWith("#sourcebytes") || item.term.startsWith("#mb") || item.term.startsWith("#render") || item.term.startsWith("#outputbytes")) && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownStorageTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownStorageTerms[unknownStorageTerms.length - 1];
+    const base = RECENT_STORAGE_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
+    return {
+      termIndex: target.idx,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownRangeHintConfig = useMemo(() => {
+    const unknownRangeTerms = parsedRecentFilterTerms.filter(
+      (item) => item.term.includes("..")
+        && RECENT_COMPARATOR_FAMILIES.some((family) => (
+          item.term.startsWith(family)
+          || (family === "#out" && item.term.startsWith("#outputs"))
+          || (family === "#src" && (item.term.startsWith("#source") || item.term.startsWith("#sourcebytes")))
+          || (family === "#mb" && (item.term.startsWith("#render") || item.term.startsWith("#outputbytes")))
+          || (family === "#dur" && (item.term.startsWith("#time") || item.term.startsWith("#duration")))
+          || (family === "#fps" && item.term.startsWith("#framerate"))
+          || (family === "#ar" && (item.term.startsWith("#aspect") || item.term.startsWith("#ratio")))
+          || (family === "#fc" && item.term.startsWith("#frames"))
+          || (family === "#px" && (item.term.startsWith("#pixels") || item.term.startsWith("#mp")))
+          || (family === "#res" && item.term.startsWith("#resolution"))
+        ))
+        && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownRangeTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownRangeTerms[unknownRangeTerms.length - 1];
+    const family = RECENT_COMPARATOR_FAMILIES.find((entry) => (
+      target.term.startsWith(entry)
+      || (entry === "#out" && target.term.startsWith("#outputs"))
+      || (entry === "#src" && (target.term.startsWith("#source") || target.term.startsWith("#sourcebytes")))
+      || (entry === "#mb" && (target.term.startsWith("#render") || target.term.startsWith("#outputbytes")))
+      || (entry === "#dur" && (target.term.startsWith("#time") || target.term.startsWith("#duration")))
+      || (entry === "#fps" && target.term.startsWith("#framerate"))
+      || (entry === "#ar" && (target.term.startsWith("#aspect") || target.term.startsWith("#ratio")))
+      || (entry === "#fc" && target.term.startsWith("#frames"))
+      || (entry === "#px" && (target.term.startsWith("#pixels") || target.term.startsWith("#mp")))
+      || (entry === "#res" && target.term.startsWith("#resolution"))
+    ));
+    if (!family) return null;
+    const base = [...RECENT_RANGE_HINT_TAGS_BY_FAMILY[family]]
+      .map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
+    return {
+      termIndex: target.idx,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownTagReplacementHints = useMemo(() => {
+    const unknownTagTerms = parsedRecentFilterTerms.filter(
+      (item) => item.term.startsWith("#") && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownTagTerms.length <= 0) return null as null | { term: string; termIndex: number; replacements: string[] };
+    const target = unknownTagTerms[unknownTagTerms.length - 1];
+    const normalizedTarget = target.term.toLowerCase();
+    const simpleScored = [...RECENT_FILTER_SIMPLE_TAGS, ...RECENT_FILTER_SIMPLE_TAG_ALIAS_SUGGESTIONS]
+      .map((tag) => {
+        const normalizedTag = tag.toLowerCase();
+        const distance = levenshteinDistance(normalizedTarget, normalizedTag);
+        const sharesPrefix = normalizedTag.startsWith(normalizedTarget) || normalizedTarget.startsWith(normalizedTag);
+        return { tag, distance, sharesPrefix };
+      })
+      .filter((entry) => entry.distance <= 2 || entry.sharesPrefix)
+      .sort((a, b) => {
+        if (a.distance !== b.distance) return a.distance - b.distance;
+        return a.tag.localeCompare(b.tag);
+      })
+      .slice(0, 3);
+    const comparatorMatch = normalizedTarget.match(/^#([a-z]+)([<>=!*$^≤≥≠].+)$/);
+    const comparatorScored = comparatorMatch
+      ? (() => {
+        const family = `#${comparatorMatch[1]}`;
+        const scored = RECENT_COMPARATOR_TYPO_FAMILIES.map((tag) => {
+          const distance = levenshteinDistance(family, tag);
+          const sharesPrefix = tag.startsWith(family) || family.startsWith(tag);
+          return { tag, distance, sharesPrefix };
+        });
+        const minDistance = scored.reduce((min, entry) => Math.min(min, entry.distance), Number.POSITIVE_INFINITY);
+        return scored
+          .filter((entry) => {
+            const nearPrefix = entry.sharesPrefix && Math.abs(entry.tag.length - family.length) <= 1;
+            return (entry.distance === minDistance && entry.distance <= 1) || nearPrefix;
+          })
+          .sort((a, b) => {
+            if (a.distance !== b.distance) return a.distance - b.distance;
+            return a.tag.localeCompare(b.tag);
+          })
+          .slice(0, 3);
+      })()
+      : [];
+    const baseSuggestions = comparatorMatch
+      ? comparatorScored.map((entry) => `${entry.tag}${comparatorMatch[2]}`)
+      : simpleScored.map((entry) => entry.tag);
+    const dedupedSuggestions: string[] = [];
+    for (const suggestion of baseSuggestions) {
+      if (suggestion.toLowerCase() === normalizedTarget) continue;
+      if (dedupedSuggestions.some((entry) => entry.toLowerCase() === suggestion.toLowerCase())) continue;
+      dedupedSuggestions.push(suggestion);
+    }
+    if (dedupedSuggestions.length <= 0) return null;
+    return {
+      term: target.term,
+      termIndex: target.idx,
+      replacements: dedupedSuggestions.map((entry) => applyParsedTermPrefix(entry, target.excludePrefix, target.includePrefix)),
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownDurationHintConfig = useMemo(() => {
+    const unknownDurationTerms = parsedRecentFilterTerms.filter(
+      (item) => (item.term.startsWith("#dur") || item.term.startsWith("#time") || item.term.startsWith("#duration")) && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownDurationTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownDurationTerms[unknownDurationTerms.length - 1];
+    const base = RECENT_DURATION_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
+    return {
+      termIndex: target.idx,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownExtensionHintConfig = useMemo(() => {
+    const unknownExtensionTerms = parsedRecentFilterTerms.filter(
+      (item) => (item.term.startsWith("#ext") || item.term.startsWith("#format")) && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownExtensionTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownExtensionTerms[unknownExtensionTerms.length - 1];
+    const base = RECENT_EXTENSION_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
+    return {
+      termIndex: target.idx,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownNameHintConfig = useMemo(() => {
+    const unknownNameTerms = parsedRecentFilterTerms.filter(
+      (item) => (item.term.startsWith("#name") || item.term.startsWith("#file") || item.term.startsWith("#filename")) && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownNameTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownNameTerms[unknownNameTerms.length - 1];
+    const base = RECENT_NAME_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
+    return {
+      termIndex: target.idx,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownIdHintConfig = useMemo(() => {
+    const unknownIdTerms = parsedRecentFilterTerms.filter(
+      (item) => (item.term.startsWith("#id") || item.term.startsWith("#video") || item.term.startsWith("#videoid") || item.term.startsWith("#vid")) && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownIdTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownIdTerms[unknownIdTerms.length - 1];
+    const base = RECENT_ID_HINT_TAGS.map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
+    return {
+      termIndex: target.idx,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const unknownVideoMetaHintConfig = useMemo(() => {
+    const unknownMetaTerms = parsedRecentFilterTerms.filter(
+      (item) => (
+        item.term.startsWith("#fps")
+        || item.term.startsWith("#framerate")
+        || item.term.startsWith("#fc")
+        || item.term.startsWith("#frames")
+        || item.term.startsWith("#w")
+        || item.term.startsWith("#h")
+        || item.term.startsWith("#ar")
+        || item.term.startsWith("#aspect")
+        || item.term.startsWith("#ratio")
+        || item.term.startsWith("#px")
+        || item.term.startsWith("#pixels")
+        || item.term.startsWith("#mp")
+        || item.term.startsWith("#res")
+        || item.term.startsWith("#resolution")
+        || item.term.startsWith("#width")
+        || item.term.startsWith("#height")
+      ) && !isRecognizedRecentTagTerm(item.term),
+    );
+    if (unknownMetaTerms.length <= 0) return null as null | { termIndex: number; tags: string[] };
+    const target = unknownMetaTerms[unknownMetaTerms.length - 1];
+    const family = target.term.startsWith("#fps")
+      || target.term.startsWith("#framerate")
+      ? "#fps"
+      : target.term.startsWith("#fc") || target.term.startsWith("#frames")
+        ? "#fc"
+      : target.term.startsWith("#ar") || target.term.startsWith("#aspect") || target.term.startsWith("#ratio")
+        ? "#ar"
+      : target.term.startsWith("#px") || target.term.startsWith("#pixels") || target.term.startsWith("#mp")
+        ? "#px"
+      : target.term.startsWith("#res") || target.term.startsWith("#resolution")
+        ? "#res"
+      : target.term.startsWith("#w") || target.term.startsWith("#width")
+        ? "#w"
+        : target.term.startsWith("#h") || target.term.startsWith("#height")
+          ? "#h"
+          : null;
+    if (!family) return null;
+    const base = [...RECENT_VIDEO_META_HINT_TAGS_BY_FAMILY[family]]
+      .map((tag) => remapVideoMetaAliasForTarget(tag, target.term));
+    return {
+      termIndex: target.idx,
+      tags: base.map((tag) => applyParsedTermPrefix(tag, target.excludePrefix, target.includePrefix)),
+    };
+  }, [parsedRecentFilterTerms, isRecognizedRecentTagTerm]);
+  const matchesRecentFilterTerm = useCallback((item: VideoListItem, term: string) => {
+    const sourceBytesRange = parseSourceBytesRangeTerm(term);
+    if (sourceBytesRange) {
+      return matchesNumericRange(item.source_bytes, sourceBytesRange);
+    }
+    const sourceBytesComparator = parseSourceBytesComparatorTerm(term);
+    if (sourceBytesComparator) {
+      const { operator, valueBytes } = sourceBytesComparator;
+      const sourceBytes = item.source_bytes;
+      if (operator === "<") return sourceBytes < valueBytes;
+      if (operator === "<=") return sourceBytes <= valueBytes;
+      if (operator === ">") return sourceBytes > valueBytes;
+      if (operator === ">=") return sourceBytes >= valueBytes;
+      if (operator === "!=") return sourceBytes !== valueBytes;
+      return sourceBytes === valueBytes;
+    }
+    const outputBytesRange = parseOutputBytesRangeTerm(term);
+    if (outputBytesRange) {
+      return matchesNumericRange(item.output_bytes, outputBytesRange);
+    }
+    const outputBytesComparator = parseOutputBytesComparatorTerm(term);
+    if (outputBytesComparator) {
+      const { operator, valueBytes } = outputBytesComparator;
+      const outputBytesForClip = item.output_bytes;
+      if (operator === "<") return outputBytesForClip < valueBytes;
+      if (operator === "<=") return outputBytesForClip <= valueBytes;
+      if (operator === ">") return outputBytesForClip > valueBytes;
+      if (operator === ">=") return outputBytesForClip >= valueBytes;
+      if (operator === "!=") return outputBytesForClip !== valueBytes;
+      return outputBytesForClip === valueBytes;
+    }
+    const outputRange = parseOutputRangeTerm(term);
+    if (outputRange) {
+      return matchesNumericRange(item.output_count, outputRange);
+    }
+    const outputComparator = parseOutputComparatorTerm(term);
+    if (outputComparator) {
+      const { operator, value } = outputComparator;
+      const outputs = item.output_count;
+      if (operator === "<") return outputs < value;
+      if (operator === "<=") return outputs <= value;
+      if (operator === ">") return outputs > value;
+      if (operator === ">=") return outputs >= value;
+      if (operator === "!=") return outputs !== value;
+      return outputs === value;
+    }
+    const durationRange = parseDurationRangeTerm(term);
+    if (durationRange) {
+      return matchesNumericRange(item.info.duration, durationRange);
+    }
+    const durationComparator = parseDurationComparatorTerm(term);
+    if (durationComparator) {
+      const { operator, valueSeconds } = durationComparator;
+      const duration = item.info.duration;
+      if (operator === "<") return duration < valueSeconds;
+      if (operator === "<=") return duration <= valueSeconds;
+      if (operator === ">") return duration > valueSeconds;
+      if (operator === ">=") return duration >= valueSeconds;
+      if (operator === "!=") return Math.abs(duration - valueSeconds) >= 0.05;
+      return Math.abs(duration - valueSeconds) < 0.05;
+    }
+    const fpsRange = parseFpsRangeTerm(term);
+    if (fpsRange) {
+      return matchesNumericRange(item.info.fps, fpsRange);
+    }
+    const fpsComparator = parseFpsComparatorTerm(term);
+    if (fpsComparator) {
+      const { operator, value } = fpsComparator;
+      const fps = item.info.fps;
+      if (operator === "<") return fps < value;
+      if (operator === "<=") return fps <= value;
+      if (operator === ">") return fps > value;
+      if (operator === ">=") return fps >= value;
+      if (operator === "!=") return Math.abs(fps - value) >= 0.01;
+      return Math.abs(fps - value) < 0.01;
+    }
+    const widthRange = parseWidthRangeTerm(term);
+    if (widthRange) {
+      return matchesNumericRange(item.info.width, widthRange);
+    }
+    const widthComparator = parseWidthComparatorTerm(term);
+    if (widthComparator) {
+      const { operator, value } = widthComparator;
+      const width = item.info.width;
+      if (operator === "<") return width < value;
+      if (operator === "<=") return width <= value;
+      if (operator === ">") return width > value;
+      if (operator === ">=") return width >= value;
+      if (operator === "!=") return width !== value;
+      return width === value;
+    }
+    const heightRange = parseHeightRangeTerm(term);
+    if (heightRange) {
+      return matchesNumericRange(item.info.height, heightRange);
+    }
+    const heightComparator = parseHeightComparatorTerm(term);
+    if (heightComparator) {
+      const { operator, value } = heightComparator;
+      const height = item.info.height;
+      if (operator === "<") return height < value;
+      if (operator === "<=") return height <= value;
+      if (operator === ">") return height > value;
+      if (operator === ">=") return height >= value;
+      if (operator === "!=") return height !== value;
+      return height === value;
+    }
+    const aspectRange = parseAspectRangeTerm(term);
+    if (aspectRange) {
+      const aspect = item.info.height > 0 ? item.info.width / item.info.height : 0;
+      return matchesNumericRange(aspect, aspectRange);
+    }
+    const aspectComparator = parseAspectComparatorTerm(term);
+    if (aspectComparator) {
+      const { operator, value } = aspectComparator;
+      const aspect = item.info.height > 0 ? item.info.width / item.info.height : 0;
+      if (operator === "<") return aspect < value;
+      if (operator === "<=") return aspect <= value;
+      if (operator === ">") return aspect > value;
+      if (operator === ">=") return aspect >= value;
+      if (operator === "!=") return Math.abs(aspect - value) >= 0.005;
+      return Math.abs(aspect - value) < 0.005;
+    }
+    const frameRange = parseFrameCountRangeTerm(term);
+    if (frameRange) {
+      return matchesNumericRange(item.info.frame_count, frameRange);
+    }
+    const frameComparator = parseFrameCountComparatorTerm(term);
+    if (frameComparator) {
+      const { operator, value } = frameComparator;
+      const frameCount = item.info.frame_count;
+      if (operator === "<") return frameCount < value;
+      if (operator === "<=") return frameCount <= value;
+      if (operator === ">") return frameCount > value;
+      if (operator === ">=") return frameCount >= value;
+      if (operator === "!=") return frameCount !== value;
+      return frameCount === value;
+    }
+    const pixelRange = parsePixelAreaRangeTerm(term);
+    if (pixelRange) {
+      return matchesNumericRange(item.info.width * item.info.height, pixelRange);
+    }
+    const pixelComparator = parsePixelAreaComparatorTerm(term);
+    if (pixelComparator) {
+      const { operator, value } = pixelComparator;
+      const area = item.info.width * item.info.height;
+      if (operator === "<") return area < value;
+      if (operator === "<=") return area <= value;
+      if (operator === ">") return area > value;
+      if (operator === ">=") return area >= value;
+      if (operator === "!=") return area !== value;
+      return area === value;
+    }
+    const extensionComparator = parseExtensionComparatorTerm(term);
+    if (extensionComparator) {
+      const dot = item.filename.lastIndexOf(".");
+      const ext = dot >= 0 && dot < item.filename.length - 1
+        ? item.filename.slice(dot + 1).toLowerCase()
+        : "";
+      if (extensionComparator.operator === "!=") return !extensionComparator.values.includes(ext);
+      if (extensionComparator.operator === "=") return extensionComparator.values.includes(ext);
+      if (extensionComparator.operator === "*=") return ext.includes(extensionComparator.values[0] ?? "");
+      if (extensionComparator.operator === "^=") return ext.startsWith(extensionComparator.values[0] ?? "");
+      if (extensionComparator.operator === "$=") return ext.endsWith(extensionComparator.values[0] ?? "");
+      return false;
+    }
+    const resolutionRange = parseResolutionRangeTerm(term);
+    if (resolutionRange) {
+      const sourceWidth = item.info.width;
+      const sourceHeight = item.info.height;
+      if (resolutionRange.min && (sourceWidth < resolutionRange.min.width || sourceHeight < resolutionRange.min.height)) return false;
+      if (resolutionRange.max && (sourceWidth > resolutionRange.max.width || sourceHeight > resolutionRange.max.height)) return false;
+      return true;
+    }
+    const resolutionComparator = parseResolutionComparatorTerm(term);
+    if (resolutionComparator) {
+      const { operator, width, height } = resolutionComparator;
+      const sourceWidth = item.info.width;
+      const sourceHeight = item.info.height;
+      if (operator === "!=") return sourceWidth !== width || sourceHeight !== height;
+      if (operator === "=") return sourceWidth === width && sourceHeight === height;
+      if (operator === "<") return sourceWidth < width && sourceHeight < height;
+      if (operator === "<=") return sourceWidth <= width && sourceHeight <= height;
+      if (operator === ">") return sourceWidth > width && sourceHeight > height;
+      if (operator === ">=") return sourceWidth >= width && sourceHeight >= height;
+      return false;
+    }
+    const nameComparator = parseNameComparatorTerm(term);
+    if (nameComparator) {
+      const fileName = item.filename.toLowerCase();
+      if (nameComparator.operator === "!=") return !nameComparator.values.includes(fileName);
+      if (nameComparator.operator === "=") return nameComparator.values.includes(fileName);
+      if (nameComparator.operator === "*=") return fileName.includes(nameComparator.values[0] ?? "");
+      if (nameComparator.operator === "^=") return fileName.startsWith(nameComparator.values[0] ?? "");
+      if (nameComparator.operator === "$=") return fileName.endsWith(nameComparator.values[0] ?? "");
+      return false;
+    }
+    const idComparator = parseIdComparatorTerm(term);
+    if (idComparator) {
+      const id = item.video_id.toLowerCase();
+      if (idComparator.operator === "!=") return !idComparator.values.includes(id);
+      if (idComparator.operator === "=") return idComparator.values.includes(id);
+      if (idComparator.operator === "*=") return id.includes(idComparator.values[0] ?? "");
+      if (idComparator.operator === "^=") return id.startsWith(idComparator.values[0] ?? "");
+      if (idComparator.operator === "$=") return id.endsWith(idComparator.values[0] ?? "");
+      return false;
+    }
+    if (term.startsWith("#")) {
+      const normalizedTerm = (RECENT_FILTER_SIMPLE_TAG_ALIASES[term as keyof typeof RECENT_FILTER_SIMPLE_TAG_ALIASES] ?? term);
+      const tag = normalizedTerm.slice(1);
+      if (tag === "cached") return item.cached;
+      if (tag === "uncached") return !item.cached;
+      if (tag === "out") return item.output_count > 0;
+      if (tag === "noout") return item.output_count <= 0;
+      if (tag === "short") return item.info.duration <= 5;
+      if (tag === "long") return item.info.duration > 5;
+      if (tag === "portrait") return item.info.height > item.info.width;
+      if (tag === "landscape") return item.info.width > item.info.height;
+      if (tag === "square") return item.info.width === item.info.height;
+    }
+    return item.filename.toLowerCase().includes(term);
+  }, []);
+  const recentTagCounts = useMemo(() => (
+    Object.fromEntries(
+      RECENT_FILTER_TAGS.map((tag) => [
+        tag,
+        recentVideos.reduce((count, item) => count + (matchesRecentFilterTerm(item, tag) ? 1 : 0), 0),
+      ]),
+    ) as Record<(typeof RECENT_FILTER_TAGS)[number], number>
+  ), [recentVideos, matchesRecentFilterTerm]);
+  const zeroQuickTagCount = useMemo(
+    () => RECENT_FILTER_TAGS.reduce((count, tag) => count + (recentTagCounts[tag] <= 0 ? 1 : 0), 0),
+    [recentTagCounts],
+  );
+  const visibleQuickTags = useMemo(
+    () => RECENT_FILTER_TAGS.filter((tag) => showZeroQuickTags || recentTagCounts[tag] > 0),
+    [showZeroQuickTags, recentTagCounts],
+  );
+  const nameFilteredRecent = useMemo(() => (
+    recentFilterTerms.length > 0
+      ? recentVideos.filter((item) => {
+        return includeRecentFilterTerms.every((term) => matchesRecentFilterTerm(item, term))
+          && excludeRecentFilterTerms.every((term) => !matchesRecentFilterTerm(item, term));
+      })
+      : recentVideos
+  ), [recentVideos, recentFilterTerms.length, includeRecentFilterTerms, excludeRecentFilterTerms, matchesRecentFilterTerm]);
+  const removeRecentFilterTerm = useCallback((termIndex: number) => {
+    const sourceTerms = parseRecentFilterQuery(recentFilter);
+    if (termIndex < 0 || termIndex >= sourceTerms.length) return;
+    sourceTerms.splice(termIndex, 1);
+    setRecentFilter(stringifyRecentFilterTerms(sourceTerms));
+    setRecentCursorIdx(-1);
+    setRecentTagCursorIdx(-1);
+    recentFilterInputRef.current?.focus();
+  }, [recentFilter]);
+  const popRecentFilterTerm = useCallback(() => {
+    const sourceTerms = parseRecentFilterQuery(recentFilter);
+    if (sourceTerms.length <= 0) return;
+    sourceTerms.pop();
+    setRecentFilter(stringifyRecentFilterTerms(sourceTerms));
+    setRecentCursorIdx(-1);
+    setRecentTagCursorIdx(-1);
+    recentFilterInputRef.current?.focus();
+  }, [recentFilter]);
+  const replaceRecentFilterTerm = useCallback((termIndex: number, replacement: string) => {
+    const sourceTerms = parseRecentFilterQuery(recentFilter);
+    if (termIndex < 0 || termIndex >= sourceTerms.length) return;
+    sourceTerms[termIndex] = replacement;
+    const normalizedTerms = normalizeRecentFilterTerms(sourceTerms);
+    setRecentFilter(`${stringifyRecentFilterTerms(normalizedTerms)} `);
+    setRecentCursorIdx(-1);
+    setRecentTagCursorIdx(-1);
+    recentFilterInputRef.current?.focus();
+  }, [recentFilter]);
+  const recentTagSuggestions = useMemo(() => {
+    if (!recentFilterFocused || recentFilter.endsWith(" ")) return [] as string[];
+    const sourceTerms = parseRecentFilterQuery(recentFilter);
+    const tail = sourceTerms[sourceTerms.length - 1]?.toLowerCase() ?? "";
+    const isDashExcludeTag = tail.startsWith("-#");
+    const isBangExcludeTag = tail.startsWith("!#");
+    const isPlusIncludeTag = tail.startsWith("+#");
+    const isExcludeTag = isDashExcludeTag || isBangExcludeTag;
+    const isIncludeTag = tail.startsWith("#") || isPlusIncludeTag;
+    if (!isExcludeTag && !isIncludeTag) return [] as string[];
+    const normalizedTail = isExcludeTag || isPlusIncludeTag ? tail.slice(1) : tail;
+    const excludePrefix = isBangExcludeTag ? "!" : "-";
+    const suggestionCandidates = [...RECENT_FILTER_TAGS, ...RECENT_FILTER_SIMPLE_TAG_ALIAS_SUGGESTIONS, ...RECENT_FILTER_RANGE_SUGGESTIONS, ...RECENT_FILTER_META_SUGGESTIONS]
+      .filter((tag, idx, arr) => arr.indexOf(tag) === idx);
+    const direct = suggestionCandidates.filter((tag) => tag.startsWith(normalizedTail));
+    const base = direct.length > 0
+      ? direct
+      : normalizedTail.startsWith("#out") || normalizedTail.startsWith("#outputs")
+        ? suggestionCandidates.filter((tag) => tag.startsWith("#out"))
+        : normalizedTail.startsWith("#src") || normalizedTail.startsWith("#source") || normalizedTail.startsWith("#sourcebytes")
+          ? suggestionCandidates.filter((tag) => tag.startsWith("#src"))
+          : normalizedTail.startsWith("#mb") || normalizedTail.startsWith("#render") || normalizedTail.startsWith("#outputbytes")
+            ? suggestionCandidates.filter((tag) => tag.startsWith("#mb"))
+            : normalizedTail.startsWith("#dur") || normalizedTail.startsWith("#time") || normalizedTail.startsWith("#duration")
+              ? suggestionCandidates.filter((tag) => tag.startsWith("#dur"))
+              : normalizedTail.startsWith("#fps") || normalizedTail.startsWith("#framerate")
+                ? suggestionCandidates.filter((tag) => tag.startsWith("#fps"))
+                : normalizedTail.startsWith("#w")
+                  ? suggestionCandidates.filter((tag) => tag.startsWith("#w"))
+                  : normalizedTail.startsWith("#h")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#h"))
+                  : normalizedTail.startsWith("#ar") || normalizedTail.startsWith("#aspect") || normalizedTail.startsWith("#ratio")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#ar"))
+                  : normalizedTail.startsWith("#fc") || normalizedTail.startsWith("#frames")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#fc"))
+                  : normalizedTail.startsWith("#px") || normalizedTail.startsWith("#pixels") || normalizedTail.startsWith("#mp")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#px"))
+                  : normalizedTail.startsWith("#res") || normalizedTail.startsWith("#resolution")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#res"))
+                  : normalizedTail.startsWith("#ext") || normalizedTail.startsWith("#format")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#ext"))
+                  : normalizedTail.startsWith("#name") || normalizedTail.startsWith("#file") || normalizedTail.startsWith("#filename")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#name"))
+                  : normalizedTail.startsWith("#id") || normalizedTail.startsWith("#video") || normalizedTail.startsWith("#videoid") || normalizedTail.startsWith("#vid")
+                    ? suggestionCandidates.filter((tag) => tag.startsWith("#id"))
+              : [];
+    const aliasAdjustedBase = base.map((tag) => remapVideoMetaAliasForTarget(tag, normalizedTail));
+    if (isExcludeTag) return aliasAdjustedBase.map((tag) => `${excludePrefix}${tag}`);
+    return isPlusIncludeTag ? aliasAdjustedBase.map((tag) => `+${tag}`) : aliasAdjustedBase;
+  }, [recentFilter, recentFilterFocused]);
+  useEffect(() => {
+    if (recentTagSuggestions.length <= 0) {
+      setRecentTagCursorIdx(-1);
+      return;
+    }
+    setRecentTagCursorIdx((prev) => {
+      if (prev < 0) return 0;
+      return Math.min(prev, recentTagSuggestions.length - 1);
+    });
+  }, [recentTagSuggestions.length]);
+  const activeRecentTagSuggestion = recentTagSuggestions.length <= 0
+    ? null
+    : recentTagCursorIdx >= 0 && recentTagCursorIdx < recentTagSuggestions.length
+      ? recentTagSuggestions[recentTagCursorIdx]
+      : recentTagSuggestions[0];
+  const applyRecentTagSuggestion = useCallback((suggestion: string) => {
+    const sourceTerms = parseRecentFilterQuery(recentFilter);
+    const hasTagTail = sourceTerms.length > 0 && /^[-+!]?#/.test(sourceTerms[sourceTerms.length - 1]);
+    if (hasTagTail) {
+      sourceTerms[sourceTerms.length - 1] = suggestion;
+    } else {
+      sourceTerms.push(suggestion);
+    }
+    const normalizedTerms = normalizeRecentFilterTerms(sourceTerms);
+    setRecentFilter(`${stringifyRecentFilterTerms(normalizedTerms)} `);
+    setRecentCursorIdx(-1);
+    setRecentTagCursorIdx(-1);
+    recentFilterInputRef.current?.focus();
+  }, [recentFilter]);
+
+  const outputScopedRecent = useMemo(() => {
+    if (recentOutputScope === "all") return nameFilteredRecent;
+    if (recentOutputScope === "with") return nameFilteredRecent.filter((item) => item.output_count > 0);
+    return nameFilteredRecent.filter((item) => item.output_count <= 0);
+  }, [nameFilteredRecent, recentOutputScope]);
+
+  const cacheScopedRecent = useMemo(() => {
+    if (recentCacheScope === "all") return nameFilteredRecent;
+    if (recentCacheScope === "cached") return nameFilteredRecent.filter((item) => item.cached);
+    return nameFilteredRecent.filter((item) => !item.cached);
+  }, [nameFilteredRecent, recentCacheScope]);
+
+  const filteredRecent = useMemo(() => {
+    if (recentCacheScope === "all") return outputScopedRecent;
+    if (recentCacheScope === "cached") return outputScopedRecent.filter((item) => item.cached);
+    return outputScopedRecent.filter((item) => !item.cached);
+  }, [outputScopedRecent, recentCacheScope]);
+
+  const sortedRecentBase = useMemo(() => (
+    recentSort === "recent"
+      ? filteredRecent
+      : [...filteredRecent].sort((a, b) => {
+        if (recentSort === "name") return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        if (recentSort === "outputs") {
+          const byOutputs = b.output_count - a.output_count;
+          if (byOutputs !== 0) return byOutputs;
+          return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        }
+        if (recentSort === "size") {
+          const bySourceBytes = b.source_bytes - a.source_bytes;
+          if (bySourceBytes !== 0) return bySourceBytes;
+          const byOutputBytes = b.output_bytes - a.output_bytes;
+          if (byOutputBytes !== 0) return byOutputBytes;
+          return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        }
+        if (recentSort === "fps") {
+          const byFps = b.info.fps - a.info.fps;
+          if (Math.abs(byFps) > 1e-6) return byFps;
+          const byDuration = b.info.duration - a.info.duration;
+          if (Math.abs(byDuration) > 1e-6) return byDuration;
+          return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        }
+        if (recentSort === "resolution") {
+          const aArea = a.info.width * a.info.height;
+          const bArea = b.info.width * b.info.height;
+          const byArea = bArea - aArea;
+          if (byArea !== 0) return byArea;
+          const byWidth = b.info.width - a.info.width;
+          if (byWidth !== 0) return byWidth;
+          const byHeight = b.info.height - a.info.height;
+          if (byHeight !== 0) return byHeight;
+          return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+        }
+        const byDuration = b.info.duration - a.info.duration;
+        if (Math.abs(byDuration) > 1e-6) return byDuration;
+        return a.filename.localeCompare(b.filename, undefined, { sensitivity: "base" });
+      })
+  ), [filteredRecent, recentSort]);
+  const sortedRecent = useMemo(() => (
+    recentSortReversed ? [...sortedRecentBase].reverse() : sortedRecentBase
+  ), [sortedRecentBase, recentSortReversed]);
+
+  const visibleRecent = useMemo(() => (
+    showAllRecent
+      ? sortedRecent
+      : sortedRecent.slice(0, RECENT_PREVIEW_LIMIT)
+  ), [showAllRecent, sortedRecent]);
+  useEffect(() => {
+    setRecentCursorIdx(-1);
+  }, [normalizedRecentFilter, recentOutputScope, recentCacheScope, recentSort, recentSortReversed, showAllRecent]);
+  useEffect(() => {
+    setRecentCursorIdx((prev) => {
+      if (visibleRecent.length <= 0) return -1;
+      if (prev < 0) return prev;
+      return Math.min(prev, visibleRecent.length - 1);
+    });
+  }, [visibleRecent.length]);
+
+  const hiddenRecentCount = Math.max(0, sortedRecent.length - visibleRecent.length);
+  const outputScopeCount = useMemo(() => {
+    if (recentOutputScope === "all") return cacheScopedRecent.length;
+    if (recentOutputScope === "with") return cacheScopedRecent.filter((item) => item.output_count > 0).length;
+    return cacheScopedRecent.filter((item) => item.output_count <= 0).length;
+  }, [cacheScopedRecent, recentOutputScope]);
+  const cacheScopeCount = useMemo(() => {
+    if (recentCacheScope === "all") return outputScopedRecent.length;
+    if (recentCacheScope === "cached") return outputScopedRecent.filter((item) => item.cached).length;
+    return outputScopedRecent.filter((item) => !item.cached).length;
+  }, [outputScopedRecent, recentCacheScope]);
+  const totalRecentDuration = useMemo(
+    () => recentVideos.reduce((sum, item) => sum + item.info.duration, 0),
+    [recentVideos],
+  );
+  const filteredRecentDuration = useMemo(
+    () => filteredRecent.reduce((sum, item) => sum + item.info.duration, 0),
+    [filteredRecent],
+  );
+  const filteredSourceBytes = useMemo(
+    () => filteredRecent.reduce((sum, item) => sum + item.source_bytes, 0),
+    [filteredRecent],
+  );
+  const filteredOutputCount = useMemo(
+    () => filteredRecent.reduce((sum, item) => sum + item.output_count, 0),
+    [filteredRecent],
+  );
+  const filteredClipsWithOutputs = useMemo(
+    () => filteredRecent.reduce((count, item) => count + (item.output_count > 0 ? 1 : 0), 0),
+    [filteredRecent],
+  );
+  const filteredOutputBytes = useMemo(
+    () => filteredRecent.reduce((sum, item) => sum + item.output_bytes, 0),
+    [filteredRecent],
+  );
+  const hasActiveRecentSubset = normalizedRecentFilter.length > 0 || recentOutputScope !== "all" || recentCacheScope !== "all";
+  const isRecentNavViewScoped = hasActiveRecentSubset || recentSort !== "recent" || recentSortReversed;
+  const recentNavSource = useMemo(
+    () => (isRecentNavViewScoped ? sortedRecent : recentVideos),
+    [isRecentNavViewScoped, sortedRecent, recentVideos],
+  );
+  const hasAnyRecentCustomization = hasActiveRecentSubset || recentSort !== "recent" || recentSortReversed || showAllRecent || showZeroQuickTags || showShortcutHelp;
+
+  useEffect(() => {
+    if (videoId) return;
+    let cancelled = false;
+    void Promise.allSettled([listVideos(), getLibraryStats()])
+      .then(([videosRes, statsRes]) => {
+        if (cancelled) return;
+        if (videosRes.status === "fulfilled") {
+          applyRecent(videosRes.value);
+        } else {
+          applyRecent([]);
+        }
+        if (statsRes.status === "fulfilled") {
+          setClipBytes(statsRes.value.clip_bytes);
+          setOutputCount(statsRes.value.outputs);
+          setOutputBytes(statsRes.value.output_bytes);
+        } else {
+          setClipBytes(null);
+          setOutputCount(null);
+          setOutputBytes(null);
+        }
+        setClipOutputCount(null);
+        setClipOutputBytes(null);
+        setRecentFetchDone(true);
+      })
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId, applyRecent]);
+
+  useEffect(() => {
+    if (!videoId) {
+      setCurrentSourceBytes(null);
+      setClipOutputCount(null);
+      setClipOutputBytes(null);
+      return;
+    }
+    let cancelled = false;
+    void getLibraryStats(videoId)
+      .then((stats) => {
+        if (cancelled) return;
+        setClipBytes(stats.clip_bytes);
+        setOutputCount(stats.outputs);
+        setOutputBytes(stats.output_bytes);
+        setClipOutputCount(typeof stats.clip_outputs === "number" ? stats.clip_outputs : null);
+        setClipOutputBytes(typeof stats.clip_output_bytes === "number" ? stats.clip_output_bytes : null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setClipOutputCount(null);
+        setClipOutputBytes(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId]);
+
+  useEffect(() => {
+    if (!outputId) return;
+    let cancelled = false;
+    void getLibraryStats(videoId ?? undefined)
+      .then((stats) => {
+        if (cancelled) return;
+        setClipBytes(stats.clip_bytes);
+        setOutputCount(stats.outputs);
+        setOutputBytes(stats.output_bytes);
+        if (videoId) {
+          setClipOutputCount(typeof stats.clip_outputs === "number" ? stats.clip_outputs : null);
+          setClipOutputBytes(typeof stats.clip_output_bytes === "number" ? stats.clip_output_bytes : null);
+        }
+      })
+      .catch(() => {
+        // best-effort refresh only
+        if (cancelled) return;
+        if (videoId) setClipOutputBytes(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [outputId, videoId]);
+
+  const refreshRecent = useCallback(async () => {
+    setRefreshingRecent(true);
+    try {
+      const [videosRes, statsRes] = await Promise.allSettled([listVideos(), getLibraryStats()]);
+      if (videosRes.status === "fulfilled") {
+        applyRecent(videosRes.value);
+      } else {
+        applyRecent([]);
+      }
+      if (statsRes.status === "fulfilled") {
+        setClipBytes(statsRes.value.clip_bytes);
+        setOutputCount(statsRes.value.outputs);
+        setOutputBytes(statsRes.value.output_bytes);
+      } else {
+        setClipBytes(null);
+        setOutputCount(null);
+        setOutputBytes(null);
+      }
+      setClipOutputCount(null);
+      setClipOutputBytes(null);
+    } catch {
+      applyRecent([]);
+      setClipBytes(null);
+      setOutputCount(null);
+      setOutputBytes(null);
+      setClipOutputCount(null);
+      setClipOutputBytes(null);
+    } finally {
+      setRecentFetchDone(true);
+      setRefreshingRecent(false);
+    }
+  }, [applyRecent]);
+
+  const handleLoadExisting = useCallback(async (item: VideoListItem) => {
+    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    setProgress(0.05, `Loading ${item.filename}...`);
+    try {
+      const meta = await getVideoMeta(item.video_id);
+      setVideo(meta.video_id, meta.info, meta.thumbnails, meta.filename);
+      setCurrentSourceBytes(meta.source_bytes ?? item.source_bytes);
+      setClipOutputCount(meta.output_count ?? item.output_count);
+      setClipOutputBytes(meta.output_bytes ?? item.output_bytes);
+      setProgress(0, `Loaded ${meta.filename}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Load failed";
+      setProgress(0, `Load failed: ${msg}`);
+    }
+  }, [
+    deletingVideoId,
+    renamingVideoId,
+    clearingLibrary,
+    clearingOutputs,
+    pruningFiltered,
+    setProgress,
+    setVideo,
+  ]);
+
+  useEffect(() => {
+    if (videoId || !recentFetchDone) return;
+    const onGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (!recentFilter) return;
+        e.preventDefault();
+        setRecentFilter("");
+        recentFilterInputRef.current?.blur();
+        return;
+      }
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setShowShortcutHelp((prev) => !prev);
+        return;
+      }
+      if (/^[0-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        const idx = e.key === "0" ? 9 : Number(e.key) - 1;
+        if (idx < 0 || idx >= visibleRecent.length) return;
+        e.preventDefault();
+        void handleLoadExisting(visibleRecent[idx]);
+        return;
+      }
+      if (e.key.toLowerCase() === "o" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setRecentOutputScope((prev) => {
+          if (prev === "all") return "with";
+          if (prev === "with") return "none";
+          return "all";
+        });
+        return;
+      }
+      if (e.key.toLowerCase() === "c" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setRecentCacheScope((prev) => {
+          if (prev === "all") return "cached";
+          if (prev === "cached") return "uncached";
+          return "all";
+        });
+        return;
+      }
+      if (e.key.toLowerCase() === "s" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (recentVideos.length <= 1) return;
+        e.preventDefault();
+        cycleRecentSort();
+        return;
+      }
+      if (e.key.toLowerCase() === "d" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (recentVideos.length <= 1) return;
+        e.preventDefault();
+        setRecentSortReversed((prev) => !prev);
+        return;
+      }
+      if (e.key.toLowerCase() === "r" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
+        e.preventDefault();
+        void refreshRecent();
+        return;
+      }
+      if (e.key.toLowerCase() === "v" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (!hasAnyRecentCustomization) return;
+        e.preventDefault();
+        resetRecentViewAll();
+        return;
+      }
+      if (e.key.toLowerCase() === "v" && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (!hasActiveRecentSubset) return;
+        e.preventDefault();
+        resetRecentView();
+        return;
+      }
+      if (e.key.toLowerCase() === "a" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (filteredRecent.length <= RECENT_PREVIEW_LIMIT) return;
+        e.preventDefault();
+        setShowAllRecent((prev) => !prev);
+        return;
+      }
+      if (e.key.toLowerCase() === "z" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (zeroQuickTagCount <= 0) return;
+        e.preventDefault();
+        setShowZeroQuickTags((prev) => !prev);
+        return;
+      }
+      if (e.key !== "/") return;
+      e.preventDefault();
+      recentFilterInputRef.current?.focus();
+    };
+    window.addEventListener("keydown", onGlobalKeyDown, true);
+    return () => window.removeEventListener("keydown", onGlobalKeyDown, true);
+  }, [
+    videoId,
+    recentFetchDone,
+    recentFilter,
+    isAnalyzing,
+    isRendering,
+    deletingVideoId,
+    renamingVideoId,
+    refreshingRecent,
+    clearingLibrary,
+    clearingOutputs,
+    pruningFiltered,
+    hasActiveRecentSubset,
+    hasAnyRecentCustomization,
+    recentCacheScope,
+    recentVideos.length,
+    filteredRecent.length,
+    zeroQuickTagCount,
+    visibleRecent,
+    cycleRecentSort,
+    resetRecentView,
+    resetRecentViewAll,
+    refreshRecent,
+    handleLoadExisting,
+  ]);
 
   const handleFile = async (file: File) => {
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    const ext = file.name.includes(".") ? `.${file.name.split(".").pop()?.toLowerCase()}` : "";
+    if (!SUPPORTED_VIDEO_EXTS.includes(ext as typeof SUPPORTED_VIDEO_EXTS[number])) {
+      setProgress(0, `Unsupported file type (${ext || "unknown"}). Use ${SUPPORTED_VIDEO_EXTS.join(", ")}`);
+      return;
+    }
     setProgress(0.05, "Uploading video...");
     try {
       const data = await uploadVideo(file);
-      setVideo(data.video_id, data.info, data.thumbnails);
-      setProgress(0, `Uploaded ${file.name}`);
-    } catch {
-      setProgress(0, "Upload failed :(");
+      setVideo(data.video_id, data.info, data.thumbnails, data.filename);
+      setCurrentSourceBytes(data.source_bytes ?? null);
+      setClipOutputCount(data.output_count ?? 0);
+      setClipOutputBytes(data.output_bytes ?? 0);
+      const cacheHint = data.cached ? " (analysis cached)" : "";
+      const label = data.filename || file.name;
+      const status = data.reused ? `Loaded existing clip ${label}` : `Uploaded ${label}`;
+      setProgress(0, `${status}${cacheHint}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Upload failed";
+      setProgress(0, `Upload failed: ${msg}`);
     }
   };
 
+  const runRename = async (targetId: string, currentName: string) => {
+    const nextRaw = window.prompt("Rename clip", currentName);
+    if (nextRaw === null) return;
+    const next = nextRaw.trim().split(/[/\\]/).pop() ?? "";
+    if (!next) return;
+    const currentExt = currentName.includes(".") ? `.${currentName.split(".").pop()?.toLowerCase()}` : "";
+    const impliedName = next.includes(".") ? next : `${next}${currentExt}`;
+    if (impliedName.toLowerCase() === currentName.toLowerCase()) return;
+    if (next.length > 120) {
+      setProgress(0, "Rename failed: filename too long (max 120 chars)");
+      return;
+    }
+    const ext = next.includes(".") ? `.${next.split(".").pop()?.toLowerCase()}` : "";
+    if (ext && !SUPPORTED_VIDEO_EXTS.includes(ext as typeof SUPPORTED_VIDEO_EXTS[number])) {
+      setProgress(0, `Rename failed: unsupported extension ${ext}`);
+      return;
+    }
+    setRenamingVideoId(targetId);
+    try {
+      const renamed = await renameVideo(targetId, next);
+      setRecentVideos((prev) => prev.map((item) => (
+        item.video_id === targetId
+          ? { ...item, filename: renamed.filename }
+          : item
+      )));
+      if (videoId === targetId) setVideoName(renamed.filename);
+      setProgress(0, `Renamed ${currentName} → ${renamed.filename}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Rename failed";
+      setProgress(0, `Rename failed: ${msg}`);
+    } finally {
+      setRenamingVideoId(null);
+    }
+  };
+
+  const handleRenameExisting = async (item: VideoListItem) => {
+    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    await runRename(item.video_id, item.filename);
+  };
+
+  const handleDeleteExisting = async (item: VideoListItem) => {
+    if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    const confirmed = window.confirm(`Remove ${item.filename} from your local library?`);
+    if (!confirmed) return;
+    setDeletingVideoId(item.video_id);
+    try {
+      const result = await deleteVideo(item.video_id);
+      await refreshRecent();
+      const outputs = result.deleted_outputs ?? 0;
+      const clipBytesFreed = result.deleted_bytes ?? 0;
+      const outputBytesFreed = result.deleted_output_bytes ?? 0;
+      const clipPart = clipBytesFreed > 0 ? ` Freed ${formatBytesVerbose(clipBytesFreed)} source media.` : "";
+      const outputPart = outputs <= 0
+        ? ""
+        : outputs === 1
+          ? ` Cleared 1 rendered output (${formatBytesVerbose(outputBytesFreed)}).`
+          : ` Cleared ${outputs} rendered outputs (${formatBytesVerbose(outputBytesFreed)}).`;
+      setProgress(0, `Removed ${item.filename}.${clipPart}${outputPart}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Delete failed";
+      setProgress(0, `Delete failed: ${msg}`);
+    } finally {
+      setDeletingVideoId(null);
+    }
+  };
+
+  const handleClearOutputsForExisting = async (item: VideoListItem) => {
+    if (item.output_count <= 0 || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    const confirmed = window.confirm(`Remove rendered outputs for ${item.filename} only?`);
+    if (!confirmed) return;
+    setClearingOutputs(true);
+    try {
+      const result = await deleteOutputsForVideo(item.video_id);
+      const outputs = result.deleted_outputs ?? 0;
+      const outputBytesRemoved = result.deleted_output_bytes ?? 0;
+      if (videoId === item.video_id) setClipOutputCount(0);
+      if (videoId === item.video_id) setClipOutputBytes(0);
+      setRecentVideos((prev) => prev.map((row) => (
+        row.video_id === item.video_id
+          ? { ...row, output_count: 0 }
+          : row
+      )));
+      try {
+        const stats = await getLibraryStats();
+        setClipBytes(stats.clip_bytes);
+        setOutputCount(stats.outputs);
+        setOutputBytes(stats.output_bytes);
+      } catch {
+        // keep local optimistic counters if stats refresh fails
+        setOutputCount((prev) => {
+          if (prev == null) return null;
+          return Math.max(0, prev - outputs);
+        });
+        setOutputBytes((prev) => {
+          if (prev == null) return null;
+          return Math.max(0, prev - outputBytesRemoved);
+        });
+      }
+      const freedPart = outputBytesRemoved > 0 ? ` Freed ${formatBytesVerbose(outputBytesRemoved)}.` : "";
+      if (outputs <= 0) {
+        setProgress(0, `No rendered outputs found for ${item.filename}.`);
+      } else if (outputs === 1) {
+        setProgress(0, `Cleared 1 rendered output for ${item.filename}.${freedPart}`);
+      } else {
+        setProgress(0, `Cleared ${outputs} rendered outputs for ${item.filename}.${freedPart}`);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Clear outputs failed";
+      setProgress(0, `Clear outputs failed: ${msg}`);
+    } finally {
+      setClearingOutputs(false);
+    }
+  };
+
+  const handleClearLibrary = async () => {
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    const clipSummary = `${recentVideos.length} local clip${recentVideos.length === 1 ? "" : "s"}, ${formatBytesVerbose(clipBytes)}`;
+    const outputSummary = `${outputCount ?? 0} rendered output${outputCount === 1 ? "" : "s"}, ${formatBytesVerbose(outputBytes)}`;
+    const confirmed = window.confirm(`Remove all local clips from this library? (${clipSummary}; ${outputSummary})`);
+    if (!confirmed) return;
+    const shouldClearCurrent = Boolean(videoId);
+    setClearingLibrary(true);
+    try {
+      const result = await deleteAllVideos();
+      setRecentVideos([]);
+      setShowAllRecent(false);
+      setRecentFetchDone(true);
+      setClipBytes(0);
+      setCurrentSourceBytes(0);
+      setOutputCount(0);
+      setOutputBytes(0);
+      setClipOutputCount(0);
+      setClipOutputBytes(0);
+      if (shouldClearCurrent) clearVideo();
+      const count = result.deleted ?? 0;
+      const outputs = result.deleted_outputs ?? 0;
+      const clipBytesFreed = result.deleted_bytes ?? 0;
+      const outputBytesFreed = result.deleted_output_bytes ?? 0;
+      const clipPart = count <= 0
+        ? "Local library already empty."
+        : count === 1
+          ? "Removed 1 local clip."
+          : `Removed ${count} local clips.`;
+      const clipBytesPart = clipBytesFreed > 0
+        ? ` Freed ${formatBytesVerbose(clipBytesFreed)} source media.`
+        : "";
+      const outputPart = outputs <= 0
+        ? ""
+        : outputs === 1
+          ? ` Cleared 1 rendered output (${formatBytesVerbose(outputBytesFreed)}).`
+          : ` Cleared ${outputs} rendered outputs (${formatBytesVerbose(outputBytesFreed)}).`;
+      setProgress(0, `${clipPart}${clipBytesPart}${outputPart}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Clear failed";
+      setProgress(0, `Clear failed: ${msg}`);
+    } finally {
+      setClearingLibrary(false);
+    }
+  };
+
+  const handleClearFiltered = async () => {
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    if (!hasActiveRecentSubset) {
+      setProgress(0, "No filtered subset is active. Use [clear all] to wipe the full library.");
+      return;
+    }
+    if (filteredRecent.length <= 0) {
+      setProgress(0, "No filtered clips to clear.");
+      return;
+    }
+    const clipSummary = `${filteredRecent.length} filtered clip${filteredRecent.length === 1 ? "" : "s"}, ${formatBytesVerbose(filteredSourceBytes)}`;
+    let confirmOutputCount = filteredOutputCount;
+    let confirmOutputBytes = filteredOutputBytes;
+    try {
+      const clipStats = await Promise.all(filteredRecent.map((item) => getLibraryStats(item.video_id)));
+      confirmOutputCount = clipStats.reduce((sum, stats) => sum + (stats.clip_outputs ?? 0), 0);
+      confirmOutputBytes = clipStats.reduce((sum, stats) => sum + (stats.clip_output_bytes ?? 0), 0);
+    } catch {
+      // Fall back to local aggregate if live stats lookup fails.
+    }
+    const outputSummary = `${confirmOutputCount} rendered output${confirmOutputCount === 1 ? "" : "s"}, ${formatBytesVerbose(confirmOutputBytes)}`;
+    const confirmed = window.confirm(`Remove filtered clips from local library? (${clipSummary}; ${outputSummary})`);
+    if (!confirmed) return;
+    setPruningFiltered(true);
+    try {
+      let deleted = 0;
+      let deletedOutputs = 0;
+      let deletedBytes = 0;
+      let deletedOutputBytes = 0;
+      let failed = 0;
+      const targets = [...filteredRecent];
+      for (const item of targets) {
+        try {
+          const result = await deleteVideo(item.video_id);
+          if (result.deleted) deleted += 1;
+          deletedOutputs += result.deleted_outputs ?? 0;
+          deletedBytes += result.deleted_bytes ?? 0;
+          deletedOutputBytes += result.deleted_output_bytes ?? 0;
+        } catch {
+          failed += 1;
+        }
+      }
+      await refreshRecent();
+      const clipPart = deleted <= 0
+        ? "No filtered clips were removed."
+        : deleted === 1
+          ? "Removed 1 filtered clip."
+          : `Removed ${deleted} filtered clips.`;
+      const clipBytesPart = deletedBytes > 0 ? ` Freed ${formatBytesVerbose(deletedBytes)} source media.` : "";
+      const outputPart = deletedOutputs <= 0
+        ? ""
+        : deletedOutputs === 1
+          ? ` Cleared 1 rendered output (${formatBytesVerbose(deletedOutputBytes)}).`
+          : ` Cleared ${deletedOutputs} rendered outputs (${formatBytesVerbose(deletedOutputBytes)}).`;
+      const failPart = failed <= 0
+        ? ""
+        : failed === 1
+          ? " 1 clip failed to delete."
+          : ` ${failed} clips failed to delete.`;
+      setProgress(0, `${clipPart}${clipBytesPart}${outputPart}${failPart}`);
+    } finally {
+      setPruningFiltered(false);
+    }
+  };
+
+  const handleClearFilteredOutputs = useCallback(async () => {
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    if (!hasActiveRecentSubset) {
+      setProgress(0, "No filtered clip subset is active.");
+      return;
+    }
+    if (filteredRecent.length <= 0) {
+      setProgress(0, "No filtered clips to clear outputs for.");
+      return;
+    }
+
+    const liveOutputStats = await Promise.all(filteredRecent.map(async (item) => {
+      try {
+        const stats = await getLibraryStats(item.video_id);
+        return {
+          videoId: item.video_id,
+          outputs: Math.max(0, stats.clip_outputs ?? item.output_count),
+          bytes: Math.max(0, stats.clip_output_bytes ?? item.output_bytes),
+        };
+      } catch {
+        return {
+          videoId: item.video_id,
+          outputs: Math.max(0, item.output_count),
+          bytes: Math.max(0, item.output_bytes),
+        };
+      }
+    }));
+
+    const confirmOutputCount = liveOutputStats.reduce((sum, item) => sum + item.outputs, 0);
+    if (confirmOutputCount <= 0) {
+      setProgress(0, "No rendered outputs matched current filters.");
+      return;
+    }
+    const confirmOutputBytes = liveOutputStats.reduce((sum, item) => sum + item.bytes, 0);
+    const confirmClipCount = liveOutputStats.reduce((count, item) => count + (item.outputs > 0 ? 1 : 0), 0);
+    const confirmText = `Remove filtered rendered outputs? (${confirmOutputCount} rendered output${confirmOutputCount === 1 ? "" : "s"} across ${confirmClipCount}/${filteredRecent.length} clips, ${formatBytesVerbose(confirmOutputBytes)})`;
+    if (!window.confirm(confirmText)) return;
+
+    setClearingOutputs(true);
+    setClearingFilteredOutputs(true);
+    try {
+      let clearedOutputs = 0;
+      let clearedBytes = 0;
+      let clearedClips = 0;
+      let failed = 0;
+      const targets = liveOutputStats.filter((item) => item.outputs > 0);
+      for (const item of targets) {
+        try {
+          const result = await deleteOutputsForVideo(item.videoId);
+          const removed = result.deleted_outputs ?? 0;
+          if (removed > 0) clearedClips += 1;
+          clearedOutputs += removed;
+          clearedBytes += result.deleted_output_bytes ?? 0;
+        } catch {
+          failed += 1;
+        }
+      }
+      await refreshRecent();
+      if (clearedOutputs <= 0) {
+        const failPart = failed <= 0
+          ? ""
+          : failed === 1
+            ? " 1 clip failed to clear."
+            : ` ${failed} clips failed to clear.`;
+        setProgress(0, `No rendered outputs were cleared.${failPart}`);
+        return;
+      }
+      const outputPart = clearedOutputs === 1
+        ? "Cleared 1 rendered output"
+        : `Cleared ${clearedOutputs} rendered outputs`;
+      const clipPart = ` across ${clearedClips} clip${clearedClips === 1 ? "" : "s"}.`;
+      const bytesPart = clearedBytes > 0 ? ` Freed ${formatBytesVerbose(clearedBytes)}.` : "";
+      const failPart = failed <= 0
+        ? ""
+        : failed === 1
+          ? " 1 clip failed to clear."
+          : ` ${failed} clips failed to clear.`;
+      setProgress(0, `${outputPart}${clipPart}${bytesPart}${failPart}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Clear outputs failed";
+      setProgress(0, `Clear outputs failed: ${msg}`);
+    } finally {
+      setClearingFilteredOutputs(false);
+      setClearingOutputs(false);
+    }
+  }, [
+    isAnalyzing,
+    isRendering,
+    deletingVideoId,
+    renamingVideoId,
+    refreshingRecent,
+    clearingLibrary,
+    clearingOutputs,
+    pruningFiltered,
+    hasActiveRecentSubset,
+    filteredRecent,
+    setProgress,
+    refreshRecent,
+  ]);
+
+  const handleClearAllOutputs = useCallback(async () => {
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    const outputLabel = outputCount && outputCount > 0
+      ? `${outputCount} rendered output${outputCount === 1 ? "" : "s"}, ${formatBytesVerbose(outputBytes)}`
+      : "all rendered outputs";
+    const confirmed = window.confirm(`Remove ${outputLabel}? (keeps source clips)`);
+    if (!confirmed) return;
+    setClearingOutputs(true);
+    try {
+      const result = await deleteAllOutputs();
+      const outputs = result.deleted_outputs ?? 0;
+      const bytesRemoved = result.deleted_output_bytes ?? 0;
+      setOutputCount(0);
+      setOutputBytes(0);
+      if (videoId) setClipOutputCount(0);
+      if (videoId) setClipOutputBytes(0);
+      setRecentVideos((prev) => prev.map((item) => ({ ...item, output_count: 0 })));
+      const freedPart = bytesRemoved > 0
+        ? ` Freed ${formatBytesVerbose(bytesRemoved)}.`
+        : "";
+      if (outputs <= 0) {
+        setProgress(0, "No rendered outputs to clear.");
+      } else if (outputs === 1) {
+        setProgress(0, `Cleared 1 rendered output.${freedPart}`);
+      } else {
+        setProgress(0, `Cleared ${outputs} rendered outputs.${freedPart}`);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Clear outputs failed";
+      setProgress(0, `Clear outputs failed: ${msg}`);
+    } finally {
+      setClearingOutputs(false);
+    }
+  }, [
+    isAnalyzing,
+    isRendering,
+    deletingVideoId,
+    renamingVideoId,
+    clearingLibrary,
+    clearingOutputs,
+    pruningFiltered,
+    outputCount,
+    outputBytes,
+    videoId,
+    setProgress,
+  ]);
+
+  const handleClearCurrentOutputs = useCallback(async () => {
+    if (!videoId || !clipOutputCount || clipOutputCount <= 0 || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    const clipSummary = `${clipOutputCount} rendered output${clipOutputCount === 1 ? "" : "s"}, ${formatBytesVerbose(clipOutputBytes)}`;
+    const confirmed = window.confirm(`Remove rendered outputs for this clip only? (${clipSummary})`);
+    if (!confirmed) return;
+    setClearingOutputs(true);
+    try {
+      const result = await deleteOutputsForVideo(videoId);
+      const outputs = result.deleted_outputs ?? 0;
+      const outputBytesRemoved = result.deleted_output_bytes ?? 0;
+      setClipOutputCount(0);
+      setClipOutputBytes(0);
+      setRecentVideos((prev) => prev.map((item) => (
+        item.video_id === videoId
+          ? { ...item, output_count: 0 }
+          : item
+      )));
+      try {
+        const stats = await getLibraryStats(videoId);
+        setClipBytes(stats.clip_bytes);
+        setOutputCount(stats.outputs);
+        setOutputBytes(stats.output_bytes);
+        setClipOutputCount(typeof stats.clip_outputs === "number" ? stats.clip_outputs : 0);
+        setClipOutputBytes(typeof stats.clip_output_bytes === "number" ? stats.clip_output_bytes : 0);
+      } catch {
+        setOutputCount((prev) => {
+          if (prev == null) return null;
+          return Math.max(0, prev - outputs);
+        });
+        setOutputBytes((prev) => {
+          if (prev == null) return null;
+          return Math.max(0, prev - outputBytesRemoved);
+        });
+      }
+      const freedPart = outputBytesRemoved > 0
+        ? ` Freed ${formatBytesVerbose(outputBytesRemoved)}.`
+        : "";
+      if (outputs <= 0) {
+        setProgress(0, "No rendered outputs found for current clip.");
+      } else if (outputs === 1) {
+        setProgress(0, `Cleared 1 rendered output for current clip.${freedPart}`);
+      } else {
+        setProgress(0, `Cleared ${outputs} rendered outputs for current clip.${freedPart}`);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Clear outputs failed";
+      setProgress(0, `Clear outputs failed: ${msg}`);
+    } finally {
+      setClearingOutputs(false);
+    }
+  }, [
+    videoId,
+    clipOutputCount,
+    isAnalyzing,
+    isRendering,
+    deletingVideoId,
+    renamingVideoId,
+    clearingLibrary,
+    clearingOutputs,
+    pruningFiltered,
+    clipOutputBytes,
+    setProgress,
+  ]);
+
   const openPicker = () => {
+    if (isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "video/*";
+    input.accept = SUPPORTED_VIDEO_EXTS.join(",");
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) handleFile(file);
     };
     input.click();
   };
+
+  const handleClearVideo = useCallback(() => {
+    if (isAnalyzing || isRendering || clearingOutputs || pruningFiltered) return;
+    setCurrentSourceBytes(null);
+    clearVideo();
+    setProgress(0, "Clip cleared. Pick another video or use Recent.");
+  }, [
+    isAnalyzing,
+    isRendering,
+    clearingOutputs,
+    pruningFiltered,
+    clearVideo,
+    setProgress,
+  ]);
+
+  const handleDeleteCurrent = async () => {
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    const label = videoName || "current clip";
+    const confirmed = window.confirm(`Remove ${label} from your local library?`);
+    if (!confirmed) return;
+    setDeletingVideoId(videoId);
+    try {
+      const result = await deleteVideo(videoId);
+      await refreshRecent();
+      clearVideo();
+      setCurrentSourceBytes(null);
+      const outputs = result.deleted_outputs ?? 0;
+      const clipBytesFreed = result.deleted_bytes ?? 0;
+      const outputBytesFreed = result.deleted_output_bytes ?? 0;
+      const clipPart = clipBytesFreed > 0 ? ` Freed ${formatBytesVerbose(clipBytesFreed)} source media.` : "";
+      const outputPart = outputs <= 0
+        ? ""
+        : outputs === 1
+          ? ` Cleared 1 rendered output (${formatBytesVerbose(outputBytesFreed)}).`
+          : ` Cleared ${outputs} rendered outputs (${formatBytesVerbose(outputBytesFreed)}).`;
+      setProgress(0, `Removed ${label} from local library.${clipPart}${outputPart}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Delete failed";
+      setProgress(0, `Delete failed: ${msg}`);
+    } finally {
+      setDeletingVideoId(null);
+    }
+  };
+
+  const handleLoadAdjacent = useCallback(async (direction: -1 | 1) => {
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    let source = recentNavSource;
+    if (!isRecentNavViewScoped && source.length <= 1) {
+      try {
+        const fresh = await listVideos();
+        source = fresh;
+        applyRecent(fresh);
+      } catch {
+        // best effort: continue with in-memory list when refresh fails
+      }
+    }
+    if (source.length <= 1) {
+      if (source.length <= 0) {
+        setProgress(0, isRecentNavViewScoped ? "No clips available in current recent view." : "No recent clips available.");
+      } else {
+        setProgress(0, isRecentNavViewScoped ? "Only one clip available in current recent view." : "Only one clip available in Recent.");
+      }
+      return;
+    }
+    let currentIndex = source.findIndex((item) => item.video_id === videoId);
+    if (currentIndex < 0 && videoName) {
+      currentIndex = source.findIndex((item) => item.filename === videoName);
+    }
+    const baseIndex = currentIndex >= 0
+      ? currentIndex
+      : direction > 0
+        ? -1
+        : 0;
+    const nextIndex = ((baseIndex + direction) % source.length + source.length) % source.length;
+    const next = source[nextIndex];
+    await handleLoadExisting(next);
+  }, [
+    videoId,
+    isAnalyzing,
+    isRendering,
+    deletingVideoId,
+    renamingVideoId,
+    refreshingRecent,
+    clearingLibrary,
+    clearingOutputs,
+    pruningFiltered,
+    recentNavSource,
+    isRecentNavViewScoped,
+    videoName,
+    applyRecent,
+    setProgress,
+    handleLoadExisting,
+  ]);
+
+  const handleRenameCurrent = async () => {
+    if (!videoId || isAnalyzing || isRendering || deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
+    await runRename(videoId, videoName || "clip.mp4");
+  };
+
+  useEffect(() => {
+    const onAdjacentShortcut = (e: KeyboardEvent) => {
+      if (!videoId || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || tag === "button" || target?.isContentEditable) return;
+      if (e.code === "KeyP") {
+        e.preventDefault();
+        void handleLoadAdjacent(-1);
+        return;
+      }
+      if (e.code === "KeyN") {
+        e.preventDefault();
+        void handleLoadAdjacent(1);
+        return;
+      }
+      if (e.code === "KeyX") {
+        e.preventDefault();
+        handleClearVideo();
+      }
+    };
+    window.addEventListener("keydown", onAdjacentShortcut, true);
+    return () => window.removeEventListener("keydown", onAdjacentShortcut, true);
+  }, [videoId, handleLoadAdjacent, handleClearVideo]);
+
+  useEffect(() => {
+    const onOutputShortcut = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "o") return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || tag === "button" || target?.isContentEditable) return;
+      if (e.altKey && !e.shiftKey) {
+        if (videoId || pruningFiltered || !hasActiveRecentSubset || !recentFetchDone || !filteredOutputCount || filteredOutputCount <= 0) return;
+        e.preventDefault();
+        void handleClearFilteredOutputs();
+        return;
+      }
+      if (!e.shiftKey || e.altKey) return;
+      if (videoId) {
+        if (!clipOutputCount || clipOutputCount <= 0) return;
+        e.preventDefault();
+        void handleClearCurrentOutputs();
+        return;
+      }
+      if (pruningFiltered || !recentFetchDone || !outputCount || outputCount <= 0) return;
+      e.preventDefault();
+      void handleClearAllOutputs();
+    };
+    window.addEventListener("keydown", onOutputShortcut, true);
+    return () => window.removeEventListener("keydown", onOutputShortcut, true);
+  }, [videoId, clipOutputCount, outputCount, recentFetchDone, pruningFiltered, hasActiveRecentSubset, filteredOutputCount, handleClearFilteredOutputs, handleClearCurrentOutputs, handleClearAllOutputs]);
 
   if (!videoId) {
     return (
@@ -38,6 +2484,17 @@ export function VideoUpload() {
         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
         onClick={openPicker}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openPicker();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label="Upload climbing video"
+        aria-keyshortcuts="Enter Space / Shift+/ O C S D R V Shift+V A Z 1 2 3 4 5 6 7 8 9 0 Control+Alt+O Meta+Alt+O"
         className={`relative rounded cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-2 ${
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
@@ -68,20 +2525,721 @@ export function VideoUpload() {
           {">> DROP VIDEO OR CLICK TO START <<"}
         </span>
         <span className="text-sm font-retro text-text-muted">[ or click to browse ]</span>
+        {recentFetchDone && (
+          <div
+            className="w-full px-4 pt-1 flex flex-col gap-1"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">
+                {normalizedRecentFilter
+                  ? `Recent (${filteredRecent.length}/${recentVideos.length} · ${formatDuration(filteredRecentDuration)}/${formatDuration(totalRecentDuration)})`
+                  : `Recent (${recentVideos.length} · ${formatDuration(totalRecentDuration)})`}
+              </span>
+              <span className="text-[9px] font-pixel text-text-muted/70 text-center">
+                lib:{formatBytesShort(clipBytes)} · out:{outputCount ?? "?"} · mb:{formatBytesShort(outputBytes)}
+              </span>
+              {hasActiveRecentSubset && (
+                <span className="text-[9px] font-pixel text-text-muted/70 text-center">
+                  view:{formatBytesShort(filteredSourceBytes)} · out:{filteredOutputCount} · mb:{formatBytesShort(filteredOutputBytes)}
+                </span>
+              )}
+              <button
+                onClick={() => void refreshRecent()}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label="Refresh local clip library"
+                aria-keyshortcuts="R"
+              >
+                {refreshingRecent ? "[refreshing...]" : "[refresh]"}
+              </button>
+              <button
+                onClick={() => void handleClearLibrary()}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || recentVideos.length === 0}
+                className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label="Clear all local clips"
+              >
+                {clearingLibrary ? "[clearing...]" : "[clear all]"}
+              </button>
+              {hasActiveRecentSubset && (
+                <button
+                  onClick={() => void handleClearFiltered()}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || filteredRecent.length === 0}
+                  className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                  aria-label={`Clear ${filteredRecent.length} filtered clip${filteredRecent.length === 1 ? "" : "s"}`}
+                >
+                  {pruningFiltered ? "[clearing filt...]" : "[clear filtered]"}
+                </button>
+              )}
+              {hasActiveRecentSubset && (
+                <button
+                  onClick={() => void handleClearFilteredOutputs()}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || filteredOutputCount <= 0}
+                  className="text-[9px] font-pixel text-amber-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                  aria-label={`Clear rendered outputs for filtered clips (${filteredOutputCount} outputs across ${filteredClipsWithOutputs} clips)`}
+                  aria-keyshortcuts="Control+Alt+O Meta+Alt+O"
+                >
+                  {clearingFilteredOutputs ? "[clearing filt out...]" : "[clear filt out]"}
+                </button>
+              )}
+              <button
+                onClick={() => void handleClearAllOutputs()}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || outputCount === 0}
+                className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label="Clear all rendered outputs"
+                aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
+              >
+                {clearingOutputs && !clearingFilteredOutputs ? "[clearing out...]" : "[clear outputs]"}
+              </button>
+              {filteredRecent.length > RECENT_PREVIEW_LIMIT && (
+                <button
+                  onClick={() => setShowAllRecent((prev) => !prev)}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                  className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                  aria-label={showAllRecent ? "Show fewer recent clips" : "Show all recent clips"}
+                  aria-keyshortcuts="A"
+                >
+                  {showAllRecent ? "[show less]" : "[show all]"}
+                </button>
+              )}
+              <button
+                onClick={cycleRecentSort}
+                disabled={recentVideos.length <= 1 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`Sort recent clips (currently ${recentSort})`}
+                aria-keyshortcuts="S"
+              >
+                [sort:{recentSort}]
+              </button>
+              <button
+                onClick={() => setRecentSortReversed((prev) => !prev)}
+                disabled={recentVideos.length <= 1 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`Toggle reverse order for recent clips (currently ${recentSortReversed ? "on" : "off"})`}
+                aria-keyshortcuts="D"
+              >
+                [rev:{recentSortReversed ? "on" : "off"}]
+              </button>
+              <button
+                onClick={() => {
+                  setRecentOutputScope((prev) => {
+                    if (prev === "all") return "with";
+                    if (prev === "with") return "none";
+                    return "all";
+                  });
+                }}
+                disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`Filter recent clips by output count (currently ${recentOutputScope}, ${outputScopeCount} clips)`}
+                aria-keyshortcuts="O"
+              >
+                [out:{recentOutputScope}:{outputScopeCount}]
+              </button>
+              <button
+                onClick={() => {
+                  setRecentCacheScope((prev) => {
+                    if (prev === "all") return "cached";
+                    if (prev === "cached") return "uncached";
+                    return "all";
+                  });
+                }}
+                disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`Filter recent clips by analysis cache state (currently ${recentCacheScope}, ${cacheScopeCount} clips)`}
+                aria-keyshortcuts="C"
+              >
+                [cache:{recentCacheScope}:{cacheScopeCount}]
+              </button>
+              <button
+                onClick={() => setShowShortcutHelp((prev) => !prev)}
+                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                aria-label={`${showShortcutHelp ? "Hide" : "Show"} dropzone keyboard shortcuts help`}
+                aria-keyshortcuts="Shift+/"
+              >
+                [keys:{showShortcutHelp ? "on" : "off"}]
+              </button>
+              {hasActiveRecentSubset && (
+                <button
+                  onClick={resetRecentView}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                  className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                  aria-label="Reset recent view filters to all"
+                  aria-keyshortcuts="V"
+                >
+                  [reset view]
+                </button>
+              )}
+              {hasAnyRecentCustomization && (
+                <button
+                  onClick={resetRecentViewAll}
+                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
+                  className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
+                  aria-label="Reset recent view, sort, and expansion preferences to defaults"
+                  aria-keyshortcuts="Shift+V"
+                >
+                  [reset all]
+                </button>
+              )}
+            </div>
+            {recentVideos.length > 0 && (
+              <div className="flex items-center justify-center gap-1">
+                <input
+                  ref={recentFilterInputRef}
+                  value={recentFilter}
+                  onChange={(e) => setRecentFilter(e.target.value)}
+                  onFocus={() => setRecentFilterFocused(true)}
+                  onBlur={() => setRecentFilterFocused(false)}
+                  onKeyDown={(e) => {
+                    if ((e.key === "Home" || e.key === "End") && recentTagSuggestions.length > 0) {
+                      e.preventDefault();
+                      setRecentTagCursorIdx(e.key === "Home" ? 0 : recentTagSuggestions.length - 1);
+                      return;
+                    }
+                    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && recentTagSuggestions.length > 0) {
+                      e.preventDefault();
+                      setRecentTagCursorIdx((prev) => {
+                        if (e.key === "ArrowDown") {
+                          if (prev < 0) return 0;
+                          if (prev >= recentTagSuggestions.length - 1) return 0;
+                          return prev + 1;
+                        }
+                        if (prev < 0) return recentTagSuggestions.length - 1;
+                        if (prev <= 0) return recentTagSuggestions.length - 1;
+                        return prev - 1;
+                      });
+                      return;
+                    }
+                    if (e.key === "Tab" && !e.shiftKey && recentTagSuggestions.length > 0) {
+                      e.preventDefault();
+                      applyRecentTagSuggestion(activeRecentTagSuggestion ?? recentTagSuggestions[0]);
+                      return;
+                    }
+                    const isAltPopShortcut = e.key === "Backspace" && e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+                    const isCtrlCmdPopShortcut = e.key === "Backspace" && !e.altKey && (e.ctrlKey || e.metaKey) && !e.shiftKey;
+                    if (isAltPopShortcut || isCtrlCmdPopShortcut) {
+                      e.preventDefault();
+                      popRecentFilterTerm();
+                      return;
+                    }
+                    if (e.key === "ArrowDown") {
+                      if (visibleRecent.length <= 0) return;
+                      e.preventDefault();
+                      setRecentCursorIdx((prev) => {
+                        if (prev < 0) return 0;
+                        if (prev >= visibleRecent.length - 1) return 0;
+                        return prev + 1;
+                      });
+                      return;
+                    }
+                    if (e.key === "ArrowUp") {
+                      if (visibleRecent.length <= 0) return;
+                      e.preventDefault();
+                      setRecentCursorIdx((prev) => {
+                        if (prev < 0) return visibleRecent.length - 1;
+                        if (prev <= 0) return visibleRecent.length - 1;
+                        return prev - 1;
+                      });
+                      return;
+                    }
+                    if (e.key === "PageDown") {
+                      if (visibleRecent.length <= 0) return;
+                      e.preventDefault();
+                      setRecentCursorIdx((prev) => {
+                        const base = prev < 0 ? 0 : prev;
+                        return (base + RECENT_CURSOR_PAGE_STEP) % visibleRecent.length;
+                      });
+                      return;
+                    }
+                    if (e.key === "PageUp") {
+                      if (visibleRecent.length <= 0) return;
+                      e.preventDefault();
+                      setRecentCursorIdx((prev) => {
+                        const base = prev < 0 ? visibleRecent.length - 1 : prev;
+                        return ((base - RECENT_CURSOR_PAGE_STEP) % visibleRecent.length + visibleRecent.length) % visibleRecent.length;
+                      });
+                      return;
+                    }
+                    if (e.key === "Home") {
+                      if (visibleRecent.length <= 0) return;
+                      e.preventDefault();
+                      setRecentCursorIdx(0);
+                      return;
+                    }
+                    if (e.key === "End") {
+                      if (visibleRecent.length <= 0) return;
+                      e.preventDefault();
+                      setRecentCursorIdx(visibleRecent.length - 1);
+                      return;
+                    }
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (!e.shiftKey && recentTagSuggestions.length > 0 && !recentFilter.endsWith(" ")) {
+                        applyRecentTagSuggestion(activeRecentTagSuggestion ?? recentTagSuggestions[0]);
+                        return;
+                      }
+                      if (visibleRecent.length <= 0) {
+                        setProgress(0, "No matching clips to load.");
+                        return;
+                      }
+                      const targetIndex = recentCursorIdx >= 0
+                        ? Math.min(recentCursorIdx, visibleRecent.length - 1)
+                        : 0;
+                      void handleLoadExisting(visibleRecent[targetIndex]);
+                      return;
+                    }
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setRecentFilter("");
+                      setRecentCursorIdx(-1);
+                      setRecentTagCursorIdx(-1);
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  placeholder="filter clips (+term -/!term #tag phrase)"
+                  aria-label="Filter recent clips by terms (space-separated include/exclude with - or !, optional tags like #cached or #out, and quoted phrases)"
+                  aria-keyshortcuts="Alt+Backspace Control+Backspace Meta+Backspace Tab Shift+Enter PageUp PageDown Home End"
+                  className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
+                />
+                {recentFilter && (
+                  <button
+                    onClick={() => {
+                      setRecentFilter("");
+                      setRecentTagCursorIdx(-1);
+                    }}
+                    className="text-[9px] font-pixel text-text-muted hover:text-white"
+                    aria-label="Clear recent clip filter"
+                  >
+                    [x]
+                  </button>
+                )}
+              </div>
+            )}
+            {recentTagSuggestions.length > 0 && (
+              <div className="flex flex-wrap justify-center items-center gap-1 text-[9px] font-pixel">
+                {recentTagSuggestions.map((suggestion, idx) => (
+                  <button
+                    key={`sugg-${suggestion}`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyRecentTagSuggestion(suggestion)}
+                    className={`px-1.5 py-0.5 rounded border hover:text-white ${
+                      idx === recentTagCursorIdx
+                        ? "border-cyan-300/90 text-white shadow-[0_0_6px_rgba(0,229,255,0.45)]"
+                        : "border-cyan-500/30 text-cyan-200/90 hover:border-cyan-400/80"
+                    }`}
+                    aria-label={`Apply tag suggestion ${suggestion}`}
+                    aria-current={idx === recentTagCursorIdx ? "true" : undefined}
+                  >
+                    {idx === recentTagCursorIdx ? "▶ " : ""}
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+            {recentFilterFocused && recentFilter.trim().length === 0 && recentTagSuggestions.length === 0 && (
+              <div className="flex flex-wrap justify-center items-center gap-1 text-[9px] font-pixel">
+                {visibleQuickTags.map((tag) => (
+                  <button
+                    key={`quick-${tag}`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => applyRecentTagSuggestion(tag)}
+                    className="px-1.5 py-0.5 rounded border border-cyan-500/25 text-cyan-200/80 hover:text-white hover:border-cyan-400/80"
+                    aria-label={`Insert filter tag ${tag} (${recentTagCounts[tag]} matching clips)`}
+                  >
+                    {`${tag}:${recentTagCounts[tag]}`}
+                  </button>
+                ))}
+                {zeroQuickTagCount > 0 && (
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setShowZeroQuickTags((prev) => !prev)}
+                    className="px-1.5 py-0.5 rounded border border-cyan-500/20 text-cyan-300/75 hover:text-white hover:border-cyan-400/80"
+                    aria-label={showZeroQuickTags ? "Hide zero-match quick tags" : `Show ${zeroQuickTagCount} zero-match quick tags`}
+                    aria-keyshortcuts="Z"
+                  >
+                    {showZeroQuickTags ? "[hide 0s]" : `[+${zeroQuickTagCount} zero]`}
+                  </button>
+                )}
+              </div>
+            )}
+            {parsedRecentFilterTerms.length > 0 && (
+              <div className="flex flex-wrap justify-center items-center gap-1 text-[8px] font-pixel">
+                {parsedRecentFilterTerms.map((item) => {
+                  const isUnknownTag = item.term.startsWith("#") && !isRecognizedRecentTagTerm(item.term);
+                  return (
+                    <button
+                      key={`term-${item.idx}-${item.raw}`}
+                      onClick={() => removeRecentFilterTerm(item.idx)}
+                      className={`px-1 py-0.5 rounded border hover:text-white ${
+                        isUnknownTag
+                          ? "border-rose-500/45 text-rose-200/90 hover:border-rose-400/80"
+                          : item.isExclude
+                            ? "border-amber-500/30 text-amber-200/90 hover:border-amber-400/70"
+                            : "border-cyan-500/30 text-cyan-200/90 hover:border-cyan-400/70"
+                      }`}
+                      aria-label={`Remove ${item.isExclude ? "exclude" : "include"} term ${item.term} from filter`}
+                      title={`Remove ${item.isExclude ? `${item.excludePrefix ?? "-"}${item.term}` : `+${item.term}`} from filter`}
+                    >
+                      {item.isExclude ? item.excludePrefix ?? "-" : "+"}
+                      {item.term}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {unknownRecentTagTerms.length > 0 && (
+              <div className="flex flex-col items-center gap-0.5">
+                <div className="text-[8px] font-pixel text-rose-300/85 text-center">
+                  unknown tag{unknownRecentTagTerms.length === 1 ? "" : "s"}: {unknownRecentTagTerms.join(", ")}
+                </div>
+                {unknownTagReplacementHints && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>did you mean:</span>
+                    {unknownTagReplacementHints.replacements.map((replacement) => (
+                      <button
+                        key={`unknown-hint-${replacement}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownTagReplacementHints.termIndex, replacement)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace unknown tag ${unknownTagReplacementHints.term} with ${replacement}`}
+                      >
+                        {replacement}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownOutputHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>output examples:</span>
+                    {unknownOutputHintConfig.tags.map((tag) => (
+                      <button
+                        key={`out-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownOutputHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed output filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownStorageHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>storage examples:</span>
+                    {unknownStorageHintConfig.tags.map((tag) => (
+                      <button
+                        key={`storage-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownStorageHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed storage filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownExtensionHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>extension examples:</span>
+                    {unknownExtensionHintConfig.tags.map((tag) => (
+                      <button
+                        key={`ext-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownExtensionHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed extension filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownNameHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>name examples:</span>
+                    {unknownNameHintConfig.tags.map((tag) => (
+                      <button
+                        key={`name-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownNameHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed name filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownIdHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>id examples:</span>
+                    {unknownIdHintConfig.tags.map((tag) => (
+                      <button
+                        key={`id-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownIdHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed id filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownVideoMetaHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>video examples:</span>
+                    {unknownVideoMetaHintConfig.tags.map((tag) => (
+                      <button
+                        key={`meta-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownVideoMetaHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed video filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && unknownRangeHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>range examples:</span>
+                    {unknownRangeHintConfig.tags.map((tag) => (
+                      <button
+                        key={`range-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownRangeHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed range filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownDurationHintConfig && (
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                    <span>duration examples:</span>
+                    {unknownDurationHintConfig.tags.map((tag) => (
+                      <button
+                        key={`dur-hint-${tag}`}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => replaceRecentFilterTerm(unknownDurationHintConfig.termIndex, tag)}
+                        className="px-1 py-0.5 rounded border border-rose-500/40 text-rose-200/90 hover:text-white hover:border-rose-400/80"
+                        aria-label={`Replace malformed duration filter with ${tag}`}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {showShortcutHelp && (
+              <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
+                keys: ? toggle · / focus filter · Enter load · Shift+Enter force load first match · ↑↓ select · Home/End jump first/last · PgUp/PgDn jump cursor by 5 · #tag + Tab/Enter complete (↑↓ picks suggestion) · quoted phrase term · -/! exclude term · Alt/Ctrl/Cmd+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
+              </div>
+            )}
+            {visibleRecent.length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-1">
+                {visibleRecent.map((item, idx) => (
+                  <div key={item.video_id} className="flex items-center gap-0.5">
+                    {idx < 10 && (
+                      <span className="text-[8px] font-pixel text-cyan-300/80 px-0.5" aria-hidden>
+                        {idx === 9 ? "0" : idx + 1}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => void handleLoadExisting(item)}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
+                      className={`retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed ${idx === recentCursorIdx ? "border-cyan-200 text-cyan-100 shadow-[0_0_0_1px_rgba(0,229,255,0.75),0_0_10px_rgba(0,229,255,0.45)]" : ""}`}
+                      title={`${item.filename} · ${item.info.duration.toFixed(1)}s · src ${formatBytesVerbose(item.source_bytes)}${item.cached ? " · cached analysis" : ""} · ${item.output_count} output${item.output_count === 1 ? "" : "s"} (${formatBytesVerbose(item.output_bytes)})`}
+                      aria-label={`${idx === recentCursorIdx ? "Selected: " : ""}Load ${item.filename}`}
+                      aria-keyshortcuts={idx < 10 ? (idx === 9 ? "0" : String(idx + 1)) : undefined}
+                      aria-current={idx === recentCursorIdx ? "true" : undefined}
+                    >
+                      {idx === recentCursorIdx ? "▶ " : ""}
+                      {item.cached ? "⚡ " : ""}
+                      {shortName(item.filename)}
+                    </button>
+                    <button
+                      onClick={() => void handleRenameExisting(item)}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
+                      className="text-[10px] font-pixel px-1 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={`Rename ${item.filename}`}
+                      aria-label={`Rename ${item.filename}`}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      onClick={() => void handleClearOutputsForExisting(item)}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered || item.output_count <= 0}
+                      className="text-[10px] font-pixel px-1 py-0.5 border rounded border-amber-400/40 text-amber-200 hover:text-white hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={item.output_count > 0
+                        ? `Clear ${item.output_count} rendered output${item.output_count === 1 ? "" : "s"} for ${item.filename}`
+                        : `No rendered outputs for ${item.filename}`}
+                      aria-label={item.output_count > 0
+                        ? `Clear rendered outputs for ${item.filename}`
+                        : `No rendered outputs for ${item.filename}`}
+                    >
+                      {`◍${item.output_count > 0 ? item.output_count : ""}`}
+                    </button>
+                    <button
+                      onClick={() => void handleDeleteExisting(item)}
+                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
+                      className="text-[10px] font-pixel px-1 py-0.5 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={`Remove ${item.filename}`}
+                      aria-label={`Remove ${item.filename} from local library`}
+                    >
+                      X
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span className="text-[10px] font-pixel text-text-muted/70 text-center">
+                {recentVideos.length > 0 ? "no matching clips" : "no local clips"}
+              </span>
+            )}
+            {hiddenRecentCount > 0 && !showAllRecent && (
+              <span className="text-[9px] font-pixel text-text-muted/60 text-center">
+                +{hiddenRecentCount} more clip{hiddenRecentCount === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
+        )}
+        {progressMessage && (
+          <span className="text-[10px] font-pixel text-cyan-300/70 text-center mt-1 block max-w-full truncate px-2">
+            {progressMessage}
+          </span>
+        )}
       </div>
     );
   }
 
+  const actionsBusy = isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered;
+
   return (
-    <div className="flex items-center gap-2 shrink-0">
-      <span className="text-[11px] font-retro led-text whitespace-nowrap">
-        {videoInfo && `${videoInfo.duration.toFixed(0)}s / ${videoInfo.width}x${videoInfo.height} / ${videoInfo.fps.toFixed(0)}fps`}
+    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[10px]">
+      {/* ── Clip identity ── */}
+      <div className="flex items-center gap-1.5 min-w-0">
+        {videoName && (
+          <span className="font-pixel text-text-muted max-w-[200px] truncate" title={videoName}>
+            {videoName}
+          </span>
+        )}
+        {videoInfo && (
+          <span className="font-retro led-text whitespace-nowrap">
+            {videoInfo.duration.toFixed(0)}s · {videoInfo.width}x{videoInfo.height} · {videoInfo.fps.toFixed(0)}fps
+          </span>
+        )}
+      </div>
+
+      {/* ── Storage stats ── */}
+      <span className="font-pixel text-text-muted/60 whitespace-nowrap" title="source: this clip / library total">
+        src:{formatBytesShort(currentSourceBytes)}/{formatBytesShort(clipBytes)}
       </span>
-      <Tooltip text="Replace the current video with a new one">
-        <button onClick={openPicker} className="text-[11px] font-pixel text-neon-magenta hover:text-white retro-glow-magenta shrink-0 uppercase">
-          [SWAP]
-        </button>
-      </Tooltip>
+      <span className="font-pixel text-text-muted/60 whitespace-nowrap" title="outputs: this clip / total · disk: this clip / total">
+        out:{clipOutputCount ?? "?"}/{outputCount ?? "?"} · {formatBytesShort(clipOutputBytes)}/{formatBytesShort(outputBytes)}
+      </span>
+
+      {/* ── Spacer pushes actions right ── */}
+      <div className="flex-1" />
+
+      {/* ── Navigation ── */}
+      <div className="flex items-center gap-1">
+        <Tooltip text={isRecentNavViewScoped ? "Load previous clip from current recent view" : "Load previous recent clip"}>
+          <button
+            onClick={() => void handleLoadAdjacent(-1)}
+            disabled={actionsBusy || refreshingRecent}
+            className="font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase px-1 py-0.5 border border-cyan-400/30 rounded"
+            aria-keyshortcuts="Alt+P"
+          >
+            ◀
+          </button>
+        </Tooltip>
+        <span
+          className="font-pixel text-cyan-200/50 uppercase cursor-default"
+          title={isRecentNavViewScoped ? "Navigating filtered view" : "Navigating all clips"}
+        >
+          {isRecentNavViewScoped ? "view" : "all"}
+        </span>
+        <Tooltip text={isRecentNavViewScoped ? "Load next clip from current recent view" : "Load next recent clip"}>
+          <button
+            onClick={() => void handleLoadAdjacent(1)}
+            disabled={actionsBusy || refreshingRecent}
+            className="font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase px-1 py-0.5 border border-cyan-400/30 rounded"
+            aria-keyshortcuts="Alt+N"
+          >
+            ▶
+          </button>
+        </Tooltip>
+      </div>
+
+      {/* ── Primary actions ── */}
+      <div className="flex items-center gap-1.5">
+        <Tooltip text="Replace the current video with a new one">
+          <button
+            onClick={openPicker}
+            disabled={actionsBusy}
+            className="font-pixel text-neon-magenta hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+          >
+            SWAP
+          </button>
+        </Tooltip>
+        <Tooltip text="Clear current clip and return to upload/recent selector">
+          <button
+            onClick={handleClearVideo}
+            disabled={isAnalyzing || isRendering || clearingOutputs || pruningFiltered}
+            className="font-pixel text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            aria-keyshortcuts="Alt+X"
+          >
+            EJECT
+          </button>
+        </Tooltip>
+        <span className="text-text-muted/30">│</span>
+        <Tooltip text="Rename current clip label in local library">
+          <button
+            onClick={() => void handleRenameCurrent()}
+            disabled={actionsBusy}
+            className="font-pixel text-cyan-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+          >
+            REN
+          </button>
+        </Tooltip>
+        <Tooltip text="Delete this clip from local library and clear the current session">
+          <button
+            onClick={() => void handleDeleteCurrent()}
+            disabled={actionsBusy}
+            className="font-pixel text-red-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+          >
+            DEL
+          </button>
+        </Tooltip>
+        <Tooltip text="Delete rendered outputs for current clip only">
+          <button
+            onClick={() => void handleClearCurrentOutputs()}
+            disabled={actionsBusy || !clipOutputCount || clipOutputCount <= 0}
+            className="font-pixel text-red-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
+          >
+            {clearingOutputs ? "CLR…" : "CLR OUT"}
+          </button>
+        </Tooltip>
+        <Tooltip text="Remove every clip from local library and reset to upload screen">
+          <button
+            onClick={() => void handleClearLibrary()}
+            disabled={actionsBusy}
+            className="font-pixel text-red-400/50 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+          >
+            CLR LIB
+          </button>
+        </Tooltip>
+      </div>
     </div>
   );
 }

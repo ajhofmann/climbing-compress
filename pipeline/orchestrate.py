@@ -12,17 +12,25 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import cv2
 import numpy as np
 
-from pipeline.pose import extract_poses, interpolate_missing_poses
-from pipeline.movement import score_movement, score_progress, analyze_rest_signals
+from pipeline.pose import extract_poses, extract_poses_with_diagnostics, interpolate_missing_poses
+from pipeline.movement import score_movement, score_progress, score_com_velocity, analyze_rest_signals
 from pipeline.speed_curve import (
     solve_speed_curve, solve_constant_progress, get_output_duration,
-    detect_rest,
+    detect_rest, solve_hybrid_curve, curve_from_keyframes,
 )
-from pipeline.constants import SPEED_FLOOR, SPEED_CEIL
+from pipeline.constants import (
+    SPEED_FLOOR, SPEED_CEIL,
+    POSE_ADAPTIVE_SANITIZE_DROP_PCT,
+    POSE_ADAPTIVE_SANITIZE_DROP_MIN_FRAMES,
+    POSE_ADAPTIVE_MIN_IMPROVEMENT_PCT,
+)
 from pipeline.render import render_preview
-from pipeline.stabilize import compute_stabilization_offsets, stabilization_stats
+from pipeline.stabilize import (
+    compute_stabilization_offsets, stabilization_stats, compute_anchor_trajectory,
+)
 from pipeline.cache import (
     save_analysis, load_analysis,
     save_tracks, load_tracks, has_tracks,
@@ -96,13 +104,19 @@ def compute_scores_and_curve(
         if end_frame <= len(cam_dx):
             trimmed_cam = (cam_dx[start_frame:end_frame], cam_dy[start_frame:end_frame])
 
-    # Offset pins into trimmed-region time and filter out-of-range
+    edit_mode = getattr(req, "edit_mode", "pins")
+
+    # Offset editable points into trimmed-region time and filter out-of-range
     trim_s = start_frame / fps if fps > 0 else 0
     trim_dur = len(trimmed) / fps if fps > 0 else 0
     pins = [
         (p.time - trim_s, p.speed, p.radius) for p in req.pins
         if trim_s <= p.time <= trim_s + trim_dur
-    ]
+    ] if edit_mode == "pins" else []
+    keyframes = [
+        (k.time - trim_s, k.speed) for k in getattr(req, "keyframes", [])
+        if trim_s <= k.time <= trim_s + trim_dur
+    ] if edit_mode == "keyframes" else []
 
     if req.mode == "progress":
         scores = score_progress(
@@ -125,7 +139,7 @@ def compute_scores_and_curve(
             com_variance=rest_signals["com_variance"],
             limb_ratio=rest_signals["limb_ratio"],
         )
-    else:
+    elif req.mode == "action":
         scores = score_movement(
             trimmed, fps,
             smooth_sigma_s=req.smoothing,
@@ -143,6 +157,69 @@ def compute_scores_and_curve(
             sensitivity=req.sensitivity,
             steepness=req.steepness,
             pins=pins,
+        )
+    elif req.mode == "dynamic":
+        scores = score_com_velocity(
+            trimmed, fps,
+            smooth_sigma_s=req.smoothing,
+            camera_motion=trimmed_cam,
+        )
+        curve = solve_speed_curve(
+            scores, fps,
+            target_duration=req.target_duration,
+            min_speed=req.min_speed,
+            max_speed=req.max_speed,
+            sensitivity=req.sensitivity,
+            steepness=req.steepness,
+            pins=pins,
+        )
+    else:
+        # Hybrid mode blends progress and action curves/scores.
+        progress_scores = score_progress(
+            trimmed, fps,
+            smooth_sigma_s=req.smoothing,
+            vertical_bias=req.vertical_bias,
+            down_weight=getattr(req, "down_weight", 0.15),
+            camera_motion=trimmed_cam,
+        )
+        action_scores = score_movement(
+            trimmed, fps,
+            smooth_sigma_s=req.smoothing,
+            hand_weight=req.hand_weight,
+            foot_weight=req.foot_weight,
+            core_weight=req.core_weight,
+            flow_scores=trimmed_flow,
+            camera_motion=trimmed_cam,
+        )
+        rest_signals = analyze_rest_signals(trimmed, fps, camera_motion=trimmed_cam)
+        blend = float(np.clip(getattr(req, "progress_action_blend", 0.5), 0.0, 1.0))
+        scores = progress_scores * (1.0 - blend) + action_scores * blend
+        curve = solve_hybrid_curve(
+            progress_scores,
+            action_scores,
+            fps,
+            target_duration=req.target_duration,
+            blend=blend,
+            min_speed=req.min_speed,
+            max_speed=req.max_speed,
+            sensitivity=req.sensitivity,
+            steepness=req.steepness,
+            smoothing=req.smoothing,
+            rest_threshold_s=req.rest_threshold_s,
+            progress_floor=req.progress_floor,
+            pins=pins,
+            com_variance=rest_signals["com_variance"],
+            limb_ratio=rest_signals["limb_ratio"],
+        )
+
+    if edit_mode == "keyframes" and keyframes:
+        curve = curve_from_keyframes(
+            n_frames=len(trimmed),
+            fps=fps,
+            keyframes=keyframes,
+            min_speed=req.min_speed,
+            max_speed=req.max_speed,
+            smoothing=req.smoothing * 0.35,
         )
 
     return scores, curve, trimmed, start_frame
@@ -168,6 +245,127 @@ def curve_stats(curve: np.ndarray, fps: float) -> dict[str, float]:
     }
 
 
+def detect_crux_points(
+    scores: np.ndarray,
+    fps: float,
+    top_k: int = 5,
+    min_distance_s: float = 1.2,
+    quantile_threshold: float = 80.0,
+) -> list[tuple[int, float]]:
+    """Detect likely crux moments from score peaks.
+
+    Returns a list of ``(frame_index, score)`` sorted by frame index.
+    """
+    n = len(scores)
+    if n < 3 or fps <= 0:
+        return []
+
+    local_peaks = np.where(
+        (scores[1:-1] > scores[:-2]) & (scores[1:-1] >= scores[2:])
+    )[0] + 1
+
+    if local_peaks.size == 0:
+        max_idx = int(np.argmax(scores))
+        return [(max_idx, float(scores[max_idx]))]
+
+    thresh = float(np.percentile(scores, quantile_threshold))
+    candidates = local_peaks[scores[local_peaks] >= thresh]
+    if candidates.size == 0:
+        max_idx = int(np.argmax(scores))
+        return [(max_idx, float(scores[max_idx]))]
+
+    order = candidates[np.argsort(scores[candidates])[::-1]]
+    min_dist = max(1, int(min_distance_s * fps))
+
+    selected: list[tuple[int, float]] = []
+    for idx in order:
+        idx_i = int(idx)
+        if all(abs(idx_i - prev_idx) >= min_dist for prev_idx, _ in selected):
+            selected.append((idx_i, float(scores[idx_i])))
+        if len(selected) >= top_k:
+            break
+
+    selected.sort(key=lambda x: x[0])
+    return selected
+
+
+def build_chapter_markers(
+    scores: np.ndarray,
+    fps: float,
+    n_frames: int,
+) -> list[tuple[int, str]]:
+    """Create chapter marker labels for render overlays."""
+    if n_frames <= 0 or fps <= 0:
+        return []
+
+    markers: list[tuple[int, str]] = [(0, "START")]
+    crux = detect_crux_points(scores, fps, top_k=2, min_distance_s=1.8)
+    for i, (fi, _) in enumerate(crux, start=1):
+        markers.append((int(fi), f"CRUX {i}"))
+    markers.append((n_frames - 1, "SEND"))
+
+    markers = sorted(markers, key=lambda m: m[0])
+
+    # Deduplicate very close markers while preserving START/SEND.
+    min_gap = max(1, int(0.8 * fps))
+    deduped: list[tuple[int, str]] = []
+    for fi, label in markers:
+        if not deduped:
+            deduped.append((fi, label))
+            continue
+        prev_fi, prev_label = deduped[-1]
+        if label in ("START", "SEND") or prev_label in ("START", "SEND") or abs(fi - prev_fi) >= min_gap:
+            deduped.append((fi, label))
+    return deduped
+
+
+def _draw_chapter_label(frame: np.ndarray, label: str, alpha: float) -> None:
+    """Draw one chapter label card at the top-center."""
+    h, w = frame.shape[:2]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    fs = max(0.5, h / 900)
+    thick = max(1, int(h / 480))
+    tw, th = cv2.getTextSize(label, font, fs, thick)[0]
+    pad_x, pad_y = 10, 7
+    x1 = max(6, (w - tw) // 2 - pad_x)
+    y1 = 12
+    x2 = min(w - 6, (w + tw) // 2 + pad_x)
+    y2 = y1 + th + pad_y * 2
+
+    overlay = frame.copy()
+    bg_alpha = 0.35 + 0.35 * alpha
+    cv2.rectangle(overlay, (x1, y1), (x2, y2), (24, 18, 36), -1)
+    cv2.rectangle(overlay, (x1, y1), (x2, y2), (180, 120, 230), 1)
+    cv2.addWeighted(overlay, bg_alpha, frame, 1.0 - bg_alpha, 0, frame)
+
+    text_color = (245, 220, 255)
+    cv2.putText(frame, label, (x1 + pad_x, y2 - pad_y), font, fs, text_color, thick, cv2.LINE_AA)
+
+
+def wrap_overlay_with_chapters(
+    base_overlay: Callable[[np.ndarray, int, float], np.ndarray],
+    chapters: list[tuple[int, str]],
+    fps: float,
+) -> Callable[[np.ndarray, int, float], np.ndarray]:
+    """Compose chapter card overlays on top of an existing overlay."""
+    if not chapters or fps <= 0:
+        return base_overlay
+
+    window = max(1, int(0.75 * fps))
+
+    def overlay(frame: np.ndarray, src_idx: int, speed: float) -> np.ndarray:
+        out = base_overlay(frame, src_idx, speed)
+        for fi, label in chapters:
+            d = abs(src_idx - fi)
+            if d <= window:
+                alpha = 1.0 - (d / window)
+                _draw_chapter_label(out, label, alpha)
+                break
+        return out
+
+    return overlay
+
+
 # ---------------------------------------------------------------------------
 # Full analysis pipeline
 # ---------------------------------------------------------------------------
@@ -184,13 +382,40 @@ def run_analysis(
     and optionally ``tracker_model``.
     """
     cached = load_analysis(video_path, expected_stride=req.stride) if not req.force else None
+    tracks = None
 
     if cached:
         poses, fps, _ = cached
-        emit({"progress": 0.5, "message": "Loaded from cache"})
+        emit({"progress": 0.5, "message": "Loaded poses from cache"})
+
+        # Older caches may have poses/scores but no track artifacts.
+        # Backfill tracks so debug overlays and flow masking are complete.
+        if req.use_tracker and HAS_TRACKER:
+            cached_tracks = load_tracks(video_path, expected_stride=req.stride)
+            if cached_tracks:
+                tracks, _ = cached_tracks
+                emit({"progress": 0.54, "message": "Loaded tracks from cache"})
+            else:
+                emit({"progress": 0.50, "message": "Backfilling tracks..."})
+
+                def track_progress(p: float) -> None:
+                    emit({
+                        "progress": 0.50 + p * 0.04,
+                        "message": f"Backfilling tracks... {int(p * 100)}%",
+                    })
+
+                tracker_model = getattr(req, "tracker_model", None)
+                tracks, _ = track_video(
+                    video_path,
+                    stride=req.stride,
+                    progress_cb=track_progress,
+                    model_name=tracker_model,
+                )
+                if tracks:
+                    save_tracks(video_path, tracks, fps=fps, stride=req.stride)
+                    emit({"progress": 0.54, "message": "Cached backfilled tracks"})
     else:
         # --- Phase 1: Person tracking (optional) ---
-        tracks = None
         if req.use_tracker and HAS_TRACKER:
             emit({"progress": 0.02, "message": "Tracking persons..."})
 
@@ -218,18 +443,89 @@ def run_analysis(
         # --- Phase 2: Pose detection ---
         emit({"progress": 0.12, "message": "Detecting poses..."})
 
-        def pose_progress(p: float) -> None:
-            emit({
-                "progress": 0.12 + p * 0.38,
-                "message": f"Detecting poses... {int(p * 100)}%",
-            })
+        use_tracked_pose = bool(tracks)
+        if use_tracked_pose:
+            def tracked_pose_progress(p: float) -> None:
+                emit({
+                    "progress": 0.12 + p * 0.30,
+                    "message": f"Detecting poses (tracker-guided)... {int(p * 100)}%",
+                })
 
-        poses, fps, raw_anchor = extract_poses(
-            video_path,
-            stride=req.stride,
-            tracks=tracks,
-            progress_cb=pose_progress,
-        )
+            poses, fps, raw_anchor, tracked_diag = extract_poses_with_diagnostics(
+                video_path,
+                stride=req.stride,
+                tracks=tracks,
+                progress_cb=tracked_pose_progress,
+            )
+            tracked_drop_pct = float(tracked_diag.get("sanitize_discard_pct", 0.0))
+            tracked_drop_frames = int(tracked_diag.get("sanitize_discarded_frames", 0))
+
+            should_retry_full_frame = (
+                tracked_drop_pct >= POSE_ADAPTIVE_SANITIZE_DROP_PCT
+                and tracked_drop_frames >= POSE_ADAPTIVE_SANITIZE_DROP_MIN_FRAMES
+            )
+
+            if should_retry_full_frame:
+                emit({
+                    "progress": 0.42,
+                    "message": (
+                        f"Tracker-guided poses unstable ({tracked_drop_pct:.1f}% dropped). "
+                        "Retrying full-frame poses..."
+                    ),
+                })
+
+                def fallback_pose_progress(p: float) -> None:
+                    emit({
+                        "progress": 0.42 + p * 0.08,
+                        "message": f"Detecting poses (full-frame retry)... {int(p * 100)}%",
+                    })
+
+                fallback_poses, fallback_fps, fallback_raw_anchor, fallback_diag = (
+                    extract_poses_with_diagnostics(
+                        video_path,
+                        stride=req.stride,
+                        tracks=None,
+                        progress_cb=fallback_pose_progress,
+                    )
+                )
+                fallback_drop_pct = float(fallback_diag.get("sanitize_discard_pct", 0.0))
+                improvement = tracked_drop_pct - fallback_drop_pct
+
+                if improvement >= POSE_ADAPTIVE_MIN_IMPROVEMENT_PCT:
+                    poses, fps, raw_anchor = fallback_poses, fallback_fps, fallback_raw_anchor
+                    emit({
+                        "progress": 0.50,
+                        "message": (
+                            "Adaptive pose chooser: using full-frame "
+                            f"({fallback_drop_pct:.1f}% dropped vs {tracked_drop_pct:.1f}%)"
+                        ),
+                    })
+                else:
+                    emit({
+                        "progress": 0.50,
+                        "message": (
+                            "Adaptive pose chooser: keeping tracker-guided "
+                            f"({tracked_drop_pct:.1f}% dropped; full-frame {fallback_drop_pct:.1f}%)"
+                        ),
+                    })
+            else:
+                emit({
+                    "progress": 0.50,
+                    "message": f"Tracker-guided poses stable ({tracked_drop_pct:.1f}% dropped)",
+                })
+        else:
+            def pose_progress(p: float) -> None:
+                emit({
+                    "progress": 0.12 + p * 0.38,
+                    "message": f"Detecting poses... {int(p * 100)}%",
+                })
+
+            poses, fps, raw_anchor = extract_poses(
+                video_path,
+                stride=req.stride,
+                tracks=None,
+                progress_cb=pose_progress,
+            )
 
         if tracks:
             save_tracks(video_path, tracks, fps=fps, stride=req.stride)
@@ -257,9 +553,9 @@ def run_analysis(
             emit({"progress": 0.58, "message": "Loaded flow scores from cache"})
         else:
             emit({"progress": 0.55, "message": "Computing optical flow..."})
-            tracks_for_flow = None
-            if HAS_TRACKER:
-                cached_tracks = load_tracks(video_path)
+            tracks_for_flow = tracks
+            if tracks_for_flow is None and HAS_TRACKER:
+                cached_tracks = load_tracks(video_path, expected_stride=req.stride)
                 if cached_tracks:
                     tracks_for_flow, _ = cached_tracks
 
@@ -286,9 +582,9 @@ def run_analysis(
             emit({"progress": 0.67, "message": "Loaded camera motion from cache"})
         else:
             emit({"progress": 0.65, "message": "Estimating camera motion..."})
-            tracks_for_cam = None
-            if HAS_TRACKER:
-                cached_tracks = load_tracks(video_path)
+            tracks_for_cam = tracks
+            if tracks_for_cam is None and HAS_TRACKER:
+                cached_tracks = load_tracks(video_path, expected_stride=req.stride)
                 if cached_tracks:
                     tracks_for_cam, _ = cached_tracks
 
@@ -311,6 +607,7 @@ def run_analysis(
     emit({"progress": 0.70, "message": "Computing progress scores..."})
     progress_scores = score_progress(poses, fps, camera_motion=camera_motion)
     action_scores = score_movement(poses, fps, flow_scores=flow_scores, camera_motion=camera_motion)
+    dynamic_scores = score_com_velocity(poses, fps, camera_motion=camera_motion)
 
     emit({"progress": 0.85, "message": "Generating waveforms..."})
 
@@ -318,15 +615,23 @@ def run_analysis(
     step = max(1, n // 500)
     prog_ds = progress_scores[::step].tolist()
     act_ds = action_scores[::step].tolist()
+    dyn_ds = dynamic_scores[::step].tolist()
 
     waveform_progress = render_waveform_data_url(progress_scores, fps)
     waveform_action = render_waveform_data_url(action_scores, fps)
+    waveform_dynamic = render_waveform_data_url(dynamic_scores, fps)
 
     tracking_info: dict = {}
     if HAS_TRACKER and has_tracks(video_path):
         tracking_info["tracker_available"] = True
+    if req.use_tracker and not HAS_TRACKER:
+        tracking_info["tracker_unavailable"] = True
+        logger.warning("Tracking requested but dependencies missing (ultralytics, supervision)")
     if flow_scores is not None:
         tracking_info["flow_available"] = True
+    if req.use_flow and not HAS_FLOW:
+        tracking_info["flow_unavailable"] = True
+        logger.warning("Flow scoring requested but pipeline.flow import failed")
     if camera_motion is not None:
         tracking_info["camera_motion_available"] = True
 
@@ -339,9 +644,11 @@ def run_analysis(
         "duration": n / fps,
         "scores_progress": prog_ds,
         "scores_action": act_ds,
+        "scores_dynamic": dyn_ds,
         "scores_step": step,
         "waveform_progress": waveform_progress,
         "waveform_action": waveform_action,
+        "waveform_dynamic": waveform_dynamic,
         **tracking_info,
     })
 
@@ -378,6 +685,15 @@ def run_render(
     )
 
     trim_start_s = start_frame / fps if fps > 0 else 0.0
+
+    # Optional output reframing center path (for vertical/square aspect exports)
+    reframe_center = None
+    if (
+        getattr(req, "auto_reframe", False)
+        and getattr(req, "output_aspect", "original") != "original"
+    ):
+        ax, ay = compute_anchor_trajectory(trimmed)
+        reframe_center = (ax, ay)
 
     # Stabilisation
     stab_offsets = None
@@ -460,7 +776,7 @@ def run_render(
             if ef <= len(flow_scores):
                 debug_flow = flow_scores[start_frame:ef]
 
-        if req.mode == "progress":
+        if req.mode in ("progress", "hybrid"):
             # Trim camera motion for rest signal analysis
             debug_cam = None
             if camera_motion is not None:
@@ -496,7 +812,11 @@ def run_render(
             mode=req.mode,
         )
     else:
-        overlay_fn = make_speed_badge_fn(curve)
+        overlay_fn = None
+
+    if overlay_fn is not None and getattr(req, "render_chapters", False):
+        chapters = build_chapter_markers(scores, fps, len(trimmed))
+        overlay_fn = wrap_overlay_with_chapters(overlay_fn, chapters, fps)
 
     output_id = uuid.uuid4().hex[:10]
     output_path = str(output_dir / f"{output_id}.mp4")
@@ -521,6 +841,9 @@ def run_render(
         progress_cb=render_progress,
         stabilize_offsets=stab_offsets,
         stabilize_crop=req.stabilize_crop,
+        output_aspect=getattr(req, "output_aspect", "original"),
+        auto_reframe=getattr(req, "auto_reframe", False),
+        reframe_center=reframe_center,
         trim_start_s=trim_start_s,
         include_audio=req.include_audio,
     )
@@ -545,8 +868,8 @@ def run_render(
         comparison_id = uuid.uuid4().hex[:10]
         comparison_path = str(output_dir / f"{comparison_id}.mp4")
 
-        # Simple speed badge overlay for comparison
-        comp_overlay = make_speed_badge_fn(flat_curve)
+        # Speed badge overlay for comparison only when debug is on
+        comp_overlay = make_speed_badge_fn(flat_curve) if req.debug_overlay else None
 
         render_preview(
             video_path, flat_curve, fps,
@@ -559,6 +882,9 @@ def run_render(
                 "progress": 0.92 + p * 0.07,
                 "message": f"Rendering comparison... {int(p * 100)}%",
             }),
+            output_aspect=getattr(req, "output_aspect", "original"),
+            auto_reframe=getattr(req, "auto_reframe", False),
+            reframe_center=reframe_center,
             trim_start_s=trim_start_s,
             include_audio=False,
         )

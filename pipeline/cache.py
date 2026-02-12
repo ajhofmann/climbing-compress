@@ -215,9 +215,25 @@ def has_cache(video_path: str) -> bool:
     return (cache / "poses.json").exists() and (cache / "scores.npy").exists()
 
 
+def has_cache_by_hash(cache_key: str) -> bool:
+    """Check if analysis cache exists for a known content-hash key."""
+    cache = CACHE_DIR / cache_key
+    return (cache / "poses.json").exists() and (cache / "scores.npy").exists()
+
+
 def clear_cache(video_path: str):
     """Remove all cache for a video."""
     cache = get_cache_path(video_path)
     if cache.exists():
         for f in cache.iterdir():
             f.unlink()
+        cache.rmdir()
+
+
+def clear_cache_by_hash(cache_key: str):
+    """Remove all cache artifacts by content-hash key."""
+    cache = CACHE_DIR / cache_key
+    if cache.exists():
+        for f in cache.iterdir():
+            f.unlink()
+        cache.rmdir()

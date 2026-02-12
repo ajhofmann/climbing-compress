@@ -4,10 +4,13 @@ Uses YOLOv8 (configurable size via YOLO_MODEL constant) for detection
 and ByteTrack for multi-frame identity.  Identifies the climber (vs
 belayer, spectators) by vertical progress heuristic.
 
-Includes loss-of-track recovery:
-  - Consecutive miss counter with automatic ByteTrack reinit
-  - Max-jump gate to reject identity switches
+Includes graduated loss-of-track recovery:
+  - Three tracking states: LOCKED → SEARCHING → LOST
+  - Adaptive max-jump gate that widens as misses accumulate
+  - Confidence-gated re-lock for high-confidence detections
+  - Rolling quality monitor to detect wrong-person lock-on
   - Fallback re-detection at lower confidence / higher resolution
+  - Spatial bias preserved across resets for smarter recovery
   - Configurable via constants in pipeline.constants
 
 Optional dependency — the rest of the pipeline works without it.
@@ -15,6 +18,8 @@ Optional dependency — the rest of the pipeline works without it.
 
 from __future__ import annotations
 
+import enum
+from collections import deque
 from collections.abc import Callable
 
 import numpy as np
@@ -26,6 +31,11 @@ from pipeline.constants import (
     TRACK_FALLBACK_RESOLUTION,
     TRACK_LOST_GAP_FRAMES,
     TRACK_MAX_JUMP_NORM,
+    TRACK_QUALITY_MIN_CONF,
+    TRACK_QUALITY_WINDOW,
+    TRACK_RELOCK_CONF,
+    TRACK_SEARCH_GAP_FRAMES,
+    TRACK_SEARCH_MAX_JUMP_SCALE,
     YOLO_MODEL,
 )
 
@@ -35,6 +45,18 @@ try:
     HAS_TRACKER = True
 except ImportError:
     HAS_TRACKER = False
+
+
+class TrackState(enum.Enum):
+    """Graduated tracking states for recovery.
+
+    LOCKED    — confidently tracking the climber, strict spatial gate.
+    SEARCHING — lost recently, widened gate + confidence re-lock enabled.
+    LOST      — lost for many frames, ByteTrack reset, rely on scoring.
+    """
+    LOCKED = "locked"
+    SEARCHING = "searching"
+    LOST = "lost"
 
 
 _yolo_models: dict[str, "YOLO"] = {}
@@ -52,7 +74,18 @@ class ClimberTracker:
 
     Uses YOLOv8 for detection and ByteTrack for temporal identity.
     Selects the "climber" track by vertical progress + proximity heuristic.
-    Includes fallback re-detection and automatic recovery on loss.
+
+    Recovery is graduated through three states:
+
+    * **LOCKED** — confidently tracking; strict spatial gate.
+    * **SEARCHING** — a few misses; widened gate, confidence re-lock
+      enabled, ByteTrack still alive so existing identities persist.
+    * **LOST** — many misses; ByteTrack reset, but last known position
+      is kept as a soft spatial prior for scoring.
+
+    A rolling quality monitor watches for wrong-person lock-on (low
+    confidence, no vertical progress, belayer-like position) and can
+    proactively downgrade from LOCKED to SEARCHING.
     """
 
     def __init__(
@@ -83,10 +116,32 @@ class ClimberTracker:
         self.last_bbox_norm: tuple[float, float, float, float] | None = None
         self.last_frame_idx: int | None = None
         self.consecutive_misses = 0
-        self.recovery_mode = False
+        self.state: TrackState = TrackState.LOCKED
+
+        # Rolling quality monitor: recent (confidence, center_y) per detection
+        self._quality_window: deque[tuple[float, float]] = deque(
+            maxlen=TRACK_QUALITY_WINDOW,
+        )
+
+    # -- backward compat property so callers checking .recovery_mode still work --
+
+    @property
+    def recovery_mode(self) -> bool:
+        """True when tracker is in SEARCHING or LOST state."""
+        return self.state in (TrackState.SEARCHING, TrackState.LOST)
+
+    @recovery_mode.setter
+    def recovery_mode(self, value: bool) -> None:
+        """Allow legacy ``self.recovery_mode = False`` to reset to LOCKED."""
+        if not value:
+            self.state = TrackState.LOCKED
 
     def _reset_tracker(self) -> None:
-        """Reset ByteTrack and clear per-track history after a loss."""
+        """Reset ByteTrack and clear per-track identity after a loss.
+
+        Preserves ``last_bbox_norm`` as a soft spatial prior so that
+        recovery scoring can still bias toward the last known position.
+        """
         self.tracker = sv.ByteTrack(
             track_activation_threshold=self.conf_threshold,
             lost_track_buffer=BYTETRACK_LOST_TRACK_BUFFER,
@@ -94,8 +149,8 @@ class ClimberTracker:
         )
         self._track_history = {}
         self.climber_track_id = None
-        self.last_bbox_norm = None
-        self.last_frame_idx = None
+        # NOTE: last_bbox_norm is intentionally kept — it serves as a
+        # soft positional prior during LOST-state recovery.
 
     def _fallback_detect(self, frame_bgr: np.ndarray):
         """Retry detection with lower confidence and higher resolution.
@@ -126,11 +181,46 @@ class ClimberTracker:
         return sv.Detections.from_ultralytics(results)
 
     def _register_miss(self) -> None:
-        """Track consecutive misses and enter recovery when threshold hit."""
+        """Track consecutive misses and graduate recovery state."""
         self.consecutive_misses += 1
-        if self.consecutive_misses >= TRACK_LOST_GAP_FRAMES and not self.recovery_mode:
-            self.recovery_mode = True
+
+        if (
+            self.state == TrackState.LOCKED
+            and self.consecutive_misses >= TRACK_SEARCH_GAP_FRAMES
+        ):
+            self.state = TrackState.SEARCHING
+
+        if (
+            self.state == TrackState.SEARCHING
+            and self.consecutive_misses >= TRACK_LOST_GAP_FRAMES
+        ):
+            self.state = TrackState.LOST
             self._reset_tracker()
+
+    def _check_quality(self, conf: float, center_y: float) -> None:
+        """Update rolling quality monitor and downgrade state if needed.
+
+        Watches for wrong-person lock-on by checking recent detection
+        confidence.  Low average confidence while LOCKED triggers a
+        proactive transition to SEARCHING so the tracker starts looking
+        for a better candidate.
+        """
+        self._quality_window.append((conf, center_y))
+
+        if self.state != TrackState.LOCKED:
+            return
+        if len(self._quality_window) < TRACK_QUALITY_WINDOW:
+            return
+
+        mean_conf = sum(c for c, _ in self._quality_window) / len(self._quality_window)
+        mean_y = sum(y for _, y in self._quality_window) / len(self._quality_window)
+
+        # Low confidence streak → probably tracking the wrong person
+        # Also flag if tracked person is consistently in the bottom third
+        # (likely the belayer standing at the base).
+        if mean_conf < TRACK_QUALITY_MIN_CONF or (mean_conf < 0.45 and mean_y > 0.7):
+            self.state = TrackState.SEARCHING
+            self._quality_window.clear()
 
     def process_frame(
         self,
@@ -192,10 +282,17 @@ class ClimberTracker:
             float(bbox[2] / w),
             float(bbox[3] / h),
         )
-        recovered = self.recovery_mode
+        recovered = self.state in (TrackState.SEARCHING, TrackState.LOST)
+
+        # Quality monitor: feed the detection before resetting state
+        center_y_norm = (bbox_norm[1] + bbox_norm[3]) / 2
+        self._check_quality(conf, center_y_norm)
 
         self.consecutive_misses = 0
-        self.recovery_mode = False
+        # Only go back to LOCKED if we were SEARCHING/LOST
+        if self.state in (TrackState.SEARCHING, TrackState.LOST):
+            self.state = TrackState.LOCKED
+            self._quality_window.clear()
         self.last_bbox_norm = bbox_norm
         self.last_frame_idx = frame_idx
         self.climber_track_id = track_id
@@ -214,9 +311,9 @@ class ClimberTracker:
 
         Heuristics in priority order:
         1. Continuity — keep the previously identified climber track
-        2. Vertical progress — most upward motion over time
-        3. Height — highest position in frame (lowest y)
-        4. Size — largest bounding box (closest to camera, on wall)
+        2. Confidence re-lock — in SEARCHING/LOST, accept a high-conf
+           detection regardless of distance (handles camera cuts/pans)
+        3. Scored selection — vertical progress, height, size, proximity
         """
         if len(tracked) == 0:
             return None
@@ -225,7 +322,15 @@ class ClimberTracker:
         frame_gap = 1
         if self.last_frame_idx is not None and frame_idx > self.last_frame_idx:
             frame_gap = max(1, frame_idx - self.last_frame_idx)
-        max_jump = min(TRACK_MAX_JUMP_NORM * frame_gap, 0.9)
+
+        # Adaptive max_jump: widens as misses accumulate
+        miss_scale = 1.0 + self.consecutive_misses * 0.3
+        if self.state == TrackState.SEARCHING:
+            miss_scale = max(miss_scale, TRACK_SEARCH_MAX_JUMP_SCALE)
+        base_jump = TRACK_MAX_JUMP_NORM * frame_gap * miss_scale
+        max_jump = min(base_jump, 0.9)
+
+        is_recovering = self.state in (TrackState.SEARCHING, TrackState.LOST)
 
         def _center_dist(bbox: np.ndarray) -> float:
             if last_bbox is None:
@@ -241,9 +346,33 @@ class ClimberTracker:
             for i, tid in enumerate(tracked.tracker_id):
                 if int(tid) == self.climber_track_id:
                     dist = _center_dist(tracked.xyxy[i])
-                    if self.recovery_mode or last_bbox is None or dist <= max_jump:
+                    if is_recovering or last_bbox is None or dist <= max_jump:
                         return i
                     break
+
+        # Confidence-gated re-lock: in SEARCHING/LOST state, accept a
+        # high-confidence, large, upper-frame detection without distance
+        # constraint.  Handles camera cuts and pans.
+        if is_recovering and len(tracked) > 0:
+            best_relock_idx: int | None = None
+            best_relock_score = -float("inf")
+
+            for i in range(len(tracked.tracker_id)):
+                conf = float(tracked.confidence[i]) if tracked.confidence is not None else 0.0
+                if conf < TRACK_RELOCK_CONF:
+                    continue
+                bbox = tracked.xyxy[i]
+                center_y = (bbox[1] + bbox[3]) / 2 / h
+                area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) / (w * h)
+                # Prefer higher (lower y), larger, more confident
+                relock_score = conf * 2.0 + (1.0 - center_y) * 1.5 + area * 1.0
+                if relock_score > best_relock_score:
+                    best_relock_score = relock_score
+                    best_relock_idx = i
+
+            if best_relock_idx is not None:
+                self.climber_track_id = int(tracked.tracker_id[best_relock_idx])
+                return best_relock_idx
 
         # Score each track
         best_idx: int | None = None
@@ -254,7 +383,7 @@ class ClimberTracker:
             bbox = tracked.xyxy[i]
 
             dist = _center_dist(bbox)
-            if last_bbox is not None and dist > max_jump and not self.recovery_mode:
+            if last_bbox is not None and dist > max_jump and not is_recovering:
                 continue
 
             # Vertical progress: how much has center_y decreased (moved up)?
@@ -270,7 +399,8 @@ class ClimberTracker:
             # Size: larger = more prominent
             area = (bbox[2] - bbox[0]) * (bbox[3] - bbox[1]) / (w * h)
 
-            # Proximity: prefer candidates near the last bbox
+            # Proximity: prefer candidates near the last bbox (soft bias
+            # even after reset, since last_bbox_norm is preserved)
             proximity = 0.0
             if last_bbox is not None and max_jump > 0:
                 proximity = max(0.0, 1.0 - min(dist / max_jump, 1.0))

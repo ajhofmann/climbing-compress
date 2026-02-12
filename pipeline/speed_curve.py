@@ -201,6 +201,130 @@ def solve_constant_progress(
     return speeds
 
 
+def solve_hybrid_curve(
+    progress_scores: np.ndarray,
+    action_scores: np.ndarray,
+    fps: float,
+    target_duration: float,
+    blend: float = 0.5,
+    min_speed: float = 0.25,
+    max_speed: float = 12.0,
+    sensitivity: float = 0.5,
+    steepness: float = 12.0,
+    smoothing: float = 0.5,
+    rest_threshold_s: float = 0.3,
+    progress_floor: float = 0.02,
+    pins: list[tuple] | None = None,
+    com_variance: np.ndarray | None = None,
+    limb_ratio: np.ndarray | None = None,
+) -> np.ndarray:
+    """Blend progress-mode and action-mode speed curves.
+
+    ``blend`` controls the mix:
+      - 0.0 -> pure constant-progress curve
+      - 1.0 -> pure action-highlight curve
+
+    The function computes both base curves without pins, blends them,
+    applies optional pins once on the blended result, then re-fits the
+    final curve to ``target_duration``.
+    """
+    n = min(len(progress_scores), len(action_scores))
+    if n == 0:
+        return np.array([])
+
+    b = float(np.clip(blend, 0.0, 1.0))
+    prog = progress_scores[:n]
+    act = action_scores[:n]
+
+    progress_curve = solve_constant_progress(
+        prog, fps,
+        target_duration=target_duration,
+        min_speed=min_speed,
+        max_speed=max_speed,
+        smoothing=smoothing,
+        rest_threshold_s=rest_threshold_s,
+        floor=progress_floor,
+        pins=None,
+        com_variance=com_variance[:n] if com_variance is not None else None,
+        limb_ratio=limb_ratio[:n] if limb_ratio is not None else None,
+    )
+    action_curve = solve_speed_curve(
+        act, fps,
+        target_duration=target_duration,
+        min_speed=min_speed,
+        max_speed=max_speed,
+        sensitivity=sensitivity,
+        steepness=steepness,
+        smoothing=smoothing,
+        pins=None,
+    )
+
+    curve = progress_curve * (1.0 - b) + action_curve * b
+    curve = np.clip(curve, min_speed, max_speed)
+
+    if smoothing > 0:
+        sigma_frames = max(1, fps * smoothing)
+        curve = gaussian_filter1d(curve, sigma=sigma_frames)
+        curve = np.clip(curve, min_speed, max_speed)
+
+    curve = _apply_pins(curve, fps, pins, min_speed, max_speed)
+    dt = 1.0 / fps
+    curve = _bisect_duration(curve, dt, target_duration, min_speed, max_speed)
+
+    return np.clip(curve, min_speed, max_speed)
+
+
+def curve_from_keyframes(
+    n_frames: int,
+    fps: float,
+    keyframes: list[tuple[float, float]],
+    min_speed: float,
+    max_speed: float,
+    smoothing: float = 0.0,
+) -> np.ndarray:
+    """Build a speed curve from explicit keyframes using linear interpolation."""
+    if n_frames <= 0:
+        return np.array([])
+    if fps <= 0:
+        return np.full(n_frames, 1.0)
+    if not keyframes:
+        return np.full(n_frames, 1.0)
+
+    # Sort and clamp keyframes
+    dur = n_frames / fps
+    ordered = sorted(
+        (
+            float(np.clip(t, 0.0, dur)),
+            float(np.clip(s, min_speed, max_speed)),
+        )
+        for t, s in keyframes
+    )
+
+    times = np.array([t for t, _ in ordered], dtype=float)
+    speeds = np.array([s for _, s in ordered], dtype=float)
+
+    # Keep last value for duplicated times
+    uniq_t, uniq_s = [], []
+    for t, s in zip(times, speeds):
+        if uniq_t and abs(t - uniq_t[-1]) < 1e-6:
+            uniq_s[-1] = s
+        else:
+            uniq_t.append(t)
+            uniq_s.append(s)
+
+    if len(uniq_t) == 1:
+        curve = np.full(n_frames, uniq_s[0], dtype=float)
+    else:
+        frame_times = np.arange(n_frames, dtype=float) / fps
+        curve = np.interp(frame_times, uniq_t, uniq_s)
+
+    if smoothing > 0:
+        sigma_frames = max(1, fps * smoothing)
+        curve = gaussian_filter1d(curve, sigma=sigma_frames)
+
+    return np.clip(curve, min_speed, max_speed)
+
+
 def rest_confidence(
     progress_rate: np.ndarray,
     fps: float,

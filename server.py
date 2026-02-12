@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 import logging
 import os
 import shutil
@@ -18,14 +19,14 @@ import numpy as np
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from pipeline.cache import (
     load_analysis, has_cache, content_hash, load_flow_scores,
-    load_camera_motion,
+    load_camera_motion, clear_cache, clear_cache_by_hash, has_cache_by_hash,
 )
 from pipeline.orchestrate import (
-    run_analysis, run_render, compute_scores_and_curve, curve_stats,
+    run_analysis, run_render, compute_scores_and_curve, curve_stats, detect_crux_points,
 )
 from pipeline.speed_curve import detect_rest
 from utils.sse import sse_response
@@ -38,6 +39,10 @@ INPUT_DIR = Path(os.environ.get("INPUT_DIR", "data/input"))
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "data/output"))
 INPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+VIDEO_NAME_INDEX = INPUT_DIR / "_video_names.json"
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "512"))
+MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+ALLOWED_VIDEO_EXTS = (".mov", ".mp4", ".avi", ".mkv")
 
 _cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
 
@@ -54,15 +59,61 @@ _videos: dict[str, Path] = {}
 
 # Content-hash index for upload dedup (hash -> video_id)
 _file_hashes: dict[str, str] = {}
+# Reverse lookup for fast per-video cache checks (video_id -> hash)
+_video_hashes: dict[str, str] = {}
+# Video metadata cache (info + thumbnails) for fast local reloads
+_video_meta_cache: dict[str, dict[str, object]] = {}
+# Tracks source videos that failed decode for a given mtime
+_video_info_errors: dict[str, float] = {}
+# Tracks which unreadable videos have already been warned for current mtime
+_unreadable_warned: dict[str, float] = {}
+
+
+def _load_video_names() -> dict[str, str]:
+    if not VIDEO_NAME_INDEX.exists():
+        return {}
+    try:
+        raw = json.loads(VIDEO_NAME_INDEX.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning("Failed to load %s: %s", VIDEO_NAME_INDEX, exc)
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    names: dict[str, str] = {}
+    for key, value in raw.items():
+        if isinstance(key, str) and isinstance(value, str):
+            names[key] = value
+    return names
+
+
+def _persist_video_names() -> None:
+    try:
+        VIDEO_NAME_INDEX.parent.mkdir(parents=True, exist_ok=True)
+        tmp = VIDEO_NAME_INDEX.with_suffix(".tmp")
+        tmp.write_text(json.dumps(_video_names, indent=2, sort_keys=True), encoding="utf-8")
+        tmp.replace(VIDEO_NAME_INDEX)
+    except OSError as exc:
+        logger.warning("Failed to persist %s: %s", VIDEO_NAME_INDEX, exc)
+
+
+_video_names: dict[str, str] = _load_video_names()
 
 # Scan existing input videos on startup
+_video_names_dirty = False
 for _f in INPUT_DIR.iterdir():
-    if _f.suffix.lower() in (".mov", ".mp4", ".avi", ".mkv") and not _f.name.startswith("_tmp_"):
+    if _f.suffix.lower() in ALLOWED_VIDEO_EXTS and not _f.name.startswith("_tmp_"):
         _videos[_f.stem] = _f
+        if _f.stem not in _video_names:
+            _video_names[_f.stem] = _f.name
+            _video_names_dirty = True
         try:
-            _file_hashes[content_hash(str(_f))] = _f.stem
+            ch = content_hash(str(_f))
+            _file_hashes[ch] = _f.stem
+            _video_hashes[_f.stem] = ch
         except (OSError, ValueError) as exc:
             logger.warning("Failed to hash %s: %s", _f, exc)
+if _video_names_dirty:
+    _persist_video_names()
 
 
 # ---- Models ----
@@ -72,9 +123,15 @@ class Pin(BaseModel):
     speed: float
     radius: float = 2.0  # influence radius in seconds
 
+class Keyframe(BaseModel):
+    time: float
+    speed: float
+
 class SolveRequest(BaseModel):
     video_id: str
     mode: str = "progress"
+    edit_mode: str = "pins"
+    progress_action_blend: float = Field(default=0.5, ge=0.0, le=1.0)
     target_duration: float = 15
     sensitivity: float = 0.35
     max_speed: float = 10
@@ -91,11 +148,14 @@ class SolveRequest(BaseModel):
     trim_start: float = 0.0
     trim_end: float = 0.0
     pins: list[Pin] = []
+    keyframes: list[Keyframe] = []
 
 class RenderRequest(SolveRequest):
-    scale: float = 0.5
+    scale: float = 1.0
     output_fps: float = 30
     crf: int = 23
+    output_aspect: str = "original"
+    auto_reframe: bool = False
     debug_overlay: bool = True
     include_audio: bool = True
     # Pose-anchored stabilization
@@ -108,6 +168,8 @@ class RenderRequest(SolveRequest):
     feature_stabilize_weight: float = 0.5
     # Comparison: also render a uniform-speed version
     render_comparison: bool = False
+    # Chapter card overlays
+    render_chapters: bool = False
 
 class AnalyzeRequest(BaseModel):
     video_id: str
@@ -118,12 +180,161 @@ class AnalyzeRequest(BaseModel):
     tracker_model: str = "yolo26m"
 
 
+class RenameVideoRequest(BaseModel):
+    filename: str
+
+
 # ---- Helpers ----
 
-def _get_video_path(video_id: str) -> Path:
+def _drop_video_state(
+    video_id: str,
+    *,
+    remove_name: bool,
+    persist_name_update: bool = True,
+) -> bool:
+    _videos.pop(video_id, None)
+    _video_meta_cache.pop(video_id, None)
+    _video_info_errors.pop(video_id, None)
+    _unreadable_warned.pop(video_id, None)
+    _video_hashes.pop(video_id, None)
+    for h, vid in list(_file_hashes.items()):
+        if vid == video_id:
+            _file_hashes.pop(h, None)
+    if remove_name and _video_names.pop(video_id, None) is not None:
+        if persist_name_update:
+            _persist_video_names()
+        return True
+    return False
+
+
+def _get_video_path(video_id: str, *, require_exists: bool = True) -> Path:
     if video_id not in _videos:
         raise HTTPException(404, f"Video '{video_id}' not found")
-    return _videos[video_id]
+    path = _videos[video_id]
+    if require_exists and not path.exists():
+        _drop_video_state(video_id, remove_name=True)
+        raise HTTPException(404, f"Video '{video_id}' not found")
+    return path
+
+
+def _clear_output_videos() -> int:
+    """Remove rendered output videos from local output directory."""
+    deleted = 0
+    for path in OUTPUT_DIR.iterdir():
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        try:
+            path.unlink()
+            deleted += 1
+        except OSError as exc:
+            raise HTTPException(500, f"Failed to delete output video: {exc}") from exc
+    return deleted
+
+
+def _clear_output_videos_for_source(video_id: str) -> int:
+    """Remove rendered output files that share the deleted source video id stem."""
+    deleted = 0
+    for path in OUTPUT_DIR.iterdir():
+        if not path.is_file():
+            continue
+        if path.stem != video_id:
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        try:
+            path.unlink()
+            deleted += 1
+        except OSError as exc:
+            raise HTTPException(500, f"Failed to delete output video: {exc}") from exc
+    return deleted
+
+
+def _safe_file_size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def _output_video_totals() -> tuple[int, int]:
+    """Return rendered output count + bytes across all source clips."""
+    if not OUTPUT_DIR.exists():
+        return 0, 0
+    total = 0
+    total_bytes = 0
+    for path in OUTPUT_DIR.iterdir():
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        total += 1
+        total_bytes += _safe_file_size(path)
+    return total, total_bytes
+
+
+def _output_video_totals_for_source(video_id: str) -> tuple[int, int]:
+    """Return rendered output count + bytes for one source clip id."""
+    if not OUTPUT_DIR.exists():
+        return 0, 0
+    total = 0
+    total_bytes = 0
+    for path in OUTPUT_DIR.iterdir():
+        if not path.is_file():
+            continue
+        if path.stem != video_id:
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        total += 1
+        total_bytes += _safe_file_size(path)
+    return total, total_bytes
+
+
+def _count_output_videos() -> int:
+    total, _ = _output_video_totals()
+    return total
+
+
+def _count_output_videos_for_source(video_id: str) -> int:
+    total, _ = _output_video_totals_for_source(video_id)
+    return total
+
+
+def _output_totals_by_source() -> dict[str, tuple[int, int]]:
+    if not OUTPUT_DIR.exists():
+        return {}
+    totals: dict[str, tuple[int, int]] = {}
+    for path in OUTPUT_DIR.iterdir():
+        if not path.is_file():
+            continue
+        if path.suffix.lower() not in ALLOWED_VIDEO_EXTS:
+            continue
+        count, byte_total = totals.get(path.stem, (0, 0))
+        totals[path.stem] = (count + 1, byte_total + _safe_file_size(path))
+    return totals
+
+
+def _existing_clip_stats() -> tuple[int, int]:
+    """Return existing local source clip count + bytes while pruning stale ids."""
+    total = 0
+    total_bytes = 0
+    stale: list[str] = []
+    for vid, path in list(_videos.items()):
+        if path.exists():
+            total += 1
+            total_bytes += _safe_file_size(path)
+        else:
+            stale.append(vid)
+    if stale:
+        name_changed = False
+        for vid in stale:
+            if _drop_video_state(vid, remove_name=True, persist_name_update=False):
+                name_changed = True
+        if name_changed:
+            _persist_video_names()
+    return total, total_bytes
 
 
 def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
@@ -139,17 +350,83 @@ def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
     return urls
 
 
+def _get_video_info_cached(video_id: str, path: Path) -> dict:
+    entry = _video_meta_cache.get(video_id)
+    if entry:
+        info = entry.get("info")
+        if isinstance(info, dict):
+            return info
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    if _video_info_errors.get(video_id) == mtime:
+        raise ValueError(f"Cannot open video: {path}")
+    try:
+        info = get_video_info(str(path))
+    except (OSError, ValueError):
+        _video_info_errors[video_id] = mtime
+        raise
+    _video_info_errors.pop(video_id, None)
+    _video_meta_cache.setdefault(video_id, {})["info"] = info
+    return info
+
+
+def _get_thumbnails_cached(video_id: str, path: Path, n: int = 8) -> list[str]:
+    entry = _video_meta_cache.get(video_id)
+    if entry:
+        thumbs = entry.get("thumbnails")
+        if isinstance(thumbs, list):
+            return thumbs
+    thumbs = _encode_thumbnails(generate_thumbnails(str(path), n=n))
+    _video_meta_cache.setdefault(video_id, {})["thumbnails"] = thumbs
+    return thumbs
+
+
+def _display_filename(video_id: str, fallback: Path) -> str:
+    return _video_names.get(video_id, fallback.name)
+
+
+def _cache_key_for_video(video_id: str, path: Path) -> str | None:
+    if video_id in _video_hashes:
+        return _video_hashes[video_id]
+    try:
+        ch = content_hash(str(path))
+    except (OSError, ValueError):
+        return None
+    _video_hashes[video_id] = ch
+    _file_hashes[ch] = video_id
+    return ch
+
+
+def _has_cached_analysis(video_id: str, path: Path) -> bool:
+    cache_key = _cache_key_for_video(video_id, path)
+    if cache_key:
+        return has_cache_by_hash(cache_key)
+    # Fallback for unusual cases where hashing fails.
+    return has_cache(str(path))
+
+
 # ---- Endpoints ----
 
 @app.post("/api/upload")
 async def upload_video(file: UploadFile = File(...)):
-    ext = Path(file.filename).suffix or ".mov"
+    filename = file.filename or ""
+    display_name = Path(filename).name if filename else ""
+    ext = Path(filename).suffix.lower() or ".mov"
+    if ext not in ALLOWED_VIDEO_EXTS:
+        allowed = ", ".join(ALLOWED_VIDEO_EXTS)
+        raise HTTPException(415, f"Unsupported video format. Allowed: {allowed}")
 
     # Save to temp first so we can hash before committing
     tmp = INPUT_DIR / f"_tmp_{uuid.uuid4().hex[:8]}{ext}"
     try:
         with open(tmp, "wb") as f:
             shutil.copyfileobj(file.file, f)
+
+        if MAX_UPLOAD_BYTES > 0 and tmp.stat().st_size > MAX_UPLOAD_BYTES:
+            tmp.unlink()
+            raise HTTPException(413, f"Upload too large (limit {MAX_UPLOAD_MB} MB)")
 
         ch = content_hash(str(tmp))
 
@@ -159,13 +436,22 @@ async def upload_video(file: UploadFile = File(...)):
             if existing_id in _videos and _videos[existing_id].exists():
                 tmp.unlink()
                 dest = _videos[existing_id]
-                info = get_video_info(str(dest))
-                thumbs = generate_thumbnails(str(dest), n=8)
+                _video_hashes[existing_id] = ch
+                if display_name and _video_names.get(existing_id) != display_name:
+                    _video_names[existing_id] = display_name
+                    _persist_video_names()
+                info = _get_video_info_cached(existing_id, dest)
+                thumbs = _get_thumbnails_cached(existing_id, dest, n=8)
+                output_count, output_bytes = _output_video_totals_for_source(existing_id)
                 return {
                     "video_id": existing_id,
+                    "filename": _display_filename(existing_id, dest),
                     "info": info,
-                    "thumbnails": _encode_thumbnails(thumbs),
-                    "cached": has_cache(str(dest)),
+                    "thumbnails": thumbs,
+                    "cached": _has_cached_analysis(existing_id, dest),
+                    "output_count": output_count,
+                    "source_bytes": _safe_file_size(dest),
+                    "output_bytes": output_bytes,
                     "reused": True,
                 }
 
@@ -176,14 +462,25 @@ async def upload_video(file: UploadFile = File(...)):
 
         _videos[video_id] = dest
         _file_hashes[ch] = video_id
+        _video_hashes[video_id] = ch
+        _video_names[video_id] = display_name or dest.name
+        _video_info_errors.pop(video_id, None)
+        _unreadable_warned.pop(video_id, None)
+        _persist_video_names()
         info = get_video_info(str(dest))
-        thumbs = generate_thumbnails(str(dest), n=8)
+        thumbs = _encode_thumbnails(generate_thumbnails(str(dest), n=8))
+        _video_meta_cache[video_id] = {"info": info, "thumbnails": thumbs}
+        output_count, output_bytes = _output_video_totals_for_source(video_id)
 
         return {
             "video_id": video_id,
+            "filename": _display_filename(video_id, dest),
             "info": info,
-            "thumbnails": _encode_thumbnails(thumbs),
-            "cached": has_cache(str(dest)),
+            "thumbnails": thumbs,
+            "cached": _has_cached_analysis(video_id, dest),
+            "output_count": output_count,
+            "source_bytes": _safe_file_size(dest),
+            "output_bytes": output_bytes,
             "reused": False,
         }
     except (OSError, ValueError) as exc:
@@ -196,11 +493,237 @@ async def upload_video(file: UploadFile = File(...)):
 @app.get("/api/videos")
 async def list_videos():
     """List available input videos."""
+    def _sort_key(item: tuple[str, Path]) -> tuple[float, str]:
+        vid, path = item
+        try:
+            mtime = path.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        return (-mtime, vid)
+
+    output_totals = _output_totals_by_source()
     result = []
-    for vid, path in _videos.items():
-        info = get_video_info(str(path))
-        result.append({"video_id": vid, "filename": path.name, "info": info})
+    stale_missing: list[str] = []
+    for vid, path in sorted(_videos.items(), key=_sort_key):
+        if not path.exists():
+            stale_missing.append(vid)
+            continue
+        try:
+            info = _get_video_info_cached(vid, path)
+        except (OSError, ValueError) as exc:
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            if _unreadable_warned.get(vid) != mtime:
+                logger.warning("Skipping unreadable video %s: %s", path, exc)
+                _unreadable_warned[vid] = mtime
+            continue
+        _unreadable_warned.pop(vid, None)
+        output_count, output_bytes = output_totals.get(vid, (0, 0))
+        result.append({
+            "video_id": vid,
+            "filename": _display_filename(vid, path),
+            "info": info,
+            "cached": _has_cached_analysis(vid, path),
+            "output_count": output_count,
+            "source_bytes": _safe_file_size(path),
+            "output_bytes": output_bytes,
+        })
+    if stale_missing:
+        name_changed = False
+        for vid in stale_missing:
+            if _drop_video_state(vid, remove_name=True, persist_name_update=False):
+                name_changed = True
+        if name_changed:
+            _persist_video_names()
     return result
+
+
+@app.get("/api/video-meta/{video_id}")
+async def video_meta(video_id: str):
+    """Fetch info + thumbnails for an already-uploaded source video."""
+    path = _get_video_path(video_id)
+    info = _get_video_info_cached(video_id, path)
+    thumbs = _get_thumbnails_cached(video_id, path, n=8)
+    output_count, output_bytes = _output_video_totals_for_source(video_id)
+    return {
+        "video_id": video_id,
+        "filename": _display_filename(video_id, path),
+        "info": info,
+        "thumbnails": thumbs,
+        "cached": _has_cached_analysis(video_id, path),
+        "output_count": output_count,
+        "source_bytes": _safe_file_size(path),
+        "output_bytes": output_bytes,
+    }
+
+
+@app.delete("/api/videos/{video_id}")
+async def delete_video(video_id: str):
+    """Delete a source video from local library + clear its cached analysis."""
+    path = _get_video_path(video_id, require_exists=False)
+    deleted_bytes = _safe_file_size(path) if path.exists() else 0
+    expected_outputs, expected_output_bytes = _output_video_totals_for_source(video_id)
+
+    hash_keys = []
+    if video_id in _video_hashes:
+        hash_keys.append(_video_hashes[video_id])
+    for h, vid in list(_file_hashes.items()):
+        if vid == video_id and h not in hash_keys:
+            hash_keys.append(h)
+
+    if hash_keys:
+        for cache_key in hash_keys:
+            try:
+                clear_cache_by_hash(cache_key)
+            except OSError as exc:
+                logger.warning("Failed to clear cache hash %s for %s: %s", cache_key, video_id, exc)
+    elif path.exists():
+        try:
+            clear_cache(str(path))
+        except OSError as exc:
+            logger.warning("Failed to clear cache for deleted video %s: %s", video_id, exc)
+
+    if path.exists():
+        try:
+            path.unlink()
+        except OSError as exc:
+            raise HTTPException(500, f"Failed to delete video: {exc}") from exc
+
+    deleted_outputs = _clear_output_videos_for_source(video_id)
+    _drop_video_state(video_id, remove_name=True)
+
+    return {
+        "video_id": video_id,
+        "deleted": True,
+        "deleted_outputs": deleted_outputs,
+        "deleted_bytes": deleted_bytes,
+        "deleted_output_bytes": expected_output_bytes if expected_outputs > 0 else 0,
+    }
+
+
+@app.delete("/api/outputs")
+async def delete_all_outputs():
+    """Delete all rendered output videos while keeping source clips."""
+    expected_outputs, expected_output_bytes = _output_video_totals()
+    deleted_outputs = _clear_output_videos()
+    return {
+        "deleted_outputs": deleted_outputs,
+        "deleted_output_bytes": expected_output_bytes if expected_outputs > 0 else 0,
+    }
+
+
+@app.delete("/api/outputs/{video_id}")
+async def delete_outputs_for_video(video_id: str):
+    """Delete rendered outputs for one source video id."""
+    expected_outputs, expected_output_bytes = _output_video_totals_for_source(video_id)
+    deleted_outputs = _clear_output_videos_for_source(video_id)
+    return {
+        "video_id": video_id,
+        "deleted_outputs": deleted_outputs,
+        "deleted_output_bytes": expected_output_bytes if expected_outputs > 0 else 0,
+    }
+
+
+@app.get("/api/library-stats")
+async def library_stats(video_id: str | None = None):
+    """Small fast counters for local clip/output housekeeping UI."""
+    clips, clip_bytes = _existing_clip_stats()
+    outputs, output_bytes = _output_video_totals()
+    stats: dict[str, int] = {
+        "clips": clips,
+        "outputs": outputs,
+        "clip_bytes": clip_bytes,
+        "output_bytes": output_bytes,
+    }
+    if video_id:
+        clip_outputs, clip_output_bytes = _output_video_totals_for_source(video_id)
+        stats["clip_outputs"] = clip_outputs
+        stats["clip_output_bytes"] = clip_output_bytes
+    return stats
+
+
+@app.patch("/api/videos/{video_id}")
+async def rename_video(video_id: str, req: RenameVideoRequest):
+    path = _get_video_path(video_id)
+    filename = Path(req.filename.strip()).name
+    if not filename:
+        raise HTTPException(400, "Filename cannot be empty")
+    if Path(filename).suffix == "" and path.suffix:
+        filename = f"{filename}{path.suffix.lower()}"
+    ext = Path(filename).suffix.lower()
+    if ext and ext not in ALLOWED_VIDEO_EXTS:
+        allowed = ", ".join(ALLOWED_VIDEO_EXTS)
+        raise HTTPException(400, f"Unsupported rename extension. Allowed: {allowed}")
+    if len(filename) > 120:
+        raise HTTPException(400, "Filename too long (max 120 characters)")
+
+    if _video_names.get(video_id) == filename:
+        return {
+            "video_id": video_id,
+            "filename": filename,
+        }
+
+    _video_names[video_id] = filename
+    _persist_video_names()
+
+    return {
+        "video_id": video_id,
+        "filename": filename,
+    }
+
+
+@app.delete("/api/videos")
+async def delete_all_videos():
+    """Delete all local source videos and clear related cached state."""
+    removed_ids: list[str] = []
+    deleted_bytes = 0
+
+    for video_id, path in list(_videos.items()):
+        hash_keys = []
+        if video_id in _video_hashes:
+            hash_keys.append(_video_hashes[video_id])
+        for h, vid in list(_file_hashes.items()):
+            if vid == video_id and h not in hash_keys:
+                hash_keys.append(h)
+
+        if hash_keys:
+            for cache_key in hash_keys:
+                try:
+                    clear_cache_by_hash(cache_key)
+                except OSError as exc:
+                    logger.warning("Failed to clear cache hash %s for %s: %s", cache_key, video_id, exc)
+        elif path.exists():
+            try:
+                clear_cache(str(path))
+            except OSError as exc:
+                logger.warning("Failed to clear cache for %s: %s", video_id, exc)
+
+        if path.exists():
+            deleted_bytes += _safe_file_size(path)
+            try:
+                path.unlink()
+            except OSError as exc:
+                raise HTTPException(500, f"Failed to delete video: {exc}") from exc
+
+        _drop_video_state(video_id, remove_name=False)
+        removed_ids.append(video_id)
+
+    if _video_names:
+        _video_names.clear()
+        _persist_video_names()
+
+    expected_outputs, expected_output_bytes = _output_video_totals()
+    deleted_outputs = _clear_output_videos()
+    removed_ids.sort()
+    return {
+        "deleted": len(removed_ids),
+        "video_ids": removed_ids,
+        "deleted_outputs": deleted_outputs,
+        "deleted_bytes": deleted_bytes,
+        "deleted_output_bytes": expected_output_bytes if expected_outputs > 0 else 0,
+    }
 
 
 @app.post("/api/analyze")
@@ -248,6 +771,14 @@ async def solve_curve(req: SolveRequest):
         t1 = float(e) / fps + trim_offset
         rest_regions.append([round(t0, 2), round(t1, 2)])
 
+    crux_points = []
+    for fi, score in detect_crux_points(scores, fps):
+        t = float(fi) / fps + trim_offset
+        crux_points.append({
+            "time": round(t, 2),
+            "score": round(float(score), 3),
+        })
+
     stats = curve_stats(curve, fps)
 
     return {
@@ -255,6 +786,7 @@ async def solve_curve(req: SolveRequest):
         "times": times_ds,
         "scores": scores_ds,
         "rest_regions": rest_regions,
+        "crux_points": crux_points,
         "stats": stats,
     }
 

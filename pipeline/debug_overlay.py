@@ -83,7 +83,15 @@ def _stab_coord_adjuster(
 # Layer 1: Skeleton with visibility quality
 # ---------------------------------------------------------------------------
 
-def _draw_skeleton(frame: np.ndarray, pose, h: int, w: int) -> None:
+def _draw_skeleton(frame: np.ndarray, pose, h: int, w: int,
+                   min_confident: int = 4,
+                   confident_vis: float = 0.5) -> None:
+    """Draw pose skeleton on frame.
+
+    Quality gate: requires at least *min_confident* landmarks with
+    visibility > *confident_vis* before drawing anything.  This
+    suppresses synthetic bbox-fallback poses and bad detections.
+    """
     if pose is None:
         return
 
@@ -96,6 +104,11 @@ def _draw_skeleton(frame: np.ndarray, pose, h: int, w: int) -> None:
                 if vis > MIN_VISIBILITY:
                     idx_to_pt[lm_idx] = (int(x * w), int(y * h))
                     idx_to_vis[lm_idx] = vis
+
+        # Quality gate — skip if too few confident landmarks
+        n_confident = sum(1 for v in idx_to_vis.values() if v > confident_vis)
+        if n_confident < min_confident:
+            return
 
         # Bones — brighter when both endpoints are confident
         for i1, i2 in SKELETON_CONNECTIONS:
@@ -120,9 +133,14 @@ def _draw_skeleton(frame: np.ndarray, pose, h: int, w: int) -> None:
 
     elif isinstance(pose, list) and len(pose) == 33:
         pts: dict[int, tuple[int, int]] = {}
+        vis_vals: list[float] = []
         for i, (x, y, vis) in enumerate(pose):
             if vis > MIN_VISIBILITY:
                 pts[i] = (int(x * w), int(y * h))
+                vis_vals.append(vis)
+        # Quality gate
+        if sum(1 for v in vis_vals if v > confident_vis) < min_confident:
+            return
         for i1, i2 in SKELETON_CONNECTIONS:
             if i1 in pts and i2 in pts:
                 cv2.line(frame, pts[i1], pts[i2],
@@ -203,7 +221,7 @@ def _compute_com(poses: list) -> tuple[np.ndarray, np.ndarray]:
         for name in parts:
             if name in p:
                 x, y, v = p[name]
-                if v > MIN_VISIBILITY:
+                if v >= MIN_VISIBILITY:
                     xs.append(x)
                     ys.append(y)
         if len(xs) >= 2:
@@ -331,7 +349,7 @@ def _draw_frame_info(frame: np.ndarray, src_idx: int, fps: float,
     fs = max(0.5, h / 900)
     small = fs * 0.65
     src_t = src_idx / fps if fps > 0 else 0
-    tag = "PROG" if mode == "progress" else "ACT"
+    tag = "PROG" if mode == "progress" else "ACT" if mode == "action" else "DYN" if mode == "dynamic" else "HYB"
 
     # Include output time when time_map is available
     if time_map is not None and len(time_map) > 0 and src_idx < len(time_map):
@@ -792,7 +810,16 @@ def make_debug_overlay_fn(
         if tracks is not None and src_idx < len(tracks):
             _draw_tracking_bbox(frame, _adjusted_track(tracks[src_idx], src_idx, h, w), h, w)
 
-        if src_idx < len(poses) and poses[src_idx] is not None:
+        # Only draw skeleton when we have a valid track for this frame.
+        # When the tracker loses the person, interpolation fills forward
+        # with stale poses — hide the skeleton instead of showing a frozen one.
+        _has_track = (
+            tracks is None  # no tracking data → always draw
+            or (src_idx < len(tracks)
+                and tracks[src_idx] is not None
+                and tracks[src_idx].get("bbox_norm") is not None)
+        )
+        if _has_track and src_idx < len(poses) and poses[src_idx] is not None:
             _draw_skeleton(frame, _adjusted_pose(poses[src_idx], src_idx, h, w), h, w)
 
         if _adjust is not None:

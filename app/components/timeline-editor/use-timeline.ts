@@ -1,16 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pin } from "@/lib/types";
+import type { CruxPoint, EditMode, Keyframe, Pin } from "@/lib/types";
 
 interface TimelineConfig {
   duration: number;
+  minSpeed: number;
   maxSpeed: number;
   curve: number[];
   curveTimes: number[];
+  editMode: EditMode;
   pins: Pin[];
+  keyframes: Keyframe[];
   waveformUrl: string;
+  cruxPoints: CruxPoint[];
   onPinsChange: (pins: Pin[]) => void;
+  onKeyframesChange: (keyframes: Keyframe[]) => void;
   trimStart: number;
   trimEnd: number;
   onTrimChange: (start: number, end: number) => void;
@@ -20,6 +25,7 @@ const DEFAULT_PIN_RADIUS = 2.0;
 
 type DragTarget =
   | { type: "pin"; index: number }
+  | { type: "keyframe"; index: number }
   | { type: "trim-start" }
   | { type: "trim-end" }
   | null;
@@ -31,21 +37,19 @@ export function useTimeline(config: TimelineConfig) {
   const [hoverIdx, setHoverIdx] = useState(-1);
   const [hoverTrim, setHoverTrim] = useState<"start" | "end" | null>(null);
 
-  const { duration, maxSpeed, curve, curveTimes, pins, waveformUrl, onPinsChange, trimStart, trimEnd, onTrimChange } = config;
-
-  // Load waveform image
-  useEffect(() => {
-    if (!waveformUrl) return;
-    const img = new Image();
-    img.src = waveformUrl;
-    img.onload = () => { waveImgRef.current = img; draw(); };
-    waveImgRef.current = img;
-  }, [waveformUrl]);
+  const {
+    duration, minSpeed, maxSpeed, curve, curveTimes, editMode, pins, keyframes,
+    waveformUrl, cruxPoints, onPinsChange, onKeyframesChange,
+    trimStart, trimEnd, onTrimChange,
+  } = config;
 
   const timeToX = useCallback((t: number, w: number) => (t / duration) * w, [duration]);
   const xToTime = useCallback((x: number, w: number) => Math.max(0, Math.min(duration, (x / w) * duration)), [duration]);
   const speedToY = useCallback((s: number, h: number) => h - (Math.min(s, maxSpeed) / maxSpeed) * h, [maxSpeed]);
-  const yToSpeed = useCallback((y: number, h: number) => Math.max(0.1, Math.min(maxSpeed, (1 - y / h) * maxSpeed)), [maxSpeed]);
+  const yToSpeed = useCallback(
+    (y: number, h: number) => Math.max(minSpeed, Math.min(maxSpeed, (1 - y / h) * maxSpeed)),
+    [minSpeed, maxSpeed],
+  );
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -115,6 +119,44 @@ export function useTimeline(config: TimelineConfig) {
       if (started) ctx.stroke();
     }
 
+    // Crux markers (backend suggestions)
+    if (cruxPoints.length > 0) {
+      cruxPoints.forEach((cp, idx) => {
+        const x = timeToX(cp.time, w);
+        if (!isFinite(x) || x < 0 || x > w) return;
+        const lineAlpha = Math.max(0.25, Math.min(0.75, cp.score));
+        ctx.strokeStyle = `rgba(224, 64, 251, ${lineAlpha})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+
+        // Top triangle marker
+        ctx.fillStyle = "rgba(224, 64, 251, 0.9)";
+        ctx.beginPath();
+        ctx.moveTo(x, 5);
+        ctx.lineTo(x - 4, 0);
+        ctx.lineTo(x + 4, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, 8, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        const tag = `C${idx + 1}`;
+        ctx.font = "bold 10px system-ui";
+        const tw = ctx.measureText(tag).width;
+        const lx = Math.min(Math.max(3, x - tw / 2 - 3), w - tw - 6);
+        ctx.fillStyle = "rgba(24, 8, 34, 0.8)";
+        ctx.beginPath();
+        ctx.roundRect(lx, 10, tw + 6, 12, 3);
+        ctx.fill();
+        ctx.fillStyle = "#f2b8ff";
+        ctx.fillText(tag, lx + 3, 19);
+      });
+    }
+
     // Trim dimmed regions
     const trimX0 = timeToX(trimStart, w);
     const trimX1 = timeToX(trimEnd > 0 ? trimEnd : duration, w);
@@ -176,83 +218,141 @@ export function useTimeline(config: TimelineConfig) {
       ctx.fillText(label, trimX1 - tw2 - 4, 12);
     }
 
-    // Pin points
+    // Editable points (pins or keyframes)
     const accentColor = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#3d5a3e";
     const warmColor = getComputedStyle(document.documentElement).getPropertyValue("--warm").trim() || "#c97b2a";
+    if (editMode === "pins") {
+      for (let i = 0; i < pins.length; i++) {
+        const pin = pins[i];
+        const x = timeToX(pin.time, w);
+        const y = speedToY(pin.speed, h);
+        const isHover = i === hoverIdx;
+        const isDrag = dragging?.type === "pin" && dragging.index === i;
+        const radiusS = pin.radius ?? DEFAULT_PIN_RADIUS;
 
-    for (let i = 0; i < pins.length; i++) {
-      const pin = pins[i];
-      const x = timeToX(pin.time, w);
-      const y = speedToY(pin.speed, h);
-      const isHover = i === hoverIdx;
-      const isDrag = dragging?.type === "pin" && dragging.index === i;
-      const radiusS = pin.radius ?? DEFAULT_PIN_RADIUS;
+        const radiusNorm = (radiusS - 0.2) / (10.0 - 0.2);
+        const baseR = 5 + radiusNorm * 9;
+        const dotR = isDrag ? baseR + 2 : isHover ? baseR + 1 : baseR;
+        const glowR = dotR + 4;
 
-      // Scale dot size by radius: min 5px at r=0.2, max 14px at r=10
-      const radiusNorm = (radiusS - 0.2) / (10.0 - 0.2); // 0..1
-      const baseR = 5 + radiusNorm * 9; // 5..14px
-      const dotR = isDrag ? baseR + 2 : isHover ? baseR + 1 : baseR;
-      const glowR = dotR + 4;
+        const radiusPx = timeToX(radiusS, w);
+        if (radiusPx > 2) {
+          const opacity = isHover || isDrag ? 0.18 : 0.06;
+          const color = isDrag ? warmColor : accentColor;
+          const grad = ctx.createRadialGradient(x, y, 0, x, y, radiusPx);
+          grad.addColorStop(0, `${color}${Math.round(opacity * 255).toString(16).padStart(2, "0")}`);
+          grad.addColorStop(1, "transparent");
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.ellipse(x, y, radiusPx, h * 0.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
 
-      // Radius influence zone — always visible as a subtle horizontal band
-      const radiusPx = timeToX(radiusS, w);
-      if (radiusPx > 2) {
-        const opacity = isHover || isDrag ? 0.18 : 0.06;
-        const color = isDrag ? warmColor : accentColor;
-        const grad = ctx.createRadialGradient(x, y, 0, x, y, radiusPx);
-        grad.addColorStop(0, `${color}${Math.round(opacity * 255).toString(16).padStart(2, "0")}`);
-        grad.addColorStop(1, "transparent");
-        ctx.fillStyle = grad;
+        if (isHover || isDrag) {
+          const rLeftX = timeToX(pin.time - radiusS, w);
+          const rRightX = timeToX(pin.time + radiusS, w);
+          ctx.strokeStyle = isDrag ? `${warmColor}60` : `${accentColor}35`;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([3, 3]);
+          ctx.beginPath(); ctx.moveTo(rLeftX, 0); ctx.lineTo(rLeftX, h); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(rRightX, 0); ctx.lineTo(rRightX, h); ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
         ctx.beginPath();
-        ctx.ellipse(x, y, radiusPx, h * 0.5, 0, 0, Math.PI * 2);
+        ctx.arc(x, y, glowR, 0, Math.PI * 2);
+        ctx.fillStyle = isDrag ? `${warmColor}40` : `${accentColor}20`;
         ctx.fill();
-      }
 
-      // Radius bracket lines — only on hover/drag to reduce clutter
-      if (isHover || isDrag) {
-        const rLeftX = timeToX(pin.time - radiusS, w);
-        const rRightX = timeToX(pin.time + radiusS, w);
-        ctx.strokeStyle = isDrag ? `${warmColor}60` : `${accentColor}35`;
-        ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.moveTo(rLeftX, 0); ctx.lineTo(rLeftX, h); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(rRightX, 0); ctx.lineTo(rRightX, h); ctx.stroke();
-        ctx.setLineDash([]);
-      }
-
-      // Glow — scales with dot
-      ctx.beginPath();
-      ctx.arc(x, y, glowR, 0, Math.PI * 2);
-      ctx.fillStyle = isDrag ? `${warmColor}40` : `${accentColor}20`;
-      ctx.fill();
-
-      // Circle — scales with radius
-      ctx.beginPath();
-      ctx.arc(x, y, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = isDrag ? warmColor : accentColor;
-      ctx.fill();
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Tooltip
-      if (isHover || isDrag) {
-        const label = `${pin.speed.toFixed(1)}x @ ${pin.time.toFixed(1)}s  r=${radiusS.toFixed(1)}s`;
-        ctx.font = "bold 11px system-ui";
-        const tw2 = ctx.measureText(label).width;
-        const lx = Math.min(x - tw2 / 2, w - tw2 - 8);
-        const ly = y - dotR - 10;
-
-        ctx.fillStyle = "rgba(0,0,0,0.75)";
         ctx.beginPath();
-        const rx2 = Math.max(4, lx - 4);
-        ctx.roundRect(rx2, ly - 12, tw2 + 8, 16, 4);
+        ctx.arc(x, y, dotR, 0, Math.PI * 2);
+        ctx.fillStyle = isDrag ? warmColor : accentColor;
         ctx.fill();
-        ctx.fillStyle = "#fff";
-        ctx.fillText(label, Math.max(8, lx), ly);
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        if (isHover || isDrag) {
+          const label = `${pin.speed.toFixed(1)}x @ ${pin.time.toFixed(1)}s  r=${radiusS.toFixed(1)}s`;
+          ctx.font = "bold 11px system-ui";
+          const tw2 = ctx.measureText(label).width;
+          const lx = Math.min(x - tw2 / 2, w - tw2 - 8);
+          const ly = y - dotR - 10;
+          ctx.fillStyle = "rgba(0,0,0,0.75)";
+          ctx.beginPath();
+          const rx2 = Math.max(4, lx - 4);
+          ctx.roundRect(rx2, ly - 12, tw2 + 8, 16, 4);
+          ctx.fill();
+          ctx.fillStyle = "#fff";
+          ctx.fillText(label, Math.max(8, lx), ly);
+        }
       }
+    } else {
+      if (keyframes.length > 1) {
+        ctx.strokeStyle = "rgba(255, 214, 102, 0.9)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        keyframes.forEach((kf, idx) => {
+          const x = timeToX(kf.time, w);
+          const y = speedToY(kf.speed, h);
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+
+      keyframes.forEach((kf, idx) => {
+        const x = timeToX(kf.time, w);
+        const y = speedToY(kf.speed, h);
+        const isHover = idx === hoverIdx;
+        const isDrag = dragging?.type === "keyframe" && dragging.index === idx;
+        const size = isDrag ? 7 : isHover ? 6 : 5;
+
+        ctx.fillStyle = isDrag ? warmColor : "#ffd666";
+        ctx.beginPath();
+        ctx.moveTo(x, y - size);
+        ctx.lineTo(x + size, y);
+        ctx.lineTo(x, y + size);
+        ctx.lineTo(x - size, y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        if (isHover || isDrag) {
+          const label = `${kf.speed.toFixed(1)}x @ ${kf.time.toFixed(1)}s`;
+          ctx.font = "bold 11px system-ui";
+          const tw2 = ctx.measureText(label).width;
+          const lx = Math.min(x - tw2 / 2, w - tw2 - 8);
+          const ly = y - 16;
+          ctx.fillStyle = "rgba(0,0,0,0.75)";
+          ctx.beginPath();
+          const rx2 = Math.max(4, lx - 4);
+          ctx.roundRect(rx2, ly - 12, tw2 + 8, 16, 4);
+          ctx.fill();
+          ctx.fillStyle = "#fff";
+          ctx.fillText(label, Math.max(8, lx), ly);
+        }
+      });
     }
-  }, [curve, curveTimes, pins, duration, maxSpeed, hoverIdx, dragging, trimStart, trimEnd, hoverTrim, timeToX, speedToY]);
+  }, [curve, curveTimes, editMode, pins, keyframes, cruxPoints, duration, maxSpeed, hoverIdx, dragging, trimStart, trimEnd, hoverTrim, timeToX, speedToY]);
+
+  // Load waveform image
+  useEffect(() => {
+    if (!waveformUrl) {
+      waveImgRef.current = null;
+      draw();
+      return;
+    }
+    const img = new Image();
+    img.src = waveformUrl;
+    img.onload = () => {
+      waveImgRef.current = img;
+      draw();
+    };
+    waveImgRef.current = img;
+  }, [waveformUrl, draw]);
 
   // Redraw on changes
   useEffect(() => { draw(); }, [draw]);
@@ -271,19 +371,28 @@ export function useTimeline(config: TimelineConfig) {
     const canvas = canvasRef.current;
     if (!canvas) return -1;
     const rect = canvas.getBoundingClientRect();
-    for (let i = 0; i < pins.length; i++) {
-      const px = timeToX(pins[i].time, rect.width);
-      const py = speedToY(pins[i].speed, rect.height);
-      const d = Math.sqrt((pos.x - px) ** 2 + (pos.y - py) ** 2);
-      // Scale hit area with pin size: bigger pins are easier to grab
-      const radiusS = pins[i].radius ?? DEFAULT_PIN_RADIUS;
-      const radiusNorm = (radiusS - 0.2) / (10.0 - 0.2);
-      const dotR = 5 + radiusNorm * 9;
-      const hitR = threshold ?? Math.max(15, dotR + 6);
-      if (d < hitR) return i;
+    if (editMode === "pins") {
+      for (let i = 0; i < pins.length; i++) {
+        const px = timeToX(pins[i].time, rect.width);
+        const py = speedToY(pins[i].speed, rect.height);
+        const d = Math.sqrt((pos.x - px) ** 2 + (pos.y - py) ** 2);
+        const radiusS = pins[i].radius ?? DEFAULT_PIN_RADIUS;
+        const radiusNorm = (radiusS - 0.2) / (10.0 - 0.2);
+        const dotR = 5 + radiusNorm * 9;
+        const hitR = threshold ?? Math.max(15, dotR + 6);
+        if (d < hitR) return i;
+      }
+    } else {
+      for (let i = 0; i < keyframes.length; i++) {
+        const px = timeToX(keyframes[i].time, rect.width);
+        const py = speedToY(keyframes[i].speed, rect.height);
+        const d = Math.sqrt((pos.x - px) ** 2 + (pos.y - py) ** 2);
+        const hitR = threshold ?? 14;
+        if (d < hitR) return i;
+      }
     }
     return -1;
-  }, [pins, timeToX, speedToY]);
+  }, [editMode, pins, keyframes, timeToX, speedToY]);
 
   const findNearTrim = useCallback((pos: { x: number; y: number }, threshold = 10): "start" | "end" | null => {
     const canvas = canvasRef.current;
@@ -296,6 +405,21 @@ export function useTimeline(config: TimelineConfig) {
     return null;
   }, [trimStart, trimEnd, duration, timeToX]);
 
+  const maybeSnapToCrux = useCallback((t: number) => {
+    if (cruxPoints.length === 0 || editMode !== "keyframes") return t;
+    const SNAP_WINDOW_S = 0.18;
+    let best = t;
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (const cp of cruxPoints) {
+      const d = Math.abs(cp.time - t);
+      if (d < bestDist) {
+        bestDist = d;
+        best = cp.time;
+      }
+    }
+    return bestDist <= SNAP_WINDOW_S ? best : t;
+  }, [cruxPoints, editMode]);
+
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     const pos = getPos(e);
@@ -305,8 +429,13 @@ export function useTimeline(config: TimelineConfig) {
     if (e.button === 2) {
       const idx = findNear(pos);
       if (idx >= 0) {
-        const next = pins.filter((_, j) => j !== idx);
-        onPinsChange(next);
+        if (editMode === "pins") {
+          const next = pins.filter((_, j) => j !== idx);
+          onPinsChange(next);
+        } else {
+          const next = keyframes.filter((_, j) => j !== idx);
+          onKeyframesChange(next);
+        }
       }
       return;
     }
@@ -325,15 +454,20 @@ export function useTimeline(config: TimelineConfig) {
     // Then check pins
     const idx = findNear(pos);
     if (idx >= 0) {
-      setDragging({ type: "pin", index: idx });
+      setDragging({ type: editMode === "pins" ? "pin" : "keyframe", index: idx });
     } else {
-      const t = xToTime(pos.x, rect.width);
+      const t = maybeSnapToCrux(xToTime(pos.x, rect.width));
       const s = yToSpeed(pos.y, rect.height);
-      const next = [...pins, { time: t, speed: s, radius: DEFAULT_PIN_RADIUS }];
-      onPinsChange(next);
-      setDragging({ type: "pin", index: next.length - 1 });
+      if (editMode === "pins") {
+        const next = [...pins, { time: t, speed: s, radius: DEFAULT_PIN_RADIUS }];
+        onPinsChange(next);
+        setDragging({ type: "pin", index: next.length - 1 });
+      } else {
+        const next = [...keyframes, { time: t, speed: s }];
+        onKeyframesChange(next);
+      }
     }
-  }, [pins, findNear, findNearTrim, getPos, onPinsChange, xToTime, yToSpeed]);
+  }, [editMode, pins, keyframes, findNear, findNearTrim, getPos, onPinsChange, onKeyframesChange, maybeSnapToCrux, xToTime, yToSpeed]);
 
   const onMouseMove = useCallback((e: React.MouseEvent) => {
     const pos = getPos(e);
@@ -355,6 +489,11 @@ export function useTimeline(config: TimelineConfig) {
         const s = yToSpeed(pos.y, rect.height);
         const next = pins.map((p, i) => i === dragging.index ? { ...p, time: t, speed: s } : p);
         onPinsChange(next);
+      } else if (dragging.type === "keyframe") {
+        const t = maybeSnapToCrux(xToTime(pos.x, rect.width));
+        const s = yToSpeed(pos.y, rect.height);
+        const next = keyframes.map((k, i) => i === dragging.index ? { ...k, time: t, speed: s } : k);
+        onKeyframesChange(next);
       }
     } else {
       // Check trim hover first
@@ -373,7 +512,7 @@ export function useTimeline(config: TimelineConfig) {
         }
       }
     }
-  }, [dragging, pins, trimStart, trimEnd, duration, findNear, findNearTrim, getPos, onPinsChange, onTrimChange, xToTime, yToSpeed]);
+  }, [dragging, pins, keyframes, trimStart, trimEnd, duration, findNear, findNearTrim, getPos, onPinsChange, onKeyframesChange, onTrimChange, maybeSnapToCrux, xToTime, yToSpeed]);
 
   const onMouseUp = useCallback(() => {
     setDragging(null);
@@ -388,6 +527,7 @@ export function useTimeline(config: TimelineConfig) {
   // Attach wheel listener natively with { passive: false } so preventDefault()
   // actually blocks page scroll when resizing a pin's radius.
   useEffect(() => {
+    if (editMode !== "pins") return;
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -412,7 +552,100 @@ export function useTimeline(config: TimelineConfig) {
 
     canvas.addEventListener("wheel", handleWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", handleWheel);
-  }, [pins, findNear, onPinsChange]);
+  }, [editMode, pins, findNear, onPinsChange]);
+
+  // Keyboard shortcuts for hovered pin/keyframe.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (hoverIdx < 0 || dragging !== null) return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+
+      // Delete hovered point.
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        if (editMode === "pins") {
+          const next = pins.filter((_, i) => i !== hoverIdx);
+          onPinsChange(next);
+        } else {
+          const next = keyframes.filter((_, i) => i !== hoverIdx);
+          onKeyframesChange(next);
+        }
+        setHoverIdx(-1);
+        return;
+      }
+
+      // Arrow keys nudge hovered point with keyboard precision.
+      if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+      e.preventDefault();
+
+      const baseTimeStep = e.shiftKey ? 0.2 : e.altKey ? 0.01 : 0.05;
+      const baseSpeedStep = e.shiftKey ? 0.2 : e.altKey ? 0.01 : 0.05;
+      const timeDelta = e.key === "ArrowLeft" ? -baseTimeStep : e.key === "ArrowRight" ? baseTimeStep : 0;
+      const speedDelta = e.key === "ArrowDown" ? -baseSpeedStep : e.key === "ArrowUp" ? baseSpeedStep : 0;
+
+      if (editMode === "pins") {
+        const next = pins.map((pin, i) => {
+          if (i !== hoverIdx) return pin;
+          return {
+            ...pin,
+            time: Math.max(0, Math.min(duration, pin.time + timeDelta)),
+            speed: Math.max(minSpeed, Math.min(maxSpeed, pin.speed + speedDelta)),
+          };
+        });
+        onPinsChange(next);
+      } else {
+        const next = keyframes.map((kf, i) => {
+          if (i !== hoverIdx) return kf;
+          return {
+            ...kf,
+            time: Math.max(0, Math.min(duration, kf.time + timeDelta)),
+            speed: Math.max(minSpeed, Math.min(maxSpeed, kf.speed + speedDelta)),
+          };
+        });
+        onKeyframesChange(next);
+      }
+    };
+
+    const onKeyPressForRadius = (e: KeyboardEvent) => {
+      if (hoverIdx < 0 || dragging !== null) return;
+      if (editMode !== "pins") return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || target?.isContentEditable) return;
+
+      const key = e.key;
+      const isDecrease = key === "[" || key === "{";
+      const isIncrease = key === "]" || key === "}";
+      if (!isDecrease && !isIncrease) return;
+
+      e.preventDefault();
+      const step = e.shiftKey ? 0.5 : e.altKey ? 0.05 : 0.2;
+      const delta = isDecrease ? -step : step;
+      const MIN_PIN_RADIUS = 0.2;
+      const MAX_PIN_RADIUS = 10.0;
+
+      const next = pins.map((pin, i) => {
+        if (i !== hoverIdx) return pin;
+        const radius = pin.radius ?? DEFAULT_PIN_RADIUS;
+        return {
+          ...pin,
+          radius: Math.max(MIN_PIN_RADIUS, Math.min(MAX_PIN_RADIUS, radius + delta)),
+        };
+      });
+      onPinsChange(next);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyPressForRadius);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", onKeyPressForRadius);
+    };
+  }, [hoverIdx, dragging, editMode, pins, keyframes, onPinsChange, onKeyframesChange, duration, minSpeed, maxSpeed]);
 
   const onContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

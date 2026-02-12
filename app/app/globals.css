@@ -47,7 +47,7 @@
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'VT323', 'Courier New', monospace;
+  font-family: var(--font-retro), 'Courier New', monospace;
   -webkit-font-smoothing: antialiased;
   font-size: 18px;
   letter-spacing: 0.02em;
@@ -65,27 +65,7 @@ body::after {
     radial-gradient(ellipse at 50% 110%, rgba(224,64,251,0.02) 0%, transparent 55%);
 }
 
-/* ---- Scan lines overlay ---- */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.08) 2px,
-    rgba(0, 0, 0, 0.08) 4px
-  );
-  animation: scanline-scroll 8s linear infinite;
-}
-
-@keyframes scanline-scroll {
-  0% { background-position: 0 0; }
-  100% { background-position: 0 100px; }
-}
+/* ---- Scan lines overlay (disabled) ---- */
 
 /* ---- Neon glow utilities ---- */
 .retro-glow {
@@ -182,7 +162,7 @@ body::before {
   color: var(--text);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  font-family: 'Press Start 2P', 'VT323', monospace;
+  font-family: var(--font-pixel), var(--font-retro), monospace;
   font-size: 12px;
   transition: all 0.1s ease;
   cursor: pointer;
@@ -291,7 +271,7 @@ select {
   background: linear-gradient(180deg, #1a1a2e 0%, #12121e 100%);
   border: 2px inset #444;
   color: var(--text);
-  font-family: 'VT323', monospace;
+  font-family: var(--font-retro), monospace;
   font-size: 18px;
   padding: 4px 8px;
 }
@@ -359,28 +339,14 @@ select:focus {
   color: #000;
 }
 
-/* ---- CRT effect for images ---- */
+/* ---- CRT effect for images (disabled) ---- */
 .crt-filter {
   position: relative;
-}
-.crt-filter::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 1px,
-    rgba(0, 0, 0, 0.15) 1px,
-    rgba(0, 0, 0, 0.15) 2px
-  );
-  pointer-events: none;
-  border-radius: inherit;
 }
 
 /* ---- LED text style ---- */
 .led-text {
-  font-family: 'VT323', monospace;
+  font-family: var(--font-retro), monospace;
   color: var(--neon-cyan);
   text-shadow: 0 0 4px var(--neon-cyan), 0 0 8px rgba(0,229,255,0.3);
   letter-spacing: 0.05em;
@@ -388,14 +354,14 @@ select:focus {
 
 /* ---- Pixel font for headers ---- */
 .pixel-font {
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-pixel), monospace;
   letter-spacing: 0.05em;
   line-height: 1.6;
 }
 
 /* ---- Rack section label (silk-screened text on hardware) ---- */
 .rack-section-label {
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-pixel), monospace;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.15em;
@@ -426,6 +392,10 @@ select:focus {
 .pilot-light-orange {
   background: var(--neon-orange);
   box-shadow: 0 0 4px var(--neon-orange), 0 0 8px rgba(255,110,64,0.4);
+}
+.pilot-light-red {
+  background: #ff4444;
+  box-shadow: 0 0 4px #ff4444, 0 0 8px rgba(255,68,68,0.4);
 }
 .pilot-light-off {
   background: #1a1a2e;
@@ -496,7 +466,7 @@ select:focus {
   flex-shrink: 0;
 }
 .dashboard-module-label span {
-  font-family: 'Press Start 2P', monospace;
+  font-family: var(--font-pixel), monospace;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.2em;

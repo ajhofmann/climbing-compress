@@ -12,6 +12,9 @@ from pipeline.cache import (
     load_analysis,
     has_cache,
     clear_cache,
+    clear_cache_by_hash,
+    has_cache_by_hash,
+    get_cache_path,
     save_tracks,
     load_tracks,
     has_tracks,
@@ -116,6 +119,22 @@ class TestPoseCache:
 
         clear_cache(tmp_video)
         assert not has_cache(tmp_video)
+
+    def test_clear_cache_by_hash(self, tmp_video):
+        save_analysis(
+            tmp_video,
+            [{"left_hip": (0.5, 0.5, 0.9)}],
+            30.0,
+            np.array([0.1]),
+        )
+        cache_path = get_cache_path(tmp_video)
+        cache_key = cache_path.name
+        assert cache_path.exists()
+        assert has_cache_by_hash(cache_key)
+
+        clear_cache_by_hash(cache_key)
+        assert not cache_path.exists()
+        assert not has_cache_by_hash(cache_key)
 
 
 class TestTrackCache:

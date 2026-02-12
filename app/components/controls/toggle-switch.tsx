@@ -2,17 +2,18 @@
 
 import { Tooltip } from "@/components/tooltip";
 
-export function ToggleSwitch({ label, checked, onChange, color = "#00e5ff", title }: {
+export function ToggleSwitch({ label, checked, onChange, color = "#00e5ff", title, disabled = false }: {
   label: string;
   checked: boolean;
   onChange: (v: boolean) => void;
   color?: string;
   title?: string;
+  disabled?: boolean;
 }) {
   const content = (
     <button
-      onClick={() => onChange(!checked)}
-      className="flex flex-col items-center gap-1 select-none cursor-pointer group"
+      onClick={() => { if (!disabled) onChange(!checked); }}
+      className={`flex flex-col items-center gap-1 select-none group ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
       style={{ minWidth: 64 }}
     >
       <span className="rack-section-label text-center">{label}</span>
@@ -26,7 +27,7 @@ export function ToggleSwitch({ label, checked, onChange, color = "#00e5ff", titl
             transform: checked ? "scaleY(1)" : "scaleY(-1)",
             filter: checked
               ? `drop-shadow(0 0 4px ${color}40)`
-              : "brightness(0.7)",
+              : disabled ? "brightness(0.4)" : "brightness(0.7)",
           }}
         />
 

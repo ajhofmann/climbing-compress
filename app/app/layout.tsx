@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Press_Start_2P, VT323 } from "next/font/google";
 import "./globals.css";
 import { AmbientVibes } from "@/components/ambient-vibes";
 
@@ -6,6 +7,18 @@ export const metadata: Metadata = {
   title: "SENDIT // Speed Ramp System",
   description: "speed-ramp your climbing sends",
 };
+
+const pixelFont = Press_Start_2P({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-pixel",
+});
+
+const retroFont = VT323({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-retro",
+});
 
 function RackScrew() {
   return (
@@ -19,13 +32,7 @@ function RackScrew() {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" className={`${pixelFont.variable} ${retroFont.variable}`}>
       <body className="min-h-screen relative overflow-x-hidden">
         <AmbientVibes />
 

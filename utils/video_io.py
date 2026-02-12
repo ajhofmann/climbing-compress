@@ -3,25 +3,122 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+import json
+import subprocess
 
 import cv2
 import numpy as np
 
 
+def _parse_rate(value: str | None) -> float:
+    if not value:
+        return 0.0
+    s = str(value).strip()
+    if not s:
+        return 0.0
+    if "/" in s:
+        num_s, den_s = s.split("/", 1)
+        try:
+            num = float(num_s)
+            den = float(den_s)
+        except ValueError:
+            return 0.0
+        if den == 0:
+            return 0.0
+        return num / den
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
+def _video_info_ffprobe(path: str) -> dict[str, float | int] | None:
+    cmd = [
+        "ffprobe",
+        "-v", "error",
+        "-print_format", "json",
+        "-show_streams",
+        "-show_format",
+        path,
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    except OSError:
+        return None
+    if proc.returncode != 0 or not proc.stdout:
+        return None
+
+    try:
+        payload = json.loads(proc.stdout)
+    except ValueError:
+        return None
+
+    streams = payload.get("streams")
+    if not isinstance(streams, list):
+        return None
+    stream = next((s for s in streams if isinstance(s, dict) and s.get("codec_type") == "video"), None)
+    if not isinstance(stream, dict):
+        return None
+
+    fps = _parse_rate(stream.get("avg_frame_rate")) or _parse_rate(stream.get("r_frame_rate"))
+    width = int(stream.get("width") or 0)
+    height = int(stream.get("height") or 0)
+
+    format_obj = payload.get("format") if isinstance(payload.get("format"), dict) else {}
+    duration = 0.0
+    for candidate in (stream.get("duration"), format_obj.get("duration")):
+        if candidate is None:
+            continue
+        try:
+            duration = float(candidate)
+            if duration > 0:
+                break
+        except (TypeError, ValueError):
+            continue
+
+    frame_count = 0
+    raw_frames = stream.get("nb_frames")
+    if raw_frames is not None:
+        try:
+            frame_count = int(raw_frames)
+        except (TypeError, ValueError):
+            frame_count = 0
+    if frame_count <= 0 and duration > 0 and fps > 0:
+        frame_count = int(round(duration * fps))
+    if duration <= 0 and frame_count > 0 and fps > 0:
+        duration = frame_count / fps
+    if fps <= 0 and frame_count > 0 and duration > 0:
+        fps = frame_count / duration
+
+    return {
+        "fps": float(fps),
+        "width": width,
+        "height": height,
+        "frame_count": int(frame_count),
+        "duration": float(duration),
+    }
+
+
 def get_video_info(path: str) -> dict[str, float | int]:
     """Get video metadata without reading all frames."""
+    ffprobe_info = _video_info_ffprobe(path)
+    if ffprobe_info and ffprobe_info["fps"] > 0:
+        return ffprobe_info
+
     cap = cv2.VideoCapture(str(path))
     if not cap.isOpened():
         raise ValueError(f"Cannot open video: {path}")
-    info = {
-        "fps": cap.get(cv2.CAP_PROP_FPS),
-        "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-        "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-        "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
-    }
-    info["duration"] = info["frame_count"] / info["fps"] if info["fps"] > 0 else 0
-    cap.release()
-    return info
+    try:
+        info = {
+            "fps": cap.get(cv2.CAP_PROP_FPS),
+            "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+            "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
+        }
+        info["duration"] = info["frame_count"] / info["fps"] if info["fps"] > 0 else 0
+        return info
+    finally:
+        cap.release()
 
 
 def iter_video_frames(

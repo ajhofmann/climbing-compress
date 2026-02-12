@@ -12,6 +12,11 @@ export interface Pin {
   radius: number; // influence radius in seconds (default 2.0)
 }
 
+export interface Keyframe {
+  time: number;
+  speed: number;
+}
+
 export interface CurveStats {
   output_duration: number;
   speed_min: number;
@@ -20,12 +25,18 @@ export interface CurveStats {
   action_rest_ratio: number;
 }
 
+export interface CruxPoint {
+  time: number;
+  score: number;
+}
+
 export interface SolveResult {
   curve: number[];
   times: number[];
   stats: CurveStats;
   scores: number[];
   rest_regions: [number, number][];
+  crux_points: CruxPoint[];
 }
 
 export interface AnalysisData {
@@ -34,20 +45,28 @@ export interface AnalysisData {
   duration: number;
   scores_progress: number[];
   scores_action: number[];
+  scores_dynamic?: number[];
   scores_step: number;
   waveform_progress: string;
   waveform_action: string;
+  waveform_dynamic?: string;
   tracker_available?: boolean;
+  tracker_unavailable?: boolean;
   flow_available?: boolean;
+  flow_unavailable?: boolean;
   camera_motion_available?: boolean;
 }
 
-export type SpeedMode = "progress" | "action";
+export type SpeedMode = "progress" | "action" | "hybrid" | "dynamic";
+export type EditMode = "pins" | "keyframes";
+export type OutputAspect = "original" | "vertical" | "square";
 
 export interface Settings {
   mode: SpeedMode;
+  editMode: EditMode;
   targetDuration: number;
   sensitivity: number;
+  progressActionBlend: number;
   maxSpeed: number;
   minSpeed: number;
   steepness: number;
@@ -58,6 +77,8 @@ export interface Settings {
   scale: number;
   outputFps: number;
   crf: number;
+  outputAspect: OutputAspect;
+  autoReframe: boolean;
   debugOverlay: boolean;
   trimStart: number;
   trimEnd: number;
@@ -83,12 +104,16 @@ export interface Settings {
   includeAudio: boolean;
   // Comparison
   renderComparison: boolean;
+  // Chapter overlays
+  renderChapters: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   mode: "progress",
+  editMode: "pins",
   targetDuration: 15,
   sensitivity: 0.35,
+  progressActionBlend: 0.5,
   maxSpeed: 15,
   minSpeed: 0.25,
   steepness: 14,
@@ -96,9 +121,11 @@ export const DEFAULT_SETTINGS: Settings = {
   handWeight: 2.0,
   footWeight: 1.0,
   coreWeight: 3.0,
-  scale: 0.5,
+  scale: 1.0,
   outputFps: 30,
   crf: 23,
+  outputAspect: "original",
+  autoReframe: false,
   debugOverlay: true,
   trimStart: 0,
   trimEnd: 0,
@@ -118,83 +145,5 @@ export const DEFAULT_SETTINGS: Settings = {
   featureStabilizeWeight: 0.5,
   includeAudio: true,
   renderComparison: false,
+  renderChapters: false,
 };
-
-export interface Preset {
-  name: string;
-  emoji: string;
-  desc: string;
-  /** Partial settings — merged onto DEFAULT_SETTINGS when applied */
-  overrides: Partial<Settings>;
-}
-
-export const PRESETS: Preset[] = [
-  {
-    name: "Default",
-    emoji: "🪨",
-    desc: "balanced speed ramp",
-    overrides: {},
-  },
-  {
-    name: "Cinematic",
-    emoji: "🎬",
-    desc: "long, dramatic slow-mo",
-    overrides: {
-      mode: "progress",
-      targetDuration: 25,
-      minSpeed: 0.15,
-      maxSpeed: 8,
-      smoothing: 0.6,
-      progressFloor: 0.01,
-      verticalBias: 0.8,
-      restThreshold: 0.5,
-      outputFps: 24,
-    },
-  },
-  {
-    name: "Quick Reel",
-    emoji: "📱",
-    desc: "punchy 10s for social",
-    overrides: {
-      mode: "action",
-      targetDuration: 10,
-      sensitivity: 0.5,
-      minSpeed: 0.4,
-      maxSpeed: 15,
-      steepness: 20,
-      smoothing: 0.15,
-    },
-  },
-  {
-    name: "Max Drama",
-    emoji: "🔥",
-    desc: "extreme slow-mo on moves",
-    overrides: {
-      mode: "action",
-      targetDuration: 20,
-      sensitivity: 0.2,
-      minSpeed: 0.1,
-      maxSpeed: 12,
-      steepness: 25,
-      smoothing: 0.4,
-      handWeight: 3.0,
-      footWeight: 2.0,
-      coreWeight: 5.0,
-    },
-  },
-  {
-    name: "Realtime",
-    emoji: "▶️",
-    desc: "subtle ramp, mostly 1x",
-    overrides: {
-      mode: "progress",
-      targetDuration: 30,
-      minSpeed: 0.8,
-      maxSpeed: 3,
-      smoothing: 0.5,
-      progressFloor: 0.08,
-      verticalBias: 0.6,
-      restThreshold: 0.5,
-    },
-  },
-];

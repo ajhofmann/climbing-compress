@@ -29,15 +29,23 @@ export function BodyMap({ handWeight, footWeight, coreWeight, onHandChange, onFo
   const [hoverZone, setHoverZone] = useState<Zone | null>(null);
   const dragStart = useRef<{ y: number; startValue: number; zone: Zone } | null>(null);
 
-  const getWeight = (z: Zone) => z === "hand" ? handWeight : z === "foot" ? footWeight : coreWeight;
-  const getOnChange = (z: Zone) => z === "hand" ? onHandChange : z === "foot" ? onFootChange : onCoreChange;
+  const getWeight = useCallback(
+    (z: Zone) => (z === "hand" ? handWeight : z === "foot" ? footWeight : coreWeight),
+    [handWeight, footWeight, coreWeight],
+  );
+
+  const applyZoneChange = useCallback((z: Zone, value: number) => {
+    if (z === "hand") onHandChange(value);
+    else if (z === "foot") onFootChange(value);
+    else onCoreChange(value);
+  }, [onHandChange, onFootChange, onCoreChange]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent, zone: Zone) => {
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     setActiveZone(zone);
     dragStart.current = { y: e.clientY, startValue: getWeight(zone), zone };
-  }, [handWeight, footWeight, coreWeight]);
+  }, [getWeight]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragStart.current) return;
@@ -47,8 +55,8 @@ export function BodyMap({ handWeight, footWeight, coreWeight, onHandChange, onFo
     const sensitivity = max / 80;
     const newValue = Math.max(0, Math.min(max, startValue + dy * sensitivity));
     const stepped = Math.round(newValue * 10) / 10;
-    getOnChange(zone)(stepped);
-  }, [onHandChange, onFootChange, onCoreChange]);
+    applyZoneChange(zone, stepped);
+  }, [applyZoneChange]);
 
   const handlePointerUp = useCallback(() => {
     dragStart.current = null;
