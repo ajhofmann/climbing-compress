@@ -3,9 +3,12 @@ data/input/
 data/cache/
 data/output/
 data/presets/
+data/eval/
+data/app.db
 
 # Models (large binaries)
 models/
+*.pt
 
 # Python
 __pycache__/

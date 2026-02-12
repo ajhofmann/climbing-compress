@@ -6,6 +6,7 @@ import { analyzeVideo, solveCurve, renderVideo } from "@/lib/api";
 import { VideoUpload } from "@/components/video-upload";
 import { VideoPlayer } from "@/components/video-player";
 import { TimelineEditor } from "@/components/timeline-editor";
+import { RenderHistoryTimeline } from "@/components/render-history";
 import { SettingsPanel } from "@/components/settings";
 import { ProgressBar } from "@/components/progress-bar";
 import { Tooltip } from "@/components/tooltip";
@@ -400,6 +401,7 @@ export default function Home() {
               )}
             </div>
             <TimelineEditor />
+            <RenderHistoryTimeline videoId={videoId} />
           </>
         )}
       </div>

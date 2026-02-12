@@ -15,11 +15,17 @@ Optional (for person tracking):
 pip install climb-ramp[tracking]
 ```
 
+Tracker weights are not committed to the repo; Ultralytics will download the
+configured model on first run.
+
 ## Setup
 
 ```bash
 # Backend
 pip install -e .
+
+# Backend (with test tooling)
+pip install -e ".[dev]"
 
 # Frontend
 cd app
@@ -226,3 +232,10 @@ app/                 Next.js frontend
   components/        Timeline editor, settings, video player, upload
   lib/               API client, Zustand store, types
 ```
+
+## Open source
+
+- License: MIT (`LICENSE`)
+- Contributing guide: `CONTRIBUTING.md`
+- Code of conduct: `CODE_OF_CONDUCT.md`
+- Security reporting: `SECURITY.md`

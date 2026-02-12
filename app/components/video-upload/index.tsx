@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useStore } from "@/lib/store";
 import { deleteAllOutputs, deleteAllVideos, deleteOutputsForVideo, deleteVideo, getLibraryStats, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
@@ -715,8 +716,11 @@ export function VideoUpload() {
   const isRendering = useStore((state) => state.isRendering);
   const [isDragging, setIsDragging] = useState(false);
   const [recentVideos, setRecentVideos] = useState<VideoListItem[]>([]);
+  const [recentThumbs, setRecentThumbs] = useState<Record<string, string>>({});
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [renamingVideoId, setRenamingVideoId] = useState<string | null>(null);
+  const [renameDraftVideoId, setRenameDraftVideoId] = useState<string | null>(null);
+  const [renameDraftValue, setRenameDraftValue] = useState("");
   const [recentFetchDone, setRecentFetchDone] = useState(false);
   const [refreshingRecent, setRefreshingRecent] = useState(false);
   const [clearingLibrary, setClearingLibrary] = useState(false);
@@ -741,6 +745,8 @@ export function VideoUpload() {
   const [recentOutputScope, setRecentOutputScope] = useState<"all" | "with" | "none">("all");
   const [recentCacheScope, setRecentCacheScope] = useState<"all" | "cached" | "uncached">("all");
   const recentFilterInputRef = useRef<HTMLInputElement>(null);
+  const renameDraftInputRef = useRef<HTMLInputElement>(null);
+  const recentThumbFetchRef = useRef<Set<string>>(new Set());
 
   const cycleRecentSort = useCallback(() => {
     setRecentSort((prev) => {
@@ -816,18 +822,6 @@ export function VideoUpload() {
     }
   }, [recentSort, recentSortReversed, showAllRecent, showZeroQuickTags, recentOutputScope, recentCacheScope, recentFilter, showShortcutHelp]);
 
-  const shortName = (name: string) => {
-    if (name.length <= 14) return name;
-    const dot = name.lastIndexOf(".");
-    if (dot <= 0 || dot === name.length - 1) {
-      return `${name.slice(0, 8)}…${name.slice(-4)}`;
-    }
-    const stem = name.slice(0, dot);
-    const ext = name.slice(dot);
-    if (stem.length <= 8) return name;
-    return `${stem.slice(0, 6)}…${ext}`;
-  };
-
   const formatDuration = (seconds: number) => {
     if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
     const total = Math.round(seconds);
@@ -840,6 +834,18 @@ export function VideoUpload() {
 
   const applyRecent = useCallback((items: VideoListItem[]) => {
     setRecentVideos(items);
+    setRecentThumbs((prev) => {
+      const next: Record<string, string> = {};
+      for (const item of items) {
+        const thumb = item.thumbnail ?? prev[item.video_id];
+        if (thumb) next[item.video_id] = thumb;
+      }
+      return next;
+    });
+    const validIds = new Set(items.map((item) => item.video_id));
+    for (const id of recentThumbFetchRef.current) {
+      if (!validIds.has(id)) recentThumbFetchRef.current.delete(id);
+    }
     setShowAllRecent((prev) => (items.length > RECENT_PREVIEW_LIMIT ? prev : false));
   }, []);
 
@@ -1602,6 +1608,51 @@ export function VideoUpload() {
   const hasAnyRecentCustomization = hasActiveRecentSubset || recentSort !== "recent" || recentSortReversed || showAllRecent || showZeroQuickTags || showShortcutHelp;
 
   useEffect(() => {
+    if (!renameDraftVideoId) return;
+    const timer = window.setTimeout(() => {
+      renameDraftInputRef.current?.focus();
+      renameDraftInputRef.current?.select();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [renameDraftVideoId]);
+
+  useEffect(() => {
+    if (!renameDraftVideoId) return;
+    if (recentVideos.some((item) => item.video_id === renameDraftVideoId)) return;
+    setRenameDraftVideoId(null);
+    setRenameDraftValue("");
+  }, [recentVideos, renameDraftVideoId]);
+
+  useEffect(() => {
+    if (videoId) return;
+    const pending = visibleRecent
+      .filter((item) => !recentThumbs[item.video_id] && !recentThumbFetchRef.current.has(item.video_id))
+      .slice(0, 6);
+    if (pending.length <= 0) return;
+
+    let cancelled = false;
+    void (async () => {
+      for (const item of pending) {
+        recentThumbFetchRef.current.add(item.video_id);
+        try {
+          const meta = await getVideoMeta(item.video_id);
+          if (cancelled) return;
+          const thumb = meta.thumbnails?.[0];
+          if (thumb) {
+            setRecentThumbs((prev) => (prev[item.video_id] ? prev : { ...prev, [item.video_id]: thumb }));
+          }
+        } catch {
+          // ignore thumbnail misses for history cards
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [videoId, visibleRecent, recentThumbs]);
+
+  useEffect(() => {
     if (videoId) return;
     let cancelled = false;
     void Promise.allSettled([listVideos(), getLibraryStats()])
@@ -1879,22 +1930,24 @@ export function VideoUpload() {
     }
   };
 
-  const runRename = async (targetId: string, currentName: string) => {
-    const nextRaw = window.prompt("Rename clip", currentName);
-    if (nextRaw === null) return;
-    const next = nextRaw.trim().split(/[/\\]/).pop() ?? "";
-    if (!next) return;
+  const runRename = async (targetId: string, currentName: string, nextRaw?: string | null) => {
+    const raw = nextRaw ?? window.prompt("Rename clip", currentName);
+    if (raw === null) return false;
+    const nextRawTrimmed = raw.trim();
+    if (!nextRawTrimmed) return false;
+    const next = nextRawTrimmed.split(/[/\\]/).pop() ?? "";
+    if (!next) return false;
     const currentExt = currentName.includes(".") ? `.${currentName.split(".").pop()?.toLowerCase()}` : "";
     const impliedName = next.includes(".") ? next : `${next}${currentExt}`;
-    if (impliedName.toLowerCase() === currentName.toLowerCase()) return;
+    if (impliedName.toLowerCase() === currentName.toLowerCase()) return true;
     if (next.length > 120) {
       setProgress(0, "Rename failed: filename too long (max 120 chars)");
-      return;
+      return false;
     }
     const ext = next.includes(".") ? `.${next.split(".").pop()?.toLowerCase()}` : "";
     if (ext && !SUPPORTED_VIDEO_EXTS.includes(ext as typeof SUPPORTED_VIDEO_EXTS[number])) {
       setProgress(0, `Rename failed: unsupported extension ${ext}`);
-      return;
+      return false;
     }
     setRenamingVideoId(targetId);
     try {
@@ -1906,17 +1959,33 @@ export function VideoUpload() {
       )));
       if (videoId === targetId) setVideoName(renamed.filename);
       setProgress(0, `Renamed ${currentName} → ${renamed.filename}`);
+      return true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Rename failed";
       setProgress(0, `Rename failed: ${msg}`);
+      return false;
     } finally {
       setRenamingVideoId(null);
     }
   };
 
-  const handleRenameExisting = async (item: VideoListItem) => {
+  const handleRenameExisting = (item: VideoListItem) => {
     if (deletingVideoId || renamingVideoId || clearingLibrary || clearingOutputs || pruningFiltered) return;
-    await runRename(item.video_id, item.filename);
+    setRenameDraftVideoId(item.video_id);
+    setRenameDraftValue(item.filename);
+  };
+
+  const handleCancelRenameExisting = () => {
+    setRenameDraftVideoId(null);
+    setRenameDraftValue("");
+  };
+
+  const handleSaveRenameExisting = async (item: VideoListItem) => {
+    const ok = await runRename(item.video_id, item.filename, renameDraftValue);
+    if (ok) {
+      setRenameDraftVideoId(null);
+      setRenameDraftValue("");
+    }
   };
 
   const handleDeleteExisting = async (item: VideoListItem) => {
@@ -3045,60 +3114,160 @@ export function VideoUpload() {
               </div>
             )}
             {visibleRecent.length > 0 ? (
-              <div className="flex flex-wrap justify-center gap-1">
-                {visibleRecent.map((item, idx) => (
-                  <div key={item.video_id} className="flex items-center gap-0.5">
-                    {idx < 10 && (
-                      <span className="text-[8px] font-pixel text-cyan-300/80 px-0.5" aria-hidden>
-                        {idx === 9 ? "0" : idx + 1}
-                      </span>
-                    )}
-                    <button
-                      onClick={() => void handleLoadExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
-                      className={`retro-btn px-2 py-0.5 text-[10px] font-pixel tracking-wide max-w-[180px] truncate disabled:opacity-50 disabled:cursor-not-allowed ${idx === recentCursorIdx ? "border-cyan-200 text-cyan-100 shadow-[0_0_0_1px_rgba(0,229,255,0.75),0_0_10px_rgba(0,229,255,0.45)]" : ""}`}
-                      title={`${item.filename} · ${item.info.duration.toFixed(1)}s · src ${formatBytesVerbose(item.source_bytes)}${item.cached ? " · cached analysis" : ""} · ${item.output_count} output${item.output_count === 1 ? "" : "s"} (${formatBytesVerbose(item.output_bytes)})`}
-                      aria-label={`${idx === recentCursorIdx ? "Selected: " : ""}Load ${item.filename}`}
-                      aria-keyshortcuts={idx < 10 ? (idx === 9 ? "0" : String(idx + 1)) : undefined}
-                      aria-current={idx === recentCursorIdx ? "true" : undefined}
+              <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {visibleRecent.map((item, idx) => {
+                  const isCursor = idx === recentCursorIdx;
+                  const isRenaming = renameDraftVideoId === item.video_id;
+                  const thumbSrc = recentThumbs[item.video_id] ?? item.thumbnail ?? null;
+                  const actionsLocked = deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered;
+                  return (
+                    <div
+                      key={item.video_id}
+                      className={`rounded border bg-panel/60 overflow-hidden transition-shadow ${
+                        isCursor
+                          ? "border-cyan-300 shadow-[0_0_0_1px_rgba(0,229,255,0.85),0_0_18px_rgba(0,229,255,0.35)]"
+                          : "border-cyan-500/25"
+                      }`}
                     >
-                      {idx === recentCursorIdx ? "▶ " : ""}
-                      {item.cached ? "⚡ " : ""}
-                      {shortName(item.filename)}
-                    </button>
-                    <button
-                      onClick={() => void handleRenameExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
-                      className="text-[10px] font-pixel px-1 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={`Rename ${item.filename}`}
-                      aria-label={`Rename ${item.filename}`}
-                    >
-                      ✎
-                    </button>
-                    <button
-                      onClick={() => void handleClearOutputsForExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered || item.output_count <= 0}
-                      className="text-[10px] font-pixel px-1 py-0.5 border rounded border-amber-400/40 text-amber-200 hover:text-white hover:border-amber-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={item.output_count > 0
-                        ? `Clear ${item.output_count} rendered output${item.output_count === 1 ? "" : "s"} for ${item.filename}`
-                        : `No rendered outputs for ${item.filename}`}
-                      aria-label={item.output_count > 0
-                        ? `Clear rendered outputs for ${item.filename}`
-                        : `No rendered outputs for ${item.filename}`}
-                    >
-                      {`◍${item.output_count > 0 ? item.output_count : ""}`}
-                    </button>
-                    <button
-                      onClick={() => void handleDeleteExisting(item)}
-                      disabled={deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered}
-                      className="text-[10px] font-pixel px-1 py-0.5 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={`Remove ${item.filename}`}
-                      aria-label={`Remove ${item.filename} from local library`}
-                    >
-                      X
-                    </button>
-                  </div>
-                ))}
+                      <button
+                        onClick={() => void handleLoadExisting(item)}
+                        disabled={actionsLocked}
+                        className="block w-full text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={`${item.filename} · ${item.info.duration.toFixed(1)}s · src ${formatBytesVerbose(item.source_bytes)}${item.cached ? " · cached analysis" : ""} · ${item.output_count} output${item.output_count === 1 ? "" : "s"} (${formatBytesVerbose(item.output_bytes)})`}
+                        aria-label={`${isCursor ? "Selected: " : ""}Load ${item.filename}`}
+                        aria-keyshortcuts={idx < 10 ? (idx === 9 ? "0" : String(idx + 1)) : undefined}
+                        aria-current={isCursor ? "true" : undefined}
+                      >
+                        <div className="relative w-full aspect-video border-b border-cyan-500/20 bg-black/30">
+                          {thumbSrc ? (
+                            <Image
+                              src={thumbSrc}
+                              alt={`Preview for ${item.filename}`}
+                              fill
+                              unoptimized
+                              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                              className="object-cover"
+                            />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center text-[8px] font-pixel text-text-muted/70 tracking-widest">
+                              NO PREVIEW
+                            </div>
+                          )}
+                          {idx < 10 && (
+                            <span className="absolute top-1 left-1 px-1 py-0.5 rounded border border-cyan-300/50 bg-black/55 text-[8px] font-pixel text-cyan-100">
+                              {idx === 9 ? "0" : idx + 1}
+                            </span>
+                          )}
+                          <span className={`absolute top-1 right-1 px-1 py-0.5 rounded border text-[8px] font-pixel ${
+                            item.cached
+                              ? "border-emerald-400/50 text-emerald-200 bg-black/55"
+                              : "border-cyan-500/40 text-cyan-200 bg-black/55"
+                          }`}>
+                            {item.cached ? "cached" : "fresh"}
+                          </span>
+                          <span className="absolute bottom-1 right-1 px-1 py-0.5 rounded border border-amber-400/45 bg-black/55 text-[8px] font-pixel text-amber-100">
+                            {`out:${item.output_count}`}
+                          </span>
+                        </div>
+                      </button>
+                      <div className="p-2 flex flex-col gap-1.5">
+                        {isRenaming ? (
+                          <input
+                            ref={isRenaming ? renameDraftInputRef : undefined}
+                            value={renameDraftValue}
+                            onChange={(e) => setRenameDraftValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                void handleSaveRenameExisting(item);
+                                return;
+                              }
+                              if (e.key === "Escape") {
+                                e.preventDefault();
+                                handleCancelRenameExisting();
+                              }
+                            }}
+                            className="w-full bg-panel border border-cyan-400/45 rounded px-1.5 py-1 text-[10px] font-pixel text-cyan-100 focus:outline-none focus:border-cyan-300"
+                            aria-label={`Rename ${item.filename}`}
+                            maxLength={120}
+                          />
+                        ) : (
+                          <div className="text-[10px] font-pixel text-cyan-100 break-all leading-snug">
+                            {item.filename}
+                          </div>
+                        )}
+                        <div className="text-[8px] font-pixel text-text-muted/80 leading-tight">
+                          {formatDuration(item.info.duration)} · {item.info.width}x{item.info.height} · {item.info.fps.toFixed(0)}fps
+                        </div>
+                        <div className="text-[8px] font-pixel text-text-muted/70 leading-tight">
+                          src {formatBytesShort(item.source_bytes)} · out {item.output_count} · {formatBytesShort(item.output_bytes)}
+                        </div>
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          <button
+                            onClick={() => void handleLoadExisting(item)}
+                            disabled={actionsLocked}
+                            className="px-1.5 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-label={`Load ${item.filename}`}
+                          >
+                            load
+                          </button>
+                          {isRenaming ? (
+                            <>
+                              <button
+                                onClick={() => void handleSaveRenameExisting(item)}
+                                disabled={actionsLocked}
+                                className="px-1.5 py-0.5 border rounded border-cyan-300/60 text-cyan-100 hover:text-white hover:border-cyan-200 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label={`Save new name for ${item.filename}`}
+                              >
+                                save
+                              </button>
+                              <button
+                                onClick={handleCancelRenameExisting}
+                                disabled={actionsLocked}
+                                className="px-1.5 py-0.5 border rounded border-text-muted/45 text-text-muted hover:text-white hover:border-cyan-300 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                                aria-label={`Cancel rename for ${item.filename}`}
+                              >
+                                cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => handleRenameExisting(item)}
+                              disabled={actionsLocked}
+                              className="px-1.5 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                              title={`Rename ${item.filename}`}
+                              aria-label={`Rename ${item.filename}`}
+                            >
+                              rename
+                            </button>
+                          )}
+                          <button
+                            onClick={() => void handleClearOutputsForExisting(item)}
+                            disabled={actionsLocked || item.output_count <= 0}
+                            className="px-1.5 py-0.5 border rounded border-amber-400/40 text-amber-200 hover:text-white hover:border-amber-300 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={item.output_count > 0
+                              ? `Clear ${item.output_count} rendered output${item.output_count === 1 ? "" : "s"} for ${item.filename}`
+                              : `No rendered outputs for ${item.filename}`}
+                            aria-label={item.output_count > 0
+                              ? `Clear rendered outputs for ${item.filename}`
+                              : `No rendered outputs for ${item.filename}`}
+                          >
+                            clear out
+                          </button>
+                          <button
+                            onClick={() => void handleDeleteExisting(item)}
+                            disabled={actionsLocked}
+                            className="px-1.5 py-0.5 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={`Remove ${item.filename}`}
+                            aria-label={`Remove ${item.filename} from local library`}
+                          >
+                            remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <span className="text-[10px] font-pixel text-text-muted/70 text-center">

@@ -662,6 +662,7 @@ def run_render(
     req: Any,
     output_dir: Path,
     emit: Callable[[dict], None],
+    output_prefix: str | None = None,
 ) -> None:
     """Run the full render pipeline: curve → stabilise → render.
 
@@ -818,7 +819,8 @@ def run_render(
         chapters = build_chapter_markers(scores, fps, len(trimmed))
         overlay_fn = wrap_overlay_with_chapters(overlay_fn, chapters, fps)
 
-    output_id = uuid.uuid4().hex[:10]
+    id_prefix = (output_prefix or "").strip()
+    output_id = f"{id_prefix}__{uuid.uuid4().hex[:10]}" if id_prefix else uuid.uuid4().hex[:10]
     output_path = str(output_dir / f"{output_id}.mp4")
 
     has_comparison = getattr(req, "render_comparison", False)
@@ -865,7 +867,7 @@ def run_render(
         uniform_speed = max(SPEED_FLOOR, min(uniform_speed, SPEED_CEIL))
         flat_curve = np.full(n_src, uniform_speed)
 
-        comparison_id = uuid.uuid4().hex[:10]
+        comparison_id = f"{id_prefix}__{uuid.uuid4().hex[:10]}" if id_prefix else uuid.uuid4().hex[:10]
         comparison_path = str(output_dir / f"{comparison_id}.mp4")
 
         # Speed badge overlay for comparison only when debug is on

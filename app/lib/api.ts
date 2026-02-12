@@ -156,26 +156,72 @@ export async function solveCurve(
   return res.json();
 }
 
+export interface RenderStatsSummary {
+  output_duration: number;
+  speed_min: number;
+  speed_max: number;
+  slow_pct: number;
+  action_rest_ratio: number;
+  stab_avg_offset_pct?: number;
+  stab_max_offset_pct?: number;
+  stab_p95_offset_pct?: number;
+}
+
 interface RenderResult {
   output_id: string;
   comparison_id?: string;
-  stats: {
-    output_duration: number;
-    speed_min: number;
-    speed_max: number;
-    slow_pct: number;
-    action_rest_ratio: number;
-  };
+  stats: RenderStatsSummary;
 }
 
 export interface VideoListItem {
   video_id: string;
   filename: string;
   info: VideoInfo;
+  thumbnail?: string | null;
   cached: boolean;
   output_count: number;
   source_bytes: number;
   output_bytes: number;
+}
+
+export interface RenderHistorySettings {
+  mode: string;
+  edit_mode: string;
+  target_duration: number;
+  trim_start: number;
+  trim_end: number;
+  min_speed: number;
+  max_speed: number;
+  sensitivity: number;
+  smoothing: number;
+  scale: number;
+  output_fps: number;
+  crf: number;
+  output_aspect: string;
+  auto_reframe: boolean;
+  debug_overlay: boolean;
+  include_audio: boolean;
+  stabilize: boolean;
+  stabilize_strength: number;
+  stabilize_smoothness: number;
+  stabilize_crop: number;
+  use_feature_stabilize: boolean;
+  feature_stabilize_weight: number;
+  render_comparison: boolean;
+  render_chapters: boolean;
+}
+
+export interface RenderHistoryItem {
+  output_id: string;
+  comparison_id?: string | null;
+  video_id: string;
+  video_hash?: string | null;
+  video_filename?: string;
+  created_at: number;
+  stats: RenderStatsSummary;
+  settings: RenderHistorySettings;
+  output_bytes: number;
+  comparison_bytes: number;
 }
 
 interface VideoMetaResult {
@@ -318,6 +364,15 @@ export async function getLibraryStats(videoId?: string): Promise<LibraryStats> {
     ? `${API}/api/library-stats?video_id=${encodeURIComponent(videoId)}`
     : `${API}/api/library-stats`;
   const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  return res.json();
+}
+
+export async function listRenderHistory(videoId: string, limit: number = 150): Promise<RenderHistoryItem[]> {
+  const params = new URLSearchParams();
+  params.set("video_id", videoId);
+  params.set("limit", String(limit));
+  const res = await fetch(`${API}/api/renders?${params.toString()}`, { cache: "no-store" });
   if (!res.ok) throw new Error(await readErrorMessage(res));
   return res.json();
 }

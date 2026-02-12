@@ -7,6 +7,10 @@ const MIN_ANGLE = -135; // 7 o'clock position
 const MAX_ANGLE = 135;  // 5 o'clock position
 const ANGLE_RANGE = MAX_ANGLE - MIN_ANGLE; // 270 degrees
 
+function coord(n: number): number {
+  return Number(n.toFixed(6));
+}
+
 function valueToAngle(value: number, min: number, max: number): number {
   const pct = (value - min) / (max - min);
   return MIN_ANGLE + pct * ANGLE_RANGE;
@@ -27,10 +31,10 @@ function Ticks({ count, value, min, max }: { count: number; value: number; min: 
     ticks.push(
       <line
         key={i}
-        x1={50 + r1 * Math.sin(rad)}
-        y1={50 - r1 * Math.cos(rad)}
-        x2={50 + r2 * Math.sin(rad)}
-        y2={50 - r2 * Math.cos(rad)}
+        x1={coord(50 + r1 * Math.sin(rad))}
+        y1={coord(50 - r1 * Math.cos(rad))}
+        x2={coord(50 + r2 * Math.sin(rad))}
+        y2={coord(50 - r2 * Math.cos(rad))}
         stroke={isLit ? "#00e5ff" : isMajor ? "#555" : "#333"}
         strokeWidth={isMajor ? 1.5 : 0.8}
         strokeLinecap="round"
@@ -158,10 +162,10 @@ export function Knob({ label, info, value, min, max, step, onChange }: {
             const r1 = 20, r2 = 34;
             return (
               <line
-                x1={50 + r1 * Math.sin(rad)}
-                y1={50 - r1 * Math.cos(rad)}
-                x2={50 + r2 * Math.sin(rad)}
-                y2={50 - r2 * Math.cos(rad)}
+                x1={coord(50 + r1 * Math.sin(rad))}
+                y1={coord(50 - r1 * Math.cos(rad))}
+                x2={coord(50 + r2 * Math.sin(rad))}
+                y2={coord(50 - r2 * Math.cos(rad))}
                 stroke={isDragging ? "#fff" : "#ccc"}
                 strokeWidth="2"
                 strokeLinecap="round"
