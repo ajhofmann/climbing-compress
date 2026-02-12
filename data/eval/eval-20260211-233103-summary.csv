@@ -1,6 +1,0 @@
-config,rows,mode,mean_duration_error_pct,mean_clamp_any_pct,mean_smooth_l1,mean_crux_speed_ratio,mean_rest_speed_ratio,rank_score
-hybrid_65,19,hybrid,0.0,22.9062,0.004171,5.804785,0.451845,5.809957
-hybrid_35,19,hybrid,0.0,22.9446,0.003901,6.153631,0.493844,5.814176
-progress_smooth,19,progress,0.0,43.1202,0.003045,9.005347,0.223908,10.840949
-progress_baseline,19,progress,0.0,43.6486,0.00425,12.120351,0.17482,10.997162
-progress_snappy,19,progress,0.0,46.0937,0.006571,13.115325,0.162164,11.654832

@@ -123,6 +123,7 @@ export function LedCounter({ label, value, min, max, step, onChange, title }: {
           onClick={decrement}
           className="retro-btn w-10 h-14 flex items-center justify-center font-retro leading-none"
           style={{ fontSize: "24px", padding: 0, color: NIXIE_ON }}
+          aria-label={`Decrease ${label}`}
         >
           -
         </button>
@@ -144,6 +145,7 @@ export function LedCounter({ label, value, min, max, step, onChange, title }: {
           onClick={increment}
           className="retro-btn w-10 h-14 flex items-center justify-center font-retro leading-none"
           style={{ fontSize: "24px", padding: 0, color: NIXIE_ON }}
+          aria-label={`Increase ${label}`}
         >
           +
         </button>

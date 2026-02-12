@@ -59,6 +59,12 @@ export function Fader({ label, value, min, max, step, onChange, color = "#00e5ff
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        role="slider"
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        tabIndex={0}
       >
         {/* Track groove */}
         <div

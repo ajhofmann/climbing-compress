@@ -108,6 +108,12 @@ export function Knob({ label, info, value, min, max, step, onChange }: {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onWheel={handleWheel}
+        role="slider"
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        tabIndex={0}
       >
         {/* SVG tick marks + glow ring */}
         <svg
