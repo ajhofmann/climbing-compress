@@ -75,6 +75,7 @@ export function VideoUpload() {
   const clearVideo = useStore((state) => state.clearVideo);
   const setProgress = useStore((state) => state.setProgress);
   const progressMessage = useStore((state) => state.progressMessage);
+  const thumbnails = useStore((state) => state.thumbnails);
   const isAnalyzing = useStore((state) => state.isAnalyzing);
   const isRendering = useStore((state) => state.isRendering);
   const [isDragging, setIsDragging] = useState(false);
@@ -2259,7 +2260,7 @@ export function VideoUpload() {
               </div>
             )}
             {visibleRecent.length > 0 ? (
-              <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              <div className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                 {visibleRecent.map((item, idx) => {
                   const isCursor = idx === recentCursorIdx;
                   const isRenaming = renameDraftVideoId === item.video_id;
@@ -2283,7 +2284,7 @@ export function VideoUpload() {
                         aria-keyshortcuts={idx < 10 ? (idx === 9 ? "0" : String(idx + 1)) : undefined}
                         aria-current={isCursor ? "true" : undefined}
                       >
-                        <div className="relative w-full aspect-video border-b border-cyan-500/20 bg-black/30">
+                        <div className="relative w-full h-32 border-b border-cyan-500/20 bg-black/30">
                           {thumbSrc ? (
                             <Image
                               src={thumbSrc}
@@ -2294,8 +2295,15 @@ export function VideoUpload() {
                               className="object-cover"
                             />
                           ) : (
-                            <div className="h-full w-full flex items-center justify-center text-[8px] font-pixel text-text-muted/70 tracking-widest">
-                              NO PREVIEW
+                            <div className="h-full w-full flex flex-col items-center justify-center gap-1.5 relative overflow-hidden">
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-cyan-500/[0.04] to-transparent animate-pulse" />
+                              <svg className="w-7 h-7 text-cyan-400/25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="2" y="3" width="20" height="14" rx="2" />
+                                <path d="M8 21h8" />
+                                <path d="M12 17v4" />
+                                <polygon points="10,7.5 10,12.5 14.5,10" fill="currentColor" stroke="none" />
+                              </svg>
+                              <span className="text-[7px] font-pixel text-cyan-400/30 tracking-[0.15em] uppercase">loading...</span>
                             </div>
                           )}
                           {idx < 10 && (
@@ -2315,7 +2323,7 @@ export function VideoUpload() {
                           </span>
                         </div>
                       </button>
-                      <div className="p-2 flex flex-col gap-1.5">
+                      <div className="p-1.5 flex flex-col gap-1.5">
                         {isRenaming ? (
                           <input
                             ref={isRenaming ? renameDraftInputRef : undefined}
@@ -2439,6 +2447,19 @@ export function VideoUpload() {
 
   return (
     <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[10px]">
+      {/* ── Source thumbnail ── */}
+      {thumbnails.length > 0 && (
+        <div className="relative shrink-0 rounded border border-cyan-500/30 overflow-hidden shadow-[0_0_8px_rgba(0,229,255,0.12)]" style={{ height: 48 }}>
+          <Image
+            src={thumbnails[0]}
+            alt="Source preview"
+            width={86}
+            height={48}
+            unoptimized
+            className="object-cover h-full w-auto"
+          />
+        </div>
+      )}
       {/* ── Clip identity ── */}
       <div className="flex items-center gap-1.5 min-w-0">
         {videoName && (

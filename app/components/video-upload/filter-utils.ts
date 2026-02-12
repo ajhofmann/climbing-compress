@@ -1,5 +1,3 @@
-import { VideoListItem } from "@/lib/api";
-
 export const SUPPORTED_VIDEO_EXTS = [".mov", ".mp4", ".avi", ".mkv"] as const;
 export const RECENT_PREVIEW_LIMIT = 6;
 export const RECENT_CURSOR_PAGE_STEP = 5;

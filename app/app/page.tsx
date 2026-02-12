@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useStore, AnalysisParams } from "@/lib/store";
 import { analyzeVideo, solveCurve, renderVideo } from "@/lib/api";
 import { VideoUpload } from "@/components/video-upload";
@@ -14,6 +15,8 @@ import { HeaderArt } from "@/components/header-art";
 
 export default function Home() {
   const videoId = useStore((s) => s.videoId);
+  const outputId = useStore((s) => s.outputId);
+  const thumbnails = useStore((s) => s.thumbnails);
   const analysis = useStore((s) => s.analysis);
   const analysisParams = useStore((s) => s.analysisParams);
   const settings = useStore((s) => s.settings);
@@ -39,6 +42,8 @@ export default function Home() {
   const renderAbortRef = useRef<AbortController | null>(null);
   const renderRunRef = useRef(0);
   const suspendAutoSolveRef = useRef(false);
+  const autoAnalyzeVideoRef = useRef<string | null>(null);
+  const [renderHistoryRefreshToken, setRenderHistoryRefreshToken] = useState(0);
 
   const isAbortError = (e: unknown) => e instanceof Error && e.name === "AbortError";
 
@@ -144,6 +149,18 @@ export default function Home() {
     }
   }, [videoId, analysis, analysisParams, settings, pins, keyframes, setAnalyzing, setProgress, setAnalysis, updateSettings, setCurve]);
 
+  useEffect(() => {
+    if (!videoId) {
+      autoAnalyzeVideoRef.current = null;
+      return;
+    }
+    if (analysis) return;
+    if (isAnalyzing || isRendering) return;
+    if (autoAnalyzeVideoRef.current === videoId) return;
+    autoAnalyzeVideoRef.current = videoId;
+    void handleAnalyze();
+  }, [videoId, analysis, isAnalyzing, isRendering, handleAnalyze]);
+
   const handleCancelAnalyze = useCallback(() => {
     analyzeRunRef.current += 1;
     if (solveTimeout.current) {
@@ -186,6 +203,7 @@ export default function Home() {
       if (result?.output_id) {
         setOutputId(result.output_id);
         setComparisonId(result.comparison_id ?? null);
+        setRenderHistoryRefreshToken((prev) => prev + 1);
         setProgress(0, `Done! ${result.stats?.output_duration}s video ready`);
       }
     } catch (e: unknown) {
@@ -234,6 +252,7 @@ export default function Home() {
       if (result?.output_id) {
         setOutputId(result.output_id);
         setComparisonId(null);
+        setRenderHistoryRefreshToken((prev) => prev + 1);
         setProgress(0, "Quick preview ready");
       }
     } catch (e: unknown) {
@@ -319,6 +338,31 @@ export default function Home() {
 
       {/* Video output -- appears at top once rendered */}
       <VideoPlayer />
+      {/* Hero source thumbnail -- shown when clip is loaded but no render output yet */}
+      {videoId && !outputId && thumbnails.length > 0 && (
+        <div className="relative w-full flex items-center justify-center neon-video-frame overflow-hidden rounded" style={{ maxHeight: "50vh" }}>
+          <Image
+            src={thumbnails[Math.floor(thumbnails.length / 2)]}
+            alt="Source video preview"
+            width={960}
+            height={480}
+            unoptimized
+            className="w-full h-auto object-contain max-h-[50vh]"
+          />
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/40 via-transparent to-black/20" />
+          <span
+            className="absolute bottom-2 right-3 px-2 py-0.5 rounded border text-[9px] font-pixel uppercase tracking-[0.15em]"
+            style={{
+              borderColor: "rgba(0,229,255,0.3)",
+              color: "rgba(0,229,255,0.6)",
+              background: "rgba(0,0,0,0.55)",
+              textShadow: "0 0 6px rgba(0,229,255,0.25)",
+            }}
+          >
+            source preview
+          </span>
+        </div>
+      )}
       <div className="neon-divider w-full" />
 
       {/* Transport + Timeline (doubles as upload zone when no video) */}
@@ -401,7 +445,7 @@ export default function Home() {
               )}
             </div>
             <TimelineEditor />
-            <RenderHistoryTimeline videoId={videoId} />
+            <RenderHistoryTimeline videoId={videoId} refreshToken={renderHistoryRefreshToken} />
           </>
         )}
       </div>

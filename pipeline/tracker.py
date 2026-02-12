@@ -450,6 +450,7 @@ def track_video(
 
     fps = 0.0
     total_frames = 0
+    max_frame_idx = -1
     tracker: ClimberTracker | None = None
     results: list[dict | None] | None = None
 
@@ -464,6 +465,12 @@ def track_video(
                 model_name=model_name,
             )
             results = [None] * total_frames
+
+        max_frame_idx = max(max_frame_idx, frame_idx)
+
+        # Extend results if actual frames exceed metadata count
+        if frame_idx >= len(results):
+            results.extend([None] * (frame_idx - len(results) + 1))
 
         result = tracker.process_frame(frame, frame_idx)
         results[frame_idx] = result

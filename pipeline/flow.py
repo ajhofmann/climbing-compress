@@ -45,7 +45,11 @@ def compute_flow_scores(
         if raw_scores is None:
             fps = meta["fps"]
             total_frames = meta["total_frames"]
-            raw_scores = np.zeros(total_frames)
+            raw_scores = np.zeros(max(total_frames, 1))
+
+        # Extend array if actual frames exceed metadata count
+        if frame_idx >= len(raw_scores):
+            raw_scores = np.pad(raw_scores, (0, frame_idx - len(raw_scores) + 1))
 
         if prev_gray is not None:
             flow = cv2.calcOpticalFlowFarneback(
@@ -147,8 +151,13 @@ def compute_camera_motion(
         if cam_dx is None:
             fps = meta["fps"]
             total_frames = meta["total_frames"]
-            cam_dx = np.zeros(total_frames)
-            cam_dy = np.zeros(total_frames)
+            cam_dx = np.zeros(max(total_frames, 1))
+            cam_dy = np.zeros(max(total_frames, 1))
+
+        # Extend arrays if actual frames exceed metadata count
+        if frame_idx >= len(cam_dx):
+            cam_dx = np.pad(cam_dx, (0, frame_idx - len(cam_dx) + 1))
+            cam_dy = np.pad(cam_dy, (0, frame_idx - len(cam_dy) + 1))
 
         fh, fw = gray.shape[:2]
 

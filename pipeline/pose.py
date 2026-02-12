@@ -217,6 +217,7 @@ def _extract_poses_impl(
     raw_poses: list[tuple[int, dict | None]] = []
     fps = 0.0
     total_frames = 0
+    max_frame_idx = -1
     detected_frames = 0
     missing_frames = 0
 
@@ -227,6 +228,8 @@ def _extract_poses_impl(
             if not total_frames:
                 fps = meta["fps"]
                 total_frames = meta["total_frames"]
+
+            max_frame_idx = max(max_frame_idx, frame_idx)
 
             frame_rgb = _resize_for_detection(
                 frame_rgb, max_short_side=max_short_side
@@ -262,6 +265,19 @@ def _extract_poses_impl(
             if progress_cb and total_frames > 0:
                 progress_cb(frame_idx / total_frames)
 
+    # Use the actual max frame index to determine real frame count —
+    # CAP_PROP_FRAME_COUNT can underreport for MOV/VFR videos, silently
+    # dropping frames at the end.
+    if max_frame_idx >= 0:
+        actual_frames = max_frame_idx + 1
+        if actual_frames > total_frames:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Frame count mismatch: metadata=%d actual=%d (using actual)",
+                total_frames, actual_frames,
+            )
+            total_frames = actual_frames
+
     if not total_frames:
         empty_anchor = (np.array([]), np.array([]))
         diagnostics: dict[str, float | int | str] = {
@@ -275,11 +291,10 @@ def _extract_poses_impl(
         }
         return [], 0.0, empty_anchor, diagnostics
 
-    # Expand to full frame count
+    # Expand to full frame count (using corrected total_frames)
     poses: list[dict | None] = [None] * total_frames
     for fi, pose in raw_poses:
-        if fi < total_frames:
-            poses[fi] = pose
+        poses[fi] = pose
 
     # Discard anomalous poses (teleporting landmarks, skeleton collapse)
     poses, sanitize_stats = sanitize_poses(poses, fps, return_stats=True)

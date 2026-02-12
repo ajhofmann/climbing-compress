@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { RenderHistoryItem } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { useRenderHistory } from "./use-render-history";
@@ -35,9 +35,10 @@ function buildRenderLabel(entry: RenderHistoryItem) {
 
 interface RenderHistoryTimelineProps {
   videoId: string | null;
+  refreshToken?: number;
 }
 
-export function RenderHistoryTimeline({ videoId }: RenderHistoryTimelineProps) {
+export function RenderHistoryTimeline({ videoId, refreshToken = 0 }: RenderHistoryTimelineProps) {
   const outputId = useStore((s) => s.outputId);
   const comparisonId = useStore((s) => s.comparisonId);
   const setOutputId = useStore((s) => s.setOutputId);
@@ -50,6 +51,24 @@ export function RenderHistoryTimeline({ videoId }: RenderHistoryTimelineProps) {
     () => `Past renders (${entries.length})`,
     [entries.length],
   );
+
+  useEffect(() => {
+    if (!videoId || refreshToken <= 0) return;
+    let cancelled = false;
+    const refreshSoon = window.setTimeout(() => {
+      if (cancelled) return;
+      void refresh();
+    }, 180);
+    const refreshRetry = window.setTimeout(() => {
+      if (cancelled) return;
+      void refresh();
+    }, 800);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(refreshSoon);
+      window.clearTimeout(refreshRetry);
+    };
+  }, [videoId, refreshToken, refresh]);
 
   if (!videoId) return null;
 

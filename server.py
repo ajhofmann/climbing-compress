@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from pipeline.cache import (
     load_analysis, has_cache, content_hash, load_flow_scores,
     load_camera_motion, clear_cache, clear_cache_by_hash, has_cache_by_hash,
+    CACHE_DIR,
 )
 from pipeline.orchestrate import (
     run_analysis, run_render, compute_scores_and_curve, curve_stats, detect_crux_points,
@@ -45,6 +46,7 @@ RENDER_HISTORY_INDEX = OUTPUT_DIR / "_render_history.json"
 MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "512"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 ALLOWED_VIDEO_EXTS = (".mov", ".mp4", ".avi", ".mkv")
+THUMB_PROFILE = "h480_q88"
 
 _cors_origins = os.environ.get("CORS_ORIGINS", "http://localhost:3000").split(",")
 
@@ -520,10 +522,61 @@ def _encode_thumbnails(thumbs: list[np.ndarray]) -> list[str]:
     for t in thumbs:
         img = Image.fromarray(t)
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=80)
+        img.save(buf, format="JPEG", quality=88)
         b64 = base64.b64encode(buf.getvalue()).decode()
         urls.append(f"data:image/jpeg;base64,{b64}")
     return urls
+
+
+def _thumb_cache_dir(video_id: str) -> Path | None:
+    """Return the disk cache directory for a video's thumbnails, or None if unhashed."""
+    ch = _video_hashes.get(video_id)
+    if not ch:
+        return None
+    return CACHE_DIR / ch
+
+
+def _save_thumbs_to_disk(video_id: str, thumbs: list[str], profile: str) -> None:
+    """Persist encoded thumbnail data URLs to disk for fast reload."""
+    cache = _thumb_cache_dir(video_id)
+    if not cache:
+        return
+    cache.mkdir(parents=True, exist_ok=True)
+    manifest = {"profile": profile, "count": len(thumbs)}
+    try:
+        (cache / "thumbs.json").write_text(json.dumps(manifest))
+        for i, data_url in enumerate(thumbs):
+            # Strip data URL prefix and write raw JPEG bytes
+            _, _, b64_data = data_url.partition(",")
+            (cache / f"thumb_{i}.jpg").write_bytes(base64.b64decode(b64_data))
+    except OSError as exc:
+        logger.warning("Failed to save thumbnail cache for %s: %s", video_id, exc)
+
+
+def _load_thumbs_from_disk(video_id: str) -> list[str] | None:
+    """Load thumbnails from disk cache if they exist and match current profile."""
+    cache = _thumb_cache_dir(video_id)
+    if not cache:
+        return None
+    manifest_path = cache / "thumbs.json"
+    if not manifest_path.exists():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text())
+        if manifest.get("profile") != THUMB_PROFILE:
+            return None
+        count = manifest.get("count", 0)
+        thumbs: list[str] = []
+        for i in range(count):
+            jpg_path = cache / f"thumb_{i}.jpg"
+            if not jpg_path.exists():
+                return None
+            b64 = base64.b64encode(jpg_path.read_bytes()).decode()
+            thumbs.append(f"data:image/jpeg;base64,{b64}")
+        return thumbs
+    except (OSError, json.JSONDecodeError, ValueError) as exc:
+        logger.warning("Failed to load thumbnail cache for %s: %s", video_id, exc)
+        return None
 
 
 def _get_video_info_cached(video_id: str, path: Path) -> dict:
@@ -549,13 +602,26 @@ def _get_video_info_cached(video_id: str, path: Path) -> dict:
 
 
 def _get_thumbnails_cached(video_id: str, path: Path, n: int = 8) -> list[str]:
+    # 1. In-memory cache
     entry = _video_meta_cache.get(video_id)
     if entry:
         thumbs = entry.get("thumbnails")
-        if isinstance(thumbs, list):
+        profile = entry.get("thumb_profile")
+        if isinstance(thumbs, list) and profile == THUMB_PROFILE:
             return thumbs
+    # 2. Disk cache
+    disk_thumbs = _load_thumbs_from_disk(video_id)
+    if disk_thumbs is not None:
+        meta = _video_meta_cache.setdefault(video_id, {})
+        meta["thumbnails"] = disk_thumbs
+        meta["thumb_profile"] = THUMB_PROFILE
+        return disk_thumbs
+    # 3. Generate fresh thumbnails via ffmpeg
     thumbs = _encode_thumbnails(generate_thumbnails(str(path), n=n))
-    _video_meta_cache.setdefault(video_id, {})["thumbnails"] = thumbs
+    meta = _video_meta_cache.setdefault(video_id, {})
+    meta["thumbnails"] = thumbs
+    meta["thumb_profile"] = THUMB_PROFILE
+    _save_thumbs_to_disk(video_id, thumbs, THUMB_PROFILE)
     return thumbs
 
 
@@ -648,7 +714,8 @@ async def upload_video(file: UploadFile = File(...)):
         _persist_video_names()
         info = get_video_info(str(dest))
         thumbs = _encode_thumbnails(generate_thumbnails(str(dest), n=8))
-        _video_meta_cache[video_id] = {"info": info, "thumbnails": thumbs}
+        _video_meta_cache[video_id] = {"info": info, "thumbnails": thumbs, "thumb_profile": THUMB_PROFILE}
+        _save_thumbs_to_disk(video_id, thumbs, THUMB_PROFILE)
         output_count, output_bytes = _output_video_totals_for_source(video_id)
 
         return {
@@ -708,6 +775,14 @@ async def list_videos():
                 first = cached_thumbs[0]
                 if isinstance(first, str):
                     thumb = first
+        if thumb is None:
+            # Try disk cache so listing shows thumbnails without lazy fetch
+            disk_thumbs = _load_thumbs_from_disk(vid)
+            if disk_thumbs:
+                thumb = disk_thumbs[0]
+                meta = _video_meta_cache.setdefault(vid, {})
+                meta["thumbnails"] = disk_thumbs
+                meta["thumb_profile"] = THUMB_PROFILE
         result.append({
             "video_id": vid,
             "filename": _display_filename(vid, path),
