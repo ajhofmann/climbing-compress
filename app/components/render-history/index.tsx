@@ -89,13 +89,13 @@ export function RenderHistoryTimeline({ videoId, refreshToken = 0 }: RenderHisto
       </div>
 
       {error && (
-        <div className="text-[9px] font-pixel text-rose-300/85 mb-2">
+        <div className="text-sm font-pixel text-rose-300/85 mb-2">
           failed to load render history: {error}
         </div>
       )}
 
       {entries.length <= 0 ? (
-        <div className="text-[9px] font-pixel text-text-muted/70">no past renders for this clip yet</div>
+        <div className="text-sm font-pixel text-text-muted/70">no past renders for this clip yet</div>
       ) : (
         <div className={renderHistoryStyles.timelineRail}>
           <div className={renderHistoryStyles.timelineTrack}>
@@ -108,38 +108,38 @@ export function RenderHistoryTimeline({ videoId, refreshToken = 0 }: RenderHisto
                   className={`${renderHistoryStyles.card} ${isActive ? renderHistoryStyles.cardActive : ""}`}
                   aria-current={isActive ? "true" : undefined}
                 >
-                  <div className="flex items-center justify-between gap-1">
-                    <span className="text-[8px] font-pixel text-cyan-300/85">render #{entries.length - idx}</span>
-                    <span className="text-[8px] font-pixel text-text-muted/75">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-pixel text-cyan-300/85">render #{entries.length - idx}</span>
+                    <span className="text-sm font-pixel text-text-muted/75">
                       {formatTimestamp(entry.created_at)}
                     </span>
                   </div>
 
-                  <div className="text-[9px] font-pixel text-cyan-100 break-all">
+                  <div className="text-sm font-pixel text-cyan-100 break-all">
                     {entry.output_id}
                   </div>
 
-                  <div className="text-[8px] font-pixel text-text-muted/80 leading-tight">
+                  <div className="text-sm font-pixel text-text-muted/80 leading-tight">
                     out {entry.stats.output_duration.toFixed(1)}s · spd {entry.stats.speed_min.toFixed(1)}x-{entry.stats.speed_max.toFixed(1)}x
                   </div>
-                  <div className="text-[8px] font-pixel text-text-muted/75 leading-tight">
+                  <div className="text-sm font-pixel text-text-muted/75 leading-tight">
                     mode {entry.settings.mode}/{entry.settings.edit_mode} · target {entry.settings.target_duration.toFixed(1)}s · trim {formatTrim(entry)}
                   </div>
-                  <div className="text-[8px] font-pixel text-text-muted/75 leading-tight">
+                  <div className="text-sm font-pixel text-text-muted/75 leading-tight">
                     fps {entry.settings.output_fps.toFixed(0)} · scale {entry.settings.scale.toFixed(2)} · crf {entry.settings.crf}
                   </div>
-                  <div className="text-[8px] font-pixel text-text-muted/75 leading-tight">
+                  <div className="text-sm font-pixel text-text-muted/75 leading-tight">
                     bytes {formatBytes(entry.output_bytes)}
                     {entry.comparison_id ? ` · compare ${formatBytes(entry.comparison_bytes)}` : ""}
                   </div>
 
-                  <div className="pt-0.5 flex items-center gap-1">
+                  <div className="pt-1 flex items-center gap-2">
                     <button
                       onClick={() => {
                         setOutputId(entry.output_id);
                         setComparisonId(entry.comparison_id ?? null);
                       }}
-                      className="px-1.5 py-0.5 border rounded border-cyan-400/45 text-cyan-200 hover:text-white hover:border-cyan-300 text-[9px] font-pixel uppercase"
+                      className="px-2 py-1 border rounded border-cyan-400/45 text-cyan-200 hover:text-white hover:border-cyan-300 text-sm font-pixel uppercase"
                       aria-label={`Load past render ${entry.output_id}`}
                     >
                       {isActive && entry.comparison_id === comparisonId ? "loaded" : "load"}
@@ -154,13 +154,13 @@ export function RenderHistoryTimeline({ videoId, refreshToken = 0 }: RenderHisto
                         }, 1000);
                       }}
                       disabled={!canCopy}
-                      className="px-1.5 py-0.5 border rounded border-cyan-500/30 text-cyan-300 hover:text-white hover:border-cyan-300 text-[9px] font-pixel uppercase disabled:opacity-45 disabled:cursor-not-allowed"
+                      className="px-2 py-1 border rounded border-cyan-500/30 text-cyan-300 hover:text-white hover:border-cyan-300 text-sm font-pixel uppercase disabled:opacity-45 disabled:cursor-not-allowed"
                       aria-label={`Copy summary for render ${entry.output_id}`}
                     >
                       {copied ? "copied" : "copy"}
                     </button>
                     {entry.comparison_id && (
-                      <span className="text-[8px] font-pixel text-amber-200/90">A/B</span>
+                      <span className="text-sm font-pixel text-amber-200/90">A/B</span>
                     )}
                   </div>
                 </article>

@@ -1714,7 +1714,7 @@ export function VideoUpload() {
           isDragging ? "marching-ants" : "drop-zone-glow"
         }`}
         style={{
-          minHeight: 100,
+          minHeight: 120,
           background: "linear-gradient(180deg, rgba(0,229,255,0.02) 0%, transparent 60%)",
           ...(isDragging ? {
             boxShadow: "0 0 30px rgba(0,229,255,0.3), inset 0 0 40px rgba(0,229,255,0.05)",
@@ -1736,168 +1736,17 @@ export function VideoUpload() {
           <polyline points="14,4 14,14 4,14" stroke="#e040fb" strokeWidth="1" fill="none" />
         </svg>
 
-        <span className="text-xs font-pixel led-text tracking-widest">
+        <span className="text-lg font-pixel led-text tracking-widest">
           {">> DROP VIDEO OR CLICK TO START <<"}
         </span>
-        <span className="text-sm font-retro text-text-muted">[ or click to browse ]</span>
+        <span className="text-lg font-retro text-text-muted">[ or click to browse ]</span>
         {recentFetchDone && (
           <div
             className="w-full px-4 pt-1 flex flex-col gap-1"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-[10px] font-pixel uppercase tracking-widest text-text-muted text-center">
-                {normalizedRecentFilter
-                  ? `Recent (${filteredRecent.length}/${recentVideos.length} · ${formatDuration(filteredRecentDuration)}/${formatDuration(totalRecentDuration)})`
-                  : `Recent (${recentVideos.length} · ${formatDuration(totalRecentDuration)})`}
-              </span>
-              <span className="text-[9px] font-pixel text-text-muted/70 text-center">
-                lib:{formatBytesShort(clipBytes)} · out:{outputCount ?? "?"} · mb:{formatBytesShort(outputBytes)}
-              </span>
-              {hasActiveRecentSubset && (
-                <span className="text-[9px] font-pixel text-text-muted/70 text-center">
-                  view:{formatBytesShort(filteredSourceBytes)} · out:{filteredOutputCount} · mb:{formatBytesShort(filteredOutputBytes)}
-                </span>
-              )}
-              <button
-                onClick={() => void refreshRecent()}
-                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                aria-label="Refresh local clip library"
-                aria-keyshortcuts="R"
-              >
-                {refreshingRecent ? "[refreshing...]" : "[refresh]"}
-              </button>
-              <button
-                onClick={() => void handleClearLibrary()}
-                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || recentVideos.length === 0}
-                className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                aria-label="Clear all local clips"
-              >
-                {clearingLibrary ? "[clearing...]" : "[clear all]"}
-              </button>
-              {hasActiveRecentSubset && (
-                <button
-                  onClick={() => void handleClearFiltered()}
-                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || filteredRecent.length === 0}
-                  className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                  aria-label={`Clear ${filteredRecent.length} filtered clip${filteredRecent.length === 1 ? "" : "s"}`}
-                >
-                  {pruningFiltered ? "[clearing filt...]" : "[clear filtered]"}
-                </button>
-              )}
-              {hasActiveRecentSubset && (
-                <button
-                  onClick={() => void handleClearFilteredOutputs()}
-                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || filteredOutputCount <= 0}
-                  className="text-[9px] font-pixel text-amber-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                  aria-label={`Clear rendered outputs for filtered clips (${filteredOutputCount} outputs across ${filteredClipsWithOutputs} clips)`}
-                  aria-keyshortcuts="Control+Alt+O Meta+Alt+O"
-                >
-                  {clearingFilteredOutputs ? "[clearing filt out...]" : "[clear filt out]"}
-                </button>
-              )}
-              <button
-                onClick={() => void handleClearAllOutputs()}
-                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered || outputCount === 0}
-                className="text-[9px] font-pixel text-magenta-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                aria-label="Clear all rendered outputs"
-                aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
-              >
-                {clearingOutputs && !clearingFilteredOutputs ? "[clearing out...]" : "[clear outputs]"}
-              </button>
-              {filteredRecent.length > RECENT_PREVIEW_LIMIT && (
-                <button
-                  onClick={() => setShowAllRecent((prev) => !prev)}
-                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-                  className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                  aria-label={showAllRecent ? "Show fewer recent clips" : "Show all recent clips"}
-                  aria-keyshortcuts="A"
-                >
-                  {showAllRecent ? "[show less]" : "[show all]"}
-                </button>
-              )}
-              <button
-                onClick={cycleRecentSort}
-                disabled={recentVideos.length <= 1 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                aria-label={`Sort recent clips (currently ${recentSort})`}
-                aria-keyshortcuts="S"
-              >
-                [sort:{recentSort}]
-              </button>
-              <button
-                onClick={() => setRecentSortReversed((prev) => !prev)}
-                disabled={recentVideos.length <= 1 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                aria-label={`Toggle reverse order for recent clips (currently ${recentSortReversed ? "on" : "off"})`}
-                aria-keyshortcuts="D"
-              >
-                [rev:{recentSortReversed ? "on" : "off"}]
-              </button>
-              <button
-                onClick={() => {
-                  setRecentOutputScope((prev) => {
-                    if (prev === "all") return "with";
-                    if (prev === "with") return "none";
-                    return "all";
-                  });
-                }}
-                disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                aria-label={`Filter recent clips by output count (currently ${recentOutputScope}, ${outputScopeCount} clips)`}
-                aria-keyshortcuts="O"
-              >
-                [out:{recentOutputScope}:{outputScopeCount}]
-              </button>
-              <button
-                onClick={() => {
-                  setRecentCacheScope((prev) => {
-                    if (prev === "all") return "cached";
-                    if (prev === "cached") return "uncached";
-                    return "all";
-                  });
-                }}
-                disabled={recentVideos.length === 0 || isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                aria-label={`Filter recent clips by analysis cache state (currently ${recentCacheScope}, ${cacheScopeCount} clips)`}
-                aria-keyshortcuts="C"
-              >
-                [cache:{recentCacheScope}:{cacheScopeCount}]
-              </button>
-              <button
-                onClick={() => setShowShortcutHelp((prev) => !prev)}
-                disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-                className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                aria-label={`${showShortcutHelp ? "Hide" : "Show"} dropzone keyboard shortcuts help`}
-                aria-keyshortcuts="Shift+/"
-              >
-                [keys:{showShortcutHelp ? "on" : "off"}]
-              </button>
-              {hasActiveRecentSubset && (
-                <button
-                  onClick={resetRecentView}
-                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-                  className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                  aria-label="Reset recent view filters to all"
-                  aria-keyshortcuts="V"
-                >
-                  [reset view]
-                </button>
-              )}
-              {hasAnyRecentCustomization && (
-                <button
-                  onClick={resetRecentViewAll}
-                  disabled={isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || refreshingRecent || clearingLibrary || clearingOutputs || pruningFiltered}
-                  className="text-[9px] font-pixel text-cyan-300 hover:text-white disabled:text-text-muted disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:text-text-muted"
-                  aria-label="Reset recent view, sort, and expansion preferences to defaults"
-                  aria-keyshortcuts="Shift+V"
-                >
-                  [reset all]
-                </button>
-              )}
-            </div>
+            {/* Library toolbar actions are available via keyboard shortcuts (R/S/D/O/C/A/V/Shift+V) */}
             {recentVideos.length > 0 && (
               <div className="flex items-center justify-center gap-1">
                 <input
@@ -2015,7 +1864,7 @@ export function VideoUpload() {
                   placeholder="filter clips (+term -/!term #tag phrase)"
                   aria-label="Filter recent clips by terms (space-separated include/exclude with - or !, optional tags like #cached or #out, and quoted phrases)"
                   aria-keyshortcuts="Alt+Backspace Control+Backspace Meta+Backspace Tab Shift+Enter PageUp PageDown Home End"
-                  className="w-[120px] bg-panel border border-cyan-500/20 rounded px-1.5 py-0.5 text-[9px] font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
+                  className="w-[160px] bg-panel border border-cyan-500/20 rounded px-2 py-1 text-sm font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
                 />
                 {recentFilter && (
                   <button
@@ -2023,7 +1872,7 @@ export function VideoUpload() {
                       setRecentFilter("");
                       setRecentTagCursorIdx(-1);
                     }}
-                    className="text-[9px] font-pixel text-text-muted hover:text-white"
+                    className="text-sm font-pixel text-text-muted hover:text-white"
                     aria-label="Clear recent clip filter"
                   >
                     [x]
@@ -2032,7 +1881,7 @@ export function VideoUpload() {
               </div>
             )}
             {recentTagSuggestions.length > 0 && (
-              <div className="flex flex-wrap justify-center items-center gap-1 text-[9px] font-pixel">
+              <div className="flex flex-wrap justify-center items-center gap-1 text-sm font-pixel">
                 {recentTagSuggestions.map((suggestion, idx) => (
                   <button
                     key={`sugg-${suggestion}`}
@@ -2053,7 +1902,7 @@ export function VideoUpload() {
               </div>
             )}
             {recentFilterFocused && recentFilter.trim().length === 0 && recentTagSuggestions.length === 0 && (
-              <div className="flex flex-wrap justify-center items-center gap-1 text-[9px] font-pixel">
+              <div className="flex flex-wrap justify-center items-center gap-1 text-sm font-pixel">
                 {visibleQuickTags.map((tag) => (
                   <button
                     key={`quick-${tag}`}
@@ -2079,7 +1928,7 @@ export function VideoUpload() {
               </div>
             )}
             {parsedRecentFilterTerms.length > 0 && (
-              <div className="flex flex-wrap justify-center items-center gap-1 text-[8px] font-pixel">
+              <div className="flex flex-wrap justify-center items-center gap-1 text-sm font-pixel">
                 {parsedRecentFilterTerms.map((item) => {
                   const isUnknownTag = item.term.startsWith("#") && !isRecognizedRecentTagTerm(item.term);
                   return (
@@ -2105,11 +1954,11 @@ export function VideoUpload() {
             )}
             {unknownRecentTagTerms.length > 0 && (
               <div className="flex flex-col items-center gap-0.5">
-                <div className="text-[8px] font-pixel text-rose-300/85 text-center">
+                <div className="text-sm font-pixel text-rose-300/85 text-center">
                   unknown tag{unknownRecentTagTerms.length === 1 ? "" : "s"}: {unknownRecentTagTerms.join(", ")}
                 </div>
                 {unknownTagReplacementHints && (
-                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-sm font-pixel text-rose-200/80 text-center">
                     <span>did you mean:</span>
                     {unknownTagReplacementHints.replacements.map((replacement) => (
                       <button
@@ -2125,7 +1974,7 @@ export function VideoUpload() {
                   </div>
                 )}
                 {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownOutputHintConfig && (
-                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-sm font-pixel text-rose-200/80 text-center">
                     <span>output examples:</span>
                     {unknownOutputHintConfig.tags.map((tag) => (
                       <button
@@ -2141,7 +1990,7 @@ export function VideoUpload() {
                   </div>
                 )}
                 {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownStorageHintConfig && (
-                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-sm font-pixel text-rose-200/80 text-center">
                     <span>storage examples:</span>
                     {unknownStorageHintConfig.tags.map((tag) => (
                       <button
@@ -2157,7 +2006,7 @@ export function VideoUpload() {
                   </div>
                 )}
                 {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownExtensionHintConfig && (
-                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-sm font-pixel text-rose-200/80 text-center">
                     <span>extension examples:</span>
                     {unknownExtensionHintConfig.tags.map((tag) => (
                       <button
@@ -2173,7 +2022,7 @@ export function VideoUpload() {
                   </div>
                 )}
                 {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownNameHintConfig && (
-                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-sm font-pixel text-rose-200/80 text-center">
                     <span>name examples:</span>
                     {unknownNameHintConfig.tags.map((tag) => (
                       <button
@@ -2189,7 +2038,7 @@ export function VideoUpload() {
                   </div>
                 )}
                 {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownIdHintConfig && (
-                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-sm font-pixel text-rose-200/80 text-center">
                     <span>id examples:</span>
                     {unknownIdHintConfig.tags.map((tag) => (
                       <button
@@ -2205,7 +2054,7 @@ export function VideoUpload() {
                   </div>
                 )}
                 {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownVideoMetaHintConfig && (
-                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-sm font-pixel text-rose-200/80 text-center">
                     <span>video examples:</span>
                     {unknownVideoMetaHintConfig.tags.map((tag) => (
                       <button
@@ -2221,7 +2070,7 @@ export function VideoUpload() {
                   </div>
                 )}
                 {!unknownTagReplacementHints && unknownRangeHintConfig && (
-                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-sm font-pixel text-rose-200/80 text-center">
                     <span>range examples:</span>
                     {unknownRangeHintConfig.tags.map((tag) => (
                       <button
@@ -2237,7 +2086,7 @@ export function VideoUpload() {
                   </div>
                 )}
                 {!unknownTagReplacementHints && !unknownRangeHintConfig && unknownDurationHintConfig && (
-                  <div className="flex flex-wrap items-center justify-center gap-1 text-[8px] font-pixel text-rose-200/80 text-center">
+                  <div className="flex flex-wrap items-center justify-center gap-1 text-sm font-pixel text-rose-200/80 text-center">
                     <span>duration examples:</span>
                     {unknownDurationHintConfig.tags.map((tag) => (
                       <button
@@ -2255,7 +2104,7 @@ export function VideoUpload() {
               </div>
             )}
             {showShortcutHelp && (
-              <div className="text-[8px] font-pixel text-cyan-300/80 text-center px-2 leading-tight">
+              <div className="text-sm font-pixel text-cyan-300/80 text-center px-2 leading-tight">
                 keys: ? toggle · / focus filter · Enter load · Shift+Enter force load first match · ↑↓ select · Home/End jump first/last · PgUp/PgDn jump cursor by 5 · #tag + Tab/Enter complete (↑↓ picks suggestion) · quoted phrase term · -/! exclude term · Alt/Ctrl/Cmd+Backspace pop filter term · 1-0 quick load (0=10th) · O out · C cache · S sort · D reverse · R refresh · A expand · Z zero tags · V reset subset · Shift+V reset all · loaded: Alt+P/N cycle current nav scope, Alt+X eject
               </div>
             )}
@@ -2284,7 +2133,7 @@ export function VideoUpload() {
                         aria-keyshortcuts={idx < 10 ? (idx === 9 ? "0" : String(idx + 1)) : undefined}
                         aria-current={isCursor ? "true" : undefined}
                       >
-                        <div className="relative w-full h-32 border-b border-cyan-500/20 bg-black/30">
+                        <div className="relative w-full h-40 border-b border-cyan-500/20 bg-black/30">
                           {thumbSrc ? (
                             <Image
                               src={thumbSrc}
@@ -2303,27 +2152,27 @@ export function VideoUpload() {
                                 <path d="M12 17v4" />
                                 <polygon points="10,7.5 10,12.5 14.5,10" fill="currentColor" stroke="none" />
                               </svg>
-                              <span className="text-[7px] font-pixel text-cyan-400/30 tracking-[0.15em] uppercase">loading...</span>
+                              <span className="text-sm font-pixel text-cyan-400/30 tracking-[0.15em] uppercase">loading...</span>
                             </div>
                           )}
                           {idx < 10 && (
-                            <span className="absolute top-1 left-1 px-1 py-0.5 rounded border border-cyan-300/50 bg-black/55 text-[8px] font-pixel text-cyan-100">
+                            <span className="absolute top-1 left-1 px-1 py-0.5 rounded border border-cyan-300/50 bg-black/55 text-sm font-pixel text-cyan-100">
                               {idx === 9 ? "0" : idx + 1}
                             </span>
                           )}
-                          <span className={`absolute top-1 right-1 px-1 py-0.5 rounded border text-[8px] font-pixel ${
+                          <span className={`absolute top-1 right-1 px-1 py-0.5 rounded border text-sm font-pixel ${
                             item.cached
                               ? "border-emerald-400/50 text-emerald-200 bg-black/55"
                               : "border-cyan-500/40 text-cyan-200 bg-black/55"
                           }`}>
                             {item.cached ? "cached" : "fresh"}
                           </span>
-                          <span className="absolute bottom-1 right-1 px-1 py-0.5 rounded border border-amber-400/45 bg-black/55 text-[8px] font-pixel text-amber-100">
+                          <span className="absolute bottom-1 right-1 px-1 py-0.5 rounded border border-amber-400/45 bg-black/55 text-sm font-pixel text-amber-100">
                             {`out:${item.output_count}`}
                           </span>
                         </div>
                       </button>
-                      <div className="p-1.5 flex flex-col gap-1.5">
+                      <div className="p-2.5 flex flex-col gap-2">
                         {isRenaming ? (
                           <input
                             ref={isRenaming ? renameDraftInputRef : undefined}
@@ -2340,26 +2189,26 @@ export function VideoUpload() {
                                 handleCancelRenameExisting();
                               }
                             }}
-                            className="w-full bg-panel border border-cyan-400/45 rounded px-1.5 py-1 text-[10px] font-pixel text-cyan-100 focus:outline-none focus:border-cyan-300"
+                            className="w-full bg-panel border border-cyan-400/45 rounded px-1.5 py-1 text-sm font-pixel text-cyan-100 focus:outline-none focus:border-cyan-300"
                             aria-label={`Rename ${item.filename}`}
                             maxLength={120}
                           />
                         ) : (
-                          <div className="text-[10px] font-pixel text-cyan-100 break-all leading-snug">
+                          <div className="text-base font-pixel text-cyan-100 break-all leading-snug">
                             {item.filename}
                           </div>
                         )}
-                        <div className="text-[8px] font-pixel text-text-muted/80 leading-tight">
+                        <div className="text-sm font-pixel text-text-muted/80 leading-tight">
                           {formatDuration(item.info.duration)} · {item.info.width}x{item.info.height} · {item.info.fps.toFixed(0)}fps
                         </div>
-                        <div className="text-[8px] font-pixel text-text-muted/70 leading-tight">
+                        <div className="text-sm font-pixel text-text-muted/70 leading-tight">
                           src {formatBytesShort(item.source_bytes)} · out {item.output_count} · {formatBytesShort(item.output_bytes)}
                         </div>
-                        <div className="flex flex-wrap gap-1 pt-0.5">
+                        <div className="flex flex-wrap gap-1.5 pt-1">
                           <button
                             onClick={() => void handleLoadExisting(item)}
                             disabled={actionsLocked}
-                            className="px-1.5 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-2 py-1 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 text-sm font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
                             aria-label={`Load ${item.filename}`}
                           >
                             load
@@ -2369,7 +2218,7 @@ export function VideoUpload() {
                               <button
                                 onClick={() => void handleSaveRenameExisting(item)}
                                 disabled={actionsLocked}
-                                className="px-1.5 py-0.5 border rounded border-cyan-300/60 text-cyan-100 hover:text-white hover:border-cyan-200 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 py-1 border rounded border-cyan-300/60 text-cyan-100 hover:text-white hover:border-cyan-200 text-sm font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
                                 aria-label={`Save new name for ${item.filename}`}
                               >
                                 save
@@ -2377,7 +2226,7 @@ export function VideoUpload() {
                               <button
                                 onClick={handleCancelRenameExisting}
                                 disabled={actionsLocked}
-                                className="px-1.5 py-0.5 border rounded border-text-muted/45 text-text-muted hover:text-white hover:border-cyan-300 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 py-1 border rounded border-text-muted/45 text-text-muted hover:text-white hover:border-cyan-300 text-sm font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
                                 aria-label={`Cancel rename for ${item.filename}`}
                               >
                                 cancel
@@ -2387,7 +2236,7 @@ export function VideoUpload() {
                             <button
                               onClick={() => handleRenameExisting(item)}
                               disabled={actionsLocked}
-                              className="px-1.5 py-0.5 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="px-2 py-1 border rounded border-cyan-400/40 text-cyan-200 hover:text-white hover:border-cyan-300 text-sm font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
                               title={`Rename ${item.filename}`}
                               aria-label={`Rename ${item.filename}`}
                             >
@@ -2397,7 +2246,7 @@ export function VideoUpload() {
                           <button
                             onClick={() => void handleClearOutputsForExisting(item)}
                             disabled={actionsLocked || item.output_count <= 0}
-                            className="px-1.5 py-0.5 border rounded border-amber-400/40 text-amber-200 hover:text-white hover:border-amber-300 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-2 py-1 border rounded border-amber-400/40 text-amber-200 hover:text-white hover:border-amber-300 text-sm font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
                             title={item.output_count > 0
                               ? `Clear ${item.output_count} rendered output${item.output_count === 1 ? "" : "s"} for ${item.filename}`
                               : `No rendered outputs for ${item.filename}`}
@@ -2410,7 +2259,7 @@ export function VideoUpload() {
                           <button
                             onClick={() => void handleDeleteExisting(item)}
                             disabled={actionsLocked}
-                            className="px-1.5 py-0.5 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 text-[9px] font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="px-2 py-1 border rounded border-magenta-400/40 text-magenta-200 hover:text-white hover:border-magenta-300 text-sm font-pixel uppercase disabled:opacity-50 disabled:cursor-not-allowed"
                             title={`Remove ${item.filename}`}
                             aria-label={`Remove ${item.filename} from local library`}
                           >
@@ -2423,19 +2272,19 @@ export function VideoUpload() {
                 })}
               </div>
             ) : (
-              <span className="text-[10px] font-pixel text-text-muted/70 text-center">
+              <span className="text-sm font-pixel text-text-muted/70 text-center">
                 {recentVideos.length > 0 ? "no matching clips" : "no local clips"}
               </span>
             )}
             {hiddenRecentCount > 0 && !showAllRecent && (
-              <span className="text-[9px] font-pixel text-text-muted/60 text-center">
+              <span className="text-sm font-pixel text-text-muted/60 text-center">
                 +{hiddenRecentCount} more clip{hiddenRecentCount === 1 ? "" : "s"}
               </span>
             )}
           </div>
         )}
         {progressMessage && (
-          <span className="text-[10px] font-pixel text-cyan-300/70 text-center mt-1 block max-w-full truncate px-2">
+          <span className="text-sm font-pixel text-cyan-300/70 text-center mt-1 block max-w-full truncate px-2">
             {progressMessage}
           </span>
         )}
@@ -2446,24 +2295,24 @@ export function VideoUpload() {
   const actionsBusy = isAnalyzing || isRendering || deletingVideoId !== null || renamingVideoId !== null || clearingLibrary || clearingOutputs || pruningFiltered;
 
   return (
-    <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[10px]">
+    <div className="flex items-center gap-x-4 gap-y-2 flex-wrap text-sm">
       {/* ── Source thumbnail ── */}
       {thumbnails.length > 0 && (
-        <div className="relative shrink-0 rounded border border-cyan-500/30 overflow-hidden shadow-[0_0_8px_rgba(0,229,255,0.12)]" style={{ height: 48 }}>
+        <div className="relative shrink-0 rounded border border-cyan-500/30 overflow-hidden shadow-[0_0_8px_rgba(0,229,255,0.12)]" style={{ height: 64 }}>
           <Image
             src={thumbnails[0]}
             alt="Source preview"
-            width={86}
-            height={48}
+            width={114}
+            height={64}
             unoptimized
             className="object-cover h-full w-auto"
           />
         </div>
       )}
       {/* ── Clip identity ── */}
-      <div className="flex items-center gap-1.5 min-w-0">
+      <div className="flex items-center gap-2 min-w-0">
         {videoName && (
-          <span className="font-pixel text-text-muted max-w-[200px] truncate" title={videoName}>
+          <span className="font-pixel text-text-muted max-w-[250px] truncate" title={videoName}>
             {videoName}
           </span>
         )}
@@ -2486,19 +2335,19 @@ export function VideoUpload() {
       <div className="flex-1" />
 
       {/* ── Navigation ── */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         <Tooltip text={isRecentNavViewScoped ? "Load previous clip from current recent view" : "Load previous recent clip"}>
           <button
             onClick={() => void handleLoadAdjacent(-1)}
             disabled={actionsBusy || refreshingRecent}
-            className="font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase px-1 py-0.5 border border-cyan-400/30 rounded"
+            className="font-pixel text-sm text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase px-2 py-1 border border-cyan-400/30 rounded"
             aria-keyshortcuts="Alt+P"
           >
             ◀
           </button>
         </Tooltip>
         <span
-          className="font-pixel text-cyan-200/50 uppercase cursor-default"
+          className="font-pixel text-sm text-cyan-200/50 uppercase cursor-default"
           title={isRecentNavViewScoped ? "Navigating filtered view" : "Navigating all clips"}
         >
           {isRecentNavViewScoped ? "view" : "all"}
@@ -2507,7 +2356,7 @@ export function VideoUpload() {
           <button
             onClick={() => void handleLoadAdjacent(1)}
             disabled={actionsBusy || refreshingRecent}
-            className="font-pixel text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase px-1 py-0.5 border border-cyan-400/30 rounded"
+            className="font-pixel text-sm text-cyan-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase px-2 py-1 border border-cyan-400/30 rounded"
             aria-keyshortcuts="Alt+N"
           >
             ▶
@@ -2516,12 +2365,12 @@ export function VideoUpload() {
       </div>
 
       {/* ── Primary actions ── */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-2.5">
         <Tooltip text="Replace the current video with a new one">
           <button
             onClick={openPicker}
             disabled={actionsBusy}
-            className="font-pixel text-neon-magenta hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            className="font-pixel text-sm text-neon-magenta hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
           >
             SWAP
           </button>
@@ -2530,18 +2379,18 @@ export function VideoUpload() {
           <button
             onClick={handleClearVideo}
             disabled={isAnalyzing || isRendering || clearingOutputs || pruningFiltered}
-            className="font-pixel text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            className="font-pixel text-sm text-text-muted hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
             aria-keyshortcuts="Alt+X"
           >
             EJECT
           </button>
         </Tooltip>
-        <span className="text-text-muted/30">│</span>
+        <span className="text-text-muted/30 text-sm">│</span>
         <Tooltip text="Rename current clip label in local library">
           <button
             onClick={() => void handleRenameCurrent()}
             disabled={actionsBusy}
-            className="font-pixel text-cyan-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            className="font-pixel text-sm text-cyan-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
           >
             REN
           </button>
@@ -2550,7 +2399,7 @@ export function VideoUpload() {
           <button
             onClick={() => void handleDeleteCurrent()}
             disabled={actionsBusy}
-            className="font-pixel text-red-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            className="font-pixel text-sm text-red-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
           >
             DEL
           </button>
@@ -2559,7 +2408,7 @@ export function VideoUpload() {
           <button
             onClick={() => void handleClearCurrentOutputs()}
             disabled={actionsBusy || !clipOutputCount || clipOutputCount <= 0}
-            className="font-pixel text-red-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            className="font-pixel text-sm text-red-400/70 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
             aria-keyshortcuts="Control+Shift+O Meta+Shift+O"
           >
             {clearingOutputs ? "CLR…" : "CLR OUT"}
@@ -2569,7 +2418,7 @@ export function VideoUpload() {
           <button
             onClick={() => void handleClearLibrary()}
             disabled={actionsBusy}
-            className="font-pixel text-red-400/50 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
+            className="font-pixel text-sm text-red-400/50 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed uppercase"
           >
             CLR LIB
           </button>
