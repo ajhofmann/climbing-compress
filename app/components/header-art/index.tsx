@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MasterVolume } from "@/components/master-volume";
 
 const H = 180;
 const STAR_COUNT = 70;
@@ -367,11 +368,14 @@ export function HeaderArt() {
           SYS.ONLINE
         </span>
       </div>
-      <div className="absolute top-3 right-5 flex items-center gap-2 z-10">
-        <span className="font-pixel text-[7px] tracking-[0.15em] opacity-35" style={{ color: "var(--chrome-dark)" }}>
-          v2.0
-        </span>
-        <span className="pilot-light pilot-light-cyan pilot-light-breathe" />
+      <div className="absolute top-3 right-5 flex items-center gap-3 z-10">
+        <MasterVolume />
+        <div className="flex items-center gap-2">
+          <span className="font-pixel text-[7px] tracking-[0.15em] opacity-35" style={{ color: "var(--chrome-dark)" }}>
+            v2.0
+          </span>
+          <span className="pilot-light pilot-light-cyan pilot-light-breathe" />
+        </div>
       </div>
 
       {/* title overlay */}

@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useStore } from "@/lib/store";
 import { deleteAllOutputs, deleteAllVideos, deleteOutputsForVideo, deleteVideo, getLibraryStats, getVideoMeta, listVideos, renameVideo, uploadVideo, VideoListItem } from "@/lib/api";
 import { Tooltip } from "@/components/tooltip";
+import { sound } from "@/lib/sound";
 
 import {
   SUPPORTED_VIDEO_EXTS,
@@ -932,6 +933,7 @@ export function VideoUpload() {
     setProgress(0.05, `Loading ${item.filename}...`);
     try {
       const meta = await getVideoMeta(item.video_id);
+      sound.tapeInsert();
       setVideo(meta.video_id, meta.info, meta.thumbnails, meta.filename);
       setCurrentSourceBytes(meta.source_bytes ?? item.source_bytes);
       setClipOutputCount(meta.output_count ?? item.output_count);
@@ -1091,6 +1093,7 @@ export function VideoUpload() {
     setProgress(0.05, "Uploading video...");
     try {
       const data = await uploadVideo(file);
+      sound.tapeInsert();
       setVideo(data.video_id, data.info, data.thumbnails, data.filename);
       setCurrentSourceBytes(data.source_bytes ?? null);
       setClipOutputCount(data.output_count ?? 0);
@@ -1574,6 +1577,7 @@ export function VideoUpload() {
 
   const handleClearVideo = useCallback(() => {
     if (isAnalyzing || isRendering || clearingOutputs || pruningFiltered) return;
+    sound.tapeEject();
     setCurrentSourceBytes(null);
     clearVideo();
     setProgress(0, "Clip cleared. Pick another video or use Recent.");

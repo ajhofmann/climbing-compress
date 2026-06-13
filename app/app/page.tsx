@@ -1,22 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import { useStore, AnalysisParams } from "@/lib/store";
-import { analyzeVideo, solveCurve, renderVideo } from "@/lib/api";
+import { analyzeVideo, solveCurve, renderVideo, videoUrl } from "@/lib/api";
 import { VideoUpload } from "@/components/video-upload";
 import { VideoPlayer } from "@/components/video-player";
+import { VcrTransport, OsdFlash, LiveTimecode } from "@/components/video-player/transport";
 import { TimelineEditor } from "@/components/timeline-editor";
 import { RenderHistoryTimeline } from "@/components/render-history";
 import { SettingsPanel } from "@/components/settings";
 import { ProgressBar } from "@/components/progress-bar";
 import { Tooltip } from "@/components/tooltip";
 import { HeaderArt } from "@/components/header-art";
+import { sound } from "@/lib/sound";
 
 export default function Home() {
   const videoId = useStore((s) => s.videoId);
   const outputId = useStore((s) => s.outputId);
   const thumbnails = useStore((s) => s.thumbnails);
+  const videoInfo = useStore((s) => s.videoInfo);
   const analysis = useStore((s) => s.analysis);
   const analysisParams = useStore((s) => s.analysisParams);
   const settings = useStore((s) => s.settings);
@@ -44,6 +46,20 @@ export default function Home() {
   const suspendAutoSolveRef = useRef(false);
   const autoAnalyzeVideoRef = useRef<string | null>(null);
   const [renderHistoryRefreshToken, setRenderHistoryRefreshToken] = useState(0);
+  const [sourceEl, setSourceEl] = useState<HTMLVideoElement | null>(null);
+  const [sourcePlaying, setSourcePlaying] = useState(false);
+  const [sourceOsd, setSourceOsd] = useState<{ label: string; key: number } | null>(null);
+
+  const flashSourceOsd = useCallback((label: string) => {
+    setSourceOsd((prev) => ({ label, key: (prev?.key ?? 0) + 1 }));
+  }, []);
+
+  // Tape-motor hum while the deck is busy scanning or recording
+  useEffect(() => {
+    if (!isAnalyzing && !isRendering) return;
+    sound.motorStart();
+    return () => sound.motorStop();
+  }, [isAnalyzing, isRendering]);
 
   const isAbortError = (e: unknown) => e instanceof Error && e.name === "AbortError";
 
@@ -102,6 +118,7 @@ export default function Home() {
     const cached = analysisParams;
     const paramsMatch = cached && cached.stride === currentParams.stride && cached.useTracker === currentParams.useTracker && cached.useFlow === currentParams.useFlow;
     const force = !!(analysis && paramsMatch);
+    if (force) sound.rewind();
     setAnalyzing(true);
     setProgress(0, force ? "Re-analyzing (fresh)..." : "Starting analysis...");
     try {
@@ -131,12 +148,14 @@ export default function Home() {
         if (solveController.signal.aborted || analyzeRunRef.current !== runId) return;
         setCurve(solveResult.curve, solveResult.times, solveResult.stats, solveResult.scores, solveResult.rest_regions, solveResult.crux_points);
         setProgress(0, "Analysis complete!");
+        sound.chime();
       }
     } catch (e: unknown) {
       if (isAbortError(e)) return;
       if (analyzeRunRef.current !== runId) return;
       const msg = e instanceof Error ? e.message : "Unknown error";
       setProgress(0, `Error: ${msg}`);
+      sound.buzz();
     } finally {
       if (analyzeSolveAbortRef.current === solveController) {
         analyzeSolveAbortRef.current = null;
@@ -185,6 +204,7 @@ export default function Home() {
     renderAbortRef.current = renderController;
     const runId = renderRunRef.current + 1;
     renderRunRef.current = runId;
+    sound.deckEngage();
     setRendering(true);
     setProgress(0, "Starting render...");
     try {
@@ -205,11 +225,13 @@ export default function Home() {
         setComparisonId(result.comparison_id ?? null);
         setRenderHistoryRefreshToken((prev) => prev + 1);
         setProgress(0, `Done! ${result.stats?.output_duration}s video ready`);
+        sound.chime();
       }
     } catch (e: unknown) {
       if (isAbortError(e)) return;
       const msg = e instanceof Error ? e.message : "Unknown error";
       setProgress(0, `Error: ${msg}`);
+      sound.buzz();
     } finally {
       if (renderRunRef.current === runId && renderAbortRef.current === renderController) {
         renderAbortRef.current = null;
@@ -225,6 +247,7 @@ export default function Home() {
     renderAbortRef.current = renderController;
     const runId = renderRunRef.current + 1;
     renderRunRef.current = runId;
+    sound.deckEngage();
     setRendering(true);
     setProgress(0, "Starting quick preview render...");
     try {
@@ -254,11 +277,13 @@ export default function Home() {
         setComparisonId(null);
         setRenderHistoryRefreshToken((prev) => prev + 1);
         setProgress(0, "Quick preview ready");
+        sound.chime();
       }
     } catch (e: unknown) {
       if (isAbortError(e)) return;
       const msg = e instanceof Error ? e.message : "Unknown error";
       setProgress(0, `Error: ${msg}`);
+      sound.buzz();
     } finally {
       if (renderRunRef.current === runId && renderAbortRef.current === renderController) {
         renderAbortRef.current = null;
@@ -338,32 +363,51 @@ export default function Home() {
 
       {/* Video output -- appears at top once rendered */}
       <VideoPlayer />
-      {/* Hero source thumbnail -- shown when clip is loaded but no render output yet */}
+      {/* Hero source deck -- playable source preview when clip is loaded but no render output yet */}
       {videoId && !outputId && thumbnails.length > 0 && (
-        <div className="relative w-full flex items-center justify-center neon-video-frame overflow-hidden rounded crt-scanlines vhs-tracking" style={{ maxHeight: "50vh" }}>
-          <Image
-            src={thumbnails[Math.floor(thumbnails.length / 2)]}
-            alt="Source video preview"
-            width={960}
-            height={480}
-            unoptimized
-            className="w-full h-auto object-contain max-h-[50vh]"
-          />
-          <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/40 via-transparent to-black/20" />
-          {/* VCR OSD overlays */}
-          <div className="absolute top-3 left-4 pointer-events-none z-10 flex items-center gap-2">
-            <span className="vcr-osd text-sm">SENDIT</span>
-            <span className="vcr-osd text-sm text-text-muted/40">SP</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="relative w-full flex items-center justify-center neon-video-frame overflow-hidden rounded crt-scanlines vhs-tracking" style={{ maxHeight: "50vh" }}>
+            <video
+              ref={setSourceEl}
+              key={videoId}
+              src={videoUrl(videoId)}
+              preload="metadata"
+              loop
+              playsInline
+              poster={thumbnails[Math.floor(thumbnails.length / 2)]}
+              aria-label="Source video preview"
+              onPlay={() => setSourcePlaying(true)}
+              onPause={() => setSourcePlaying(false)}
+              onClick={() => {
+                if (!sourceEl) return;
+                if (sourceEl.paused) {
+                  void sourceEl.play().catch(() => {});
+                  flashSourceOsd("▶ PLAY");
+                } else {
+                  sourceEl.pause();
+                  flashSourceOsd("❚❚ PAUSE");
+                }
+              }}
+              className="w-full h-auto object-contain max-h-[50vh] cursor-pointer"
+            />
+            <div className="absolute inset-0 pointer-events-none bg-gradient-to-t from-black/40 via-transparent to-black/20" />
+            {/* VCR OSD overlays */}
+            <div className="absolute top-3 left-4 pointer-events-none z-10 flex items-center gap-3">
+              <span className="vcr-osd text-sm">SENDIT</span>
+              <span className="vcr-osd text-sm text-text-muted/40">SP</span>
+              <OsdFlash flash={sourceOsd} />
+            </div>
+            <div className="absolute top-3 right-4 pointer-events-none z-10">
+              <span className="vcr-status text-sm">{sourcePlaying ? "▶ PLAY" : "❚❚ PAUSE"}</span>
+            </div>
+            <span className="absolute bottom-3 right-4 vcr-osd text-sm text-cyan-400/50 pointer-events-none z-10">
+              SOURCE PREVIEW
+            </span>
+            <div className="absolute bottom-3 left-4 pointer-events-none z-10">
+              <LiveTimecode videoEl={sourceEl} className="text-sm" />
+            </div>
           </div>
-          <div className="absolute top-3 right-4 pointer-events-none z-10">
-            <span className="vcr-status text-sm">❚❚ PAUSE</span>
-          </div>
-          <span className="absolute bottom-3 right-4 vcr-osd text-sm text-cyan-400/50 pointer-events-none z-10">
-            SOURCE PREVIEW
-          </span>
-          <span className="absolute bottom-3 left-4 tape-counter text-sm pointer-events-none z-10">
-            00:00:00
-          </span>
+          <VcrTransport videoEl={sourceEl} fps={videoInfo?.fps ?? 30} onOsd={flashSourceOsd} />
         </div>
       )}
       <div className="neon-divider w-full" />

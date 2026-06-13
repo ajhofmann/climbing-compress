@@ -813,6 +813,17 @@ select:focus {
   animation: rec-blink 1s ease-in-out infinite;
 }
 
+/* ---- OSD action flash (PLAY / PAUSE / FF burn-in that fades) ---- */
+@keyframes osd-flash {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.osd-flash {
+  animation: osd-flash 1.4s ease-out forwards;
+}
+
 /* ---- VCR play/pause status ---- */
 .vcr-status {
   display: inline-flex;

@@ -1,6 +1,7 @@
 "use client";
 
 import { Tooltip } from "@/components/tooltip";
+import { sound } from "@/lib/sound";
 
 const MIN_ANGLE = -135;
 const MAX_ANGLE = 135;
@@ -18,6 +19,7 @@ export function RotarySelect<T extends string | number>({ label, value, options,
 
   const handleClick = () => {
     const nextIdx = (currentIdx + 1) % options.length;
+    sound.tick();
     onChange(options[nextIdx].value);
   };
 
