@@ -981,7 +981,7 @@ select:focus {
   overflow: hidden;
   pointer-events: none;
   background: rgba(7, 7, 13, 0.93);
-  animation: tape-overlay-fade 1.7s ease-in-out forwards;
+  animation: tape-overlay-fade 2s ease-in-out forwards;
 }
 
 /* deck faceplate covering the top — the cassette disappears behind it */
@@ -1034,10 +1034,10 @@ select:focus {
   filter: drop-shadow(0 8px 18px rgba(0,0,0,0.8));
 }
 .tape-cassette--insert {
-  animation: tape-cassette-insert 1.45s cubic-bezier(0.45, 0, 0.3, 1) forwards;
+  animation: tape-cassette-insert 1.75s cubic-bezier(0.45, 0, 0.3, 1) forwards;
 }
 .tape-cassette--eject {
-  animation: tape-cassette-eject 1.45s cubic-bezier(0.45, 0, 0.3, 1) forwards;
+  animation: tape-cassette-eject 1.75s cubic-bezier(0.45, 0, 0.3, 1) forwards;
 }
 .tape-cassette-name {
   position: absolute;
@@ -1055,22 +1055,39 @@ select:focus {
 }
 
 @keyframes tape-overlay-status-blink {
-  0%, 60% { opacity: 1; }
-  61%, 100% { opacity: 0.25; }
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0.55; }
 }
 .tape-overlay-status {
   position: absolute;
-  bottom: 10%;
+  bottom: 16%;
   left: 50%;
   transform: translateX(-50%);
   font-family: var(--font-pixel), monospace;
-  font-size: 12px;
-  letter-spacing: 0.2em;
+  font-size: 15px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--neon-cyan);
-  text-shadow: 0 0 8px rgba(0,229,255,0.5);
-  animation: tape-overlay-status-blink 0.9s steps(1) infinite;
-  z-index: 4;
+  text-shadow: 0 0 10px rgba(0,229,255,0.7), 0 0 22px rgba(0,229,255,0.4);
+  padding: 7px 16px;
+  border: 1px solid rgba(0,229,255,0.3);
+  border-radius: 3px;
+  background: rgba(5, 8, 14, 0.65);
+  box-shadow: 0 0 14px rgba(0,229,255,0.15), inset 0 0 10px rgba(0,229,255,0.06);
+  animation: tape-overlay-status-blink 0.85s steps(1) infinite;
+  z-index: 5;
+  white-space: nowrap;
+}
+.tape-overlay-status::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 9px;
+  vertical-align: middle;
+  background: #ff1744;
+  box-shadow: 0 0 8px rgba(255, 23, 68, 0.7);
 }
 
 /* ---- OSD action flash (PLAY / PAUSE / FF burn-in that fades) ---- */

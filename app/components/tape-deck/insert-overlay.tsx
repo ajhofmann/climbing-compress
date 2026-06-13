@@ -36,7 +36,7 @@ export function TapeInsertOverlay() {
   // Auto-dismiss once the animation has played out.
   useEffect(() => {
     if (!anim) return;
-    const timer = window.setTimeout(() => setAnim(null), 1750);
+    const timer = window.setTimeout(() => setAnim(null), 2050);
     return () => window.clearTimeout(timer);
   }, [anim]);
 
@@ -66,7 +66,7 @@ export function TapeInsertOverlay() {
       </div>
 
       <span className="tape-overlay-status">
-        {anim.mode === "insert" ? "⏏ INSERTING TAPE" : "⏏ EJECTING TAPE"}
+        {anim.mode === "insert" ? "INSERTING TAPE" : "EJECTING TAPE"}
       </span>
     </div>
   );
