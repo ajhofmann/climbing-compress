@@ -833,6 +833,12 @@ def run_render(
             "message": f"Rendering... {int(p * 100)}%",
         })
 
+    sent_stamp = bool(getattr(req, "sent_stamp", False))
+    sent_date = ""
+    if sent_stamp:
+        import datetime
+        sent_date = datetime.datetime.now().strftime("%-m/%-d/%Y %H:%M")
+
     render_preview(
         video_path, curve, fps,
         output_path=output_path,
@@ -848,6 +854,9 @@ def run_render(
         reframe_center=reframe_center,
         trim_start_s=trim_start_s,
         include_audio=req.include_audio,
+        sent_stamp=sent_stamp,
+        sent_grade=str(getattr(req, "grade", "") or ""),
+        sent_date=sent_date,
     )
 
     if req.include_audio:

@@ -80,6 +80,141 @@ def _stab_coord_adjuster(
 
 
 # ---------------------------------------------------------------------------
+# SENT! outro stamp (render epilogue)
+# ---------------------------------------------------------------------------
+
+def _put_centered(
+    frame: np.ndarray,
+    text: str,
+    cy: int,
+    font_scale: float,
+    color: tuple[int, int, int],
+    thickness: int,
+    *,
+    font: int = cv2.FONT_HERSHEY_DUPLEX,
+    outline: bool = True,
+) -> tuple[int, int]:
+    """Draw horizontally-centered text. Returns (text_w, text_h)."""
+    h, w = frame.shape[:2]
+    (tw, th), _ = cv2.getTextSize(text, font, font_scale, thickness)
+    x = (w - tw) // 2
+    y = cy + th // 2
+    if outline:
+        cv2.putText(frame, text, (x, y), font, font_scale, (8, 6, 12),
+                    thickness + max(2, thickness), cv2.LINE_AA)
+    cv2.putText(frame, text, (x, y), font, font_scale, color, thickness, cv2.LINE_AA)
+    return tw, th
+
+
+def draw_sent_outro(
+    frame: np.ndarray,
+    progress: float,
+    *,
+    grade: str = "",
+    date_str: str = "",
+    ratio_str: str = "",
+) -> np.ndarray:
+    """Draw the "SENT!" camcorder-style outro stamp on a frozen frame.
+
+    Colors are authored in RGB to match the rgb24 render pipeline.
+
+    Args:
+        frame: the (already darkened or raw) final output frame to stamp.
+        progress: 0..1 position within the outro hold (drives the slam-in).
+    """
+    out = frame.copy()
+    h, w = out.shape[:2]
+
+    # Darken the frozen frame so the stamp pops.
+    out = (out.astype(np.float32) * 0.42).astype(np.uint8)
+
+    # Vignette
+    vig = np.zeros_like(out)
+    cv2.circle(vig, (w // 2, h // 2), int(min(w, h) * 0.62), (18, 14, 26), -1, cv2.LINE_AA)
+    out = cv2.addWeighted(out, 1.0, vig, 0.0, 0)
+
+    base = h / 720.0  # scale reference
+
+    # Stamp slam: overshoot then settle in the first 22% of the hold.
+    p = min(1.0, max(0.0, progress))
+    if p < 0.22:
+        k = p / 0.22
+        scale_mul = 1.7 - 0.7 * k  # 1.7 -> 1.0
+        alpha = min(1.0, k * 1.6)
+    else:
+        scale_mul = 1.0
+        alpha = 1.0
+
+    stamp = out.copy()
+
+    orange = (255, 110, 64)
+    cream = (240, 232, 210)
+    cyan = (90, 220, 240)
+
+    # "SENT!" hero text — fit to ~84% of frame width for narrow aspects.
+    hero_thick = max(3, int(7 * base))
+    fit_scale = 4.2 * base
+    base_w = cv2.getTextSize("SENT!", cv2.FONT_HERSHEY_DUPLEX, fit_scale, hero_thick)[0][0]
+    if base_w > w * 0.84:
+        fit_scale *= (w * 0.84) / max(1, base_w)
+    hero_scale = fit_scale * scale_mul
+    tw, th = cv2.getTextSize("SENT!", cv2.FONT_HERSHEY_DUPLEX, hero_scale, hero_thick)[0]
+    cy = int(h * 0.44)
+    _put_centered(stamp, "SENT!", cy, hero_scale, orange, hero_thick)
+
+    # Rubber-stamp border around the hero text
+    pad_x = int(w * 0.04)
+    pad_y = int(h * 0.03)
+    x1 = (w - tw) // 2 - pad_x
+    x2 = (w + tw) // 2 + pad_x
+    y1 = cy - th // 2 - pad_y
+    y2 = cy + th // 2 + pad_y
+    border_thick = max(2, int(4 * base))
+    cv2.rectangle(stamp, (x1, y1), (x2, y2), orange, border_thick, cv2.LINE_AA)
+    cv2.rectangle(stamp, (x1 - 6, y1 - 6), (x2 + 6, y2 + 6), orange, max(1, border_thick // 2), cv2.LINE_AA)
+
+    # Grade badge above the stamp
+    if grade and grade not in ("-", "—", "?"):
+        _put_centered(stamp, grade.upper(), int(h * 0.24), 2.0 * base, cyan, max(2, int(4 * base)))
+        _put_centered(stamp, "GRADE", int(h * 0.30), 0.7 * base, cream, max(1, int(2 * base)))
+
+    # SENDIT wordmark below the stamp
+    _put_centered(stamp, "S E N D I T", int(h * 0.62), 1.0 * base, cream, max(1, int(2 * base)))
+
+    # Blend the stamp in over the darkened frame for the slam fade.
+    out = cv2.addWeighted(stamp, alpha, out, 1.0 - alpha, 0)
+
+    # Camcorder DV-style timestamp (bottom-right), drawn at full opacity once settled.
+    if date_str:
+        dv_scale = 0.95 * base
+        dv_thick = max(1, int(2 * base))
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        label = date_str
+        (lw, lh), _ = cv2.getTextSize(label, font, dv_scale, dv_thick)
+        margin = int(h * 0.04)
+        lx = w - lw - margin
+        ly = h - margin
+        # Blinking REC dot
+        if (int(progress * 8) % 2) == 0:
+            cv2.circle(out, (lx - int(20 * base), ly - lh // 2), int(7 * base), (255, 40, 70), -1, cv2.LINE_AA)
+        cv2.putText(out, label, (lx, ly), font, dv_scale, (8, 6, 12), dv_thick + 2, cv2.LINE_AA)
+        cv2.putText(out, label, (lx, ly), font, dv_scale, (255, 170, 60), dv_thick, cv2.LINE_AA)
+
+    # Output ratio (top-left, away from the bottom timestamp)
+    if ratio_str:
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        rscale = 0.8 * base
+        rthick = max(1, int(2 * base))
+        margin = int(h * 0.045)
+        (_, rh), _ = cv2.getTextSize(ratio_str, font, rscale, rthick)
+        ry = margin + rh
+        cv2.putText(out, ratio_str, (margin, ry), font, rscale, (8, 6, 12), rthick + 2, cv2.LINE_AA)
+        cv2.putText(out, ratio_str, (margin, ry), font, rscale, cream, rthick, cv2.LINE_AA)
+
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Layer 1: Skeleton with visibility quality
 # ---------------------------------------------------------------------------
 

@@ -289,6 +289,8 @@ export async function renderVideo(
       feature_stabilize_weight: settings.featureStabilizeWeight,
       render_comparison: settings.renderComparison,
       render_chapters: settings.renderChapters,
+      sent_stamp: settings.sentStamp,
+      grade: settings.grade,
     }),
   });
 

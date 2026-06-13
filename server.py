@@ -209,6 +209,9 @@ class RenderRequest(SolveRequest):
     render_comparison: bool = False
     # Chapter card overlays
     render_chapters: bool = False
+    # SENT! outro stamp (freeze-frame epilogue)
+    sent_stamp: bool = False
+    grade: str = ""
 
 class AnalyzeRequest(BaseModel):
     video_id: str
