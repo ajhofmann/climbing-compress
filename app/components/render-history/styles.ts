@@ -1,5 +1,5 @@
 export const renderHistoryStyles = {
-  wrap: "mt-3 border border-cyan-500/20 rounded bg-panel/40 p-3",
+  wrap: "mt-3 border border-cyan-500/20 rounded bg-[var(--panel-bg)]/40 p-3",
   header: "flex items-center justify-between gap-2 mb-2",
   title: "text-sm font-pixel uppercase tracking-widest text-cyan-200",
   actions: "flex items-center gap-2",

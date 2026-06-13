@@ -250,7 +250,7 @@ export function TimelineEditor() {
   if (!analysis) {
     return (
       <div className="rounded-lg bg-bg-card border border-border flex items-center justify-center h-24 text-text-muted text-xs font-pixel uppercase tracking-wider opacity-60">
-        run analyze to see the speed curve editor
+        RUN ANALYZE TO SEE THE SPEED CURVE EDITOR
       </div>
     );
   }
@@ -285,7 +285,7 @@ export function TimelineEditor() {
       {/* ── Row 1: Title + Mode Toggle + Crux Badge + Help ── */}
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-text tracking-wide">speed curve editor</span>
+          <span className="rack-section-label">SPEED CURVE EDITOR</span>
           <div className="flex rounded-md border-2 border-border overflow-hidden">
             <Tooltip text="Gaussian attractors — smooth bell-curve influence on speed around each point">
               <button
@@ -450,7 +450,7 @@ export function TimelineEditor() {
                   min={0}
                   max={analysis.duration}
                   step={0.1}
-                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
+                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input retro-inset rounded-sm font-retro"
                   onChange={(e) => {
                     const t = Math.max(0, Math.min(analysis.duration, Number(e.target.value)));
                     const next = [...keyframes];
@@ -465,7 +465,7 @@ export function TimelineEditor() {
                   min={settings.minSpeed}
                   max={settings.maxSpeed}
                   step={0.05}
-                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
+                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input retro-inset rounded-sm font-retro"
                   onChange={(e) => {
                     const s = Math.max(settings.minSpeed, Math.min(settings.maxSpeed, Number(e.target.value)));
                     const next = [...keyframes];
@@ -499,7 +499,7 @@ export function TimelineEditor() {
                   min={0}
                   max={analysis.duration}
                   step={0.1}
-                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
+                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input retro-inset rounded-sm font-retro"
                   onChange={(e) => {
                     const t = Math.max(0, Math.min(analysis.duration, Number(e.target.value)));
                     const next = [...pins];
@@ -514,7 +514,7 @@ export function TimelineEditor() {
                   min={settings.minSpeed}
                   max={settings.maxSpeed}
                   step={0.05}
-                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
+                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input retro-inset rounded-sm font-retro"
                   onChange={(e) => {
                     const s = Math.max(settings.minSpeed, Math.min(settings.maxSpeed, Number(e.target.value)));
                     const next = [...pins];
@@ -529,7 +529,7 @@ export function TimelineEditor() {
                   min={MIN_PIN_RADIUS}
                   max={MAX_PIN_RADIUS}
                   step={0.1}
-                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input border border-border rounded"
+                  className="w-[4.5rem] px-1 py-0.5 bg-bg-input retro-inset rounded-sm font-retro"
                   onChange={(e) => {
                     const r = Math.max(MIN_PIN_RADIUS, Math.min(MAX_PIN_RADIUS, Number(e.target.value)));
                     const next = [...pins];

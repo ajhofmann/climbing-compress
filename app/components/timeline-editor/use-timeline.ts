@@ -23,6 +23,13 @@ interface TimelineConfig {
 
 const DEFAULT_PIN_RADIUS = 2.0;
 
+/** Resolve the retro display font family (VT323) for canvas text. */
+function retroFontFamily(): string {
+  if (typeof window === "undefined") return "monospace";
+  const v = getComputedStyle(document.documentElement).getPropertyValue("--font-retro").trim();
+  return v ? `${v}, monospace` : "monospace";
+}
+
 type DragTarget =
   | { type: "pin"; index: number }
   | { type: "keyframe"; index: number }
@@ -84,7 +91,7 @@ export function useTimeline(config: TimelineConfig) {
       const x = timeToX(t, w);
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
       ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim() || "#8a7d6e";
-      ctx.font = "9px system-ui";
+      ctx.font = `12px ${retroFontFamily()}`;
       ctx.fillText(`${t}s`, x + 2, h - 3);
     }
     for (let s = 2; s <= maxSpeed; s += 2) {
@@ -145,7 +152,7 @@ export function useTimeline(config: TimelineConfig) {
         ctx.fill();
 
         const tag = `C${idx + 1}`;
-        ctx.font = "bold 10px system-ui";
+        ctx.font = `13px ${retroFontFamily()}`;
         const tw = ctx.measureText(tag).width;
         const lx = Math.min(Math.max(3, x - tw / 2 - 3), w - tw - 6);
         ctx.fillStyle = "rgba(24, 8, 34, 0.8)";
@@ -206,7 +213,7 @@ export function useTimeline(config: TimelineConfig) {
     }
 
     // Trim time labels
-    ctx.font = "bold 10px system-ui";
+    ctx.font = `13px ${retroFontFamily()}`;
     ctx.fillStyle = trimHandleColor;
     if (trimStart > 0) {
       const label = `${trimStart.toFixed(1)}s`;
@@ -274,7 +281,7 @@ export function useTimeline(config: TimelineConfig) {
 
         if (isHover || isDrag) {
           const label = `${pin.speed.toFixed(1)}x @ ${pin.time.toFixed(1)}s  r=${radiusS.toFixed(1)}s`;
-          ctx.font = "bold 11px system-ui";
+          ctx.font = `14px ${retroFontFamily()}`;
           const tw2 = ctx.measureText(label).width;
           const lx = Math.min(x - tw2 / 2, w - tw2 - 8);
           const ly = y - dotR - 10;
@@ -322,7 +329,7 @@ export function useTimeline(config: TimelineConfig) {
 
         if (isHover || isDrag) {
           const label = `${kf.speed.toFixed(1)}x @ ${kf.time.toFixed(1)}s`;
-          ctx.font = "bold 11px system-ui";
+          ctx.font = `14px ${retroFontFamily()}`;
           const tw2 = ctx.measureText(label).width;
           const lx = Math.min(x - tw2 / 2, w - tw2 - 8);
           const ly = y - 16;
