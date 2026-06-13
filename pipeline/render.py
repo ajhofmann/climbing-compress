@@ -256,6 +256,10 @@ def render_preview(
     reframe_center: tuple[np.ndarray, np.ndarray] | None = None,
     trim_start_s: float = 0.0,
     include_audio: bool = True,
+    sent_stamp: bool = False,
+    sent_grade: str = "",
+    sent_date: str = "",
+    sent_duration_s: float = 1.8,
 ) -> str:
     """
     Render speed-ramped video using ffmpeg for both decode and encode.
@@ -366,6 +370,7 @@ def render_preview(
     # Read source frames sequentially, write selected frames to encoder
     src_frame_idx = -1
     current_frame = None
+    last_output_frame: np.ndarray | None = None
 
     try:
         for out_idx in range(n_output_frames):
@@ -420,9 +425,30 @@ def render_preview(
                 frame_out = frame_base
 
             encode_proc.stdin.write(frame_out.tobytes())
+            last_output_frame = frame_out
 
             if progress_cb and n_output_frames > 0:
                 progress_cb(out_idx / n_output_frames)
+
+        # --- SENT! outro: freeze the final frame and stamp it ---
+        if sent_stamp and last_output_frame is not None and sent_duration_s > 0:
+            from pipeline.debug_overlay import draw_sent_outro
+
+            ratio_label = {
+                "vertical": "9:16",
+                "square": "1:1",
+            }.get(output_aspect, f"{out_w}x{out_h}")
+            n_outro = max(1, int(sent_duration_s * output_fps))
+            frozen = np.ascontiguousarray(last_output_frame)
+            for k in range(n_outro):
+                prog = k / max(1, n_outro - 1)
+                stamped = draw_sent_outro(
+                    frozen, prog,
+                    grade=sent_grade,
+                    date_str=sent_date,
+                    ratio_str=ratio_label,
+                )
+                encode_proc.stdin.write(np.ascontiguousarray(stamped).tobytes())
 
     except BrokenPipeError:
         pass

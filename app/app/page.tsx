@@ -301,6 +301,68 @@ export default function Home() {
     setProgress(0, "Render cancelled");
   }, [setRendering, setProgress]);
 
+  const handleDub = useCallback(async () => {
+    if (!videoId) return;
+    renderAbortRef.current?.abort();
+    const renderController = new AbortController();
+    renderAbortRef.current = renderController;
+    const runId = renderRunRef.current + 1;
+    renderRunRef.current = runId;
+    sound.deckEngage();
+    setRendering(true);
+
+    // Dub the current edit to social crops: vertical (9:16) then square (1:1).
+    const dubs: Array<{ label: string; aspect: "vertical" | "square" }> = [
+      { label: "9:16", aspect: "vertical" },
+      { label: "1:1", aspect: "square" },
+    ];
+    let lastOutput: string | null = null;
+    try {
+      for (let i = 0; i < dubs.length; i++) {
+        const { label, aspect } = dubs[i];
+        const dubSettings = {
+          ...settings,
+          outputAspect: aspect,
+          autoReframe: true,
+          renderComparison: false,
+        };
+        setProgress(0, `[DUB ${i + 1}/${dubs.length} · ${label}] starting...`);
+        const result = await renderVideo(
+          videoId,
+          dubSettings,
+          pins,
+          keyframes,
+          (p, msg) => {
+            if (renderRunRef.current !== runId) return;
+            setProgress(p, `[DUB ${i + 1}/${dubs.length} · ${label}] ${msg}`);
+          },
+          renderController.signal,
+        );
+        if (renderController.signal.aborted || renderRunRef.current !== runId) return;
+        if (result?.output_id) {
+          lastOutput = result.output_id;
+          setRenderHistoryRefreshToken((prev) => prev + 1);
+        }
+      }
+      if (lastOutput) {
+        setOutputId(lastOutput);
+        setComparisonId(null);
+        setProgress(0, `Dubbed ${dubs.length} social crops to the shelf`);
+        sound.chime();
+      }
+    } catch (e: unknown) {
+      if (isAbortError(e)) return;
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setProgress(0, `Error: ${msg}`);
+      sound.buzz();
+    } finally {
+      if (renderRunRef.current === runId && renderAbortRef.current === renderController) {
+        renderAbortRef.current = null;
+        setRendering(false);
+      }
+    }
+  }, [videoId, settings, pins, keyframes, setRendering, setProgress, setOutputId, setComparisonId]);
+
   useEffect(() => {
     if (!isRendering) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -470,6 +532,15 @@ export default function Home() {
                     style={isRendering ? { color: "var(--neon-orange)", textShadow: "0 0 8px rgba(255,110,64,0.45)" } : {}}
                   >
                     {isRendering ? "● REC..." : "● RENDER"}
+                  </button>
+                </Tooltip>
+                <Tooltip text={"DUB A\u2192B: batch-dub the current edit to social\ncrops (9:16 + 1:1) with auto-reframe.\nEach lands on the tape shelf."}>
+                  <button
+                    onClick={handleDub}
+                    disabled={!videoId || !hasAnalysis || isRendering}
+                    className="vcr-btn vcr-btn--magenta"
+                  >
+                    ⧉ DUB
                   </button>
                 </Tooltip>
                 {isRendering && (

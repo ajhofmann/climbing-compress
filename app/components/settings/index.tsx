@@ -9,6 +9,7 @@ import { ToggleSwitch } from "@/components/controls/toggle-switch";
 import { RotarySelect } from "@/components/controls/rotary-select";
 import { MiniScope } from "@/components/controls/mini-scope";
 import { BodyMap } from "@/components/controls/body-map";
+import { GradeDial } from "@/components/controls/grade-dial";
 import { Tooltip } from "@/components/tooltip";
 
 function Module({ area, label, children }: { area: string; label: string; children: React.ReactNode }) {
@@ -369,6 +370,10 @@ export function SettingsPanel() {
             <ToggleSwitch label="OVL" checked={s.debugOverlay} onChange={(v) => u("debugOverlay", v)} color="#76ff03" title="Show skeleton + speed badge overlay on video" />
             <ToggleSwitch label="A/B" checked={s.renderComparison} onChange={(v) => u("renderComparison", v)} color="#e040fb" title="Also render a uniform-speed version for comparison" />
             <ToggleSwitch label="CHPT" checked={s.renderChapters} onChange={(v) => u("renderChapters", v)} color="#e040fb" title="Overlay auto chapters (START / CRUX / SEND)" />
+            <ToggleSwitch label="SENT" checked={s.sentStamp} onChange={(v) => u("sentStamp", v)} color="#ff6e40" title="Freeze-frame SENT! outro stamp with grade + camcorder timestamp" />
+            <div style={{ borderLeft: "1px solid #222", paddingLeft: 14 }}>
+              <GradeDial value={s.grade} onChange={(v) => u("grade", v)} />
+            </div>
             <ToggleSwitch
               label="REFR"
               checked={s.outputAspect === "original" ? false : s.autoReframe}

@@ -106,6 +106,9 @@ export interface Settings {
   renderComparison: boolean;
   // Chapter overlays
   renderChapters: boolean;
+  // SENT! outro stamp + climb grade
+  sentStamp: boolean;
+  grade: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -146,4 +149,6 @@ export const DEFAULT_SETTINGS: Settings = {
   includeAudio: true,
   renderComparison: false,
   renderChapters: false,
+  sentStamp: false,
+  grade: "",
 };
