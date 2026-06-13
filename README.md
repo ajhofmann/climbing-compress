@@ -13,7 +13,7 @@
 
 ## The UI
 
-The whole thing is styled like a piece of vintage rack-mount video gear -- CRT scanlines, VHS tracking noise, rotary knobs, fader sliders, tape counters, pilot lights. Every panel is a "module" in a dashboard grid with signal-flow lines connecting them.
+The whole thing is styled like a piece of vintage rack-mount video gear -- CRT scanlines, VHS tracking noise, rotary knobs, fader sliders, tape counters, pilot lights. Every panel is a "module" in a dashboard grid with signal-flow lines connecting them. Loading a clip slides a cassette into the deck, past renders live on a VHS tape shelf, the controls click and clunk with synthesized hardware sounds (with a real VOL/MUTE knob on the faceplate), and a finished send can be capped with a freeze-frame **SENT!** camcorder card.
 
 ![speed curve timeline with crux markers and render history](docs/ui-curve.png)
 
@@ -114,7 +114,7 @@ Full shortcut reference in [docs/FEATURES.md](docs/FEATURES.md).
 | **Backend** | FastAPI, Python |
 | **Vision** | MediaPipe, OpenCV, optional YOLOv8 + ByteTrack |
 | **Render** | FFmpeg, audio time-stretch, stabilization |
-| **Vibes** | Press Start 2P + VT323 fonts, CRT scanlines, VHS tracking, neon everything |
+| **Vibes** | Press Start 2P + VT323 + Permanent Marker fonts, CRT scanlines, VHS tracking, custom VCR transport, VHS tape shelf, INSERT TAPE / SENT! animations, synthesized Web Audio UI sounds, neon everything |
 
 ## Architecture
 

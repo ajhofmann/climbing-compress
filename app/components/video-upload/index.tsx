@@ -1898,7 +1898,7 @@ export function VideoUpload() {
                   placeholder="filter clips (+term -/!term #tag phrase)"
                   aria-label="Filter recent clips by terms (space-separated include/exclude with - or !, optional tags like #cached or #out, and quoted phrases)"
                   aria-keyshortcuts="Alt+Backspace Control+Backspace Meta+Backspace Tab Shift+Enter PageUp PageDown Home End"
-                  className="w-[160px] bg-panel border border-cyan-500/20 rounded px-2 py-1 text-sm font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
+                  className="w-[160px] bg-[var(--panel-bg)] border border-cyan-500/20 rounded px-2 py-1 text-sm font-pixel text-cyan-100 placeholder:text-text-muted/60 focus:outline-none focus:border-cyan-300"
                 />
                 {recentFilter && (
                   <button
@@ -2152,7 +2152,7 @@ export function VideoUpload() {
                   return (
                     <div
                       key={item.video_id}
-                      className={`rounded border bg-panel/60 overflow-hidden transition-shadow ${
+                      className={`rounded border bg-[var(--panel-bg)]/60 overflow-hidden transition-shadow ${
                         isCursor
                           ? "border-cyan-300 shadow-[0_0_0_1px_rgba(0,229,255,0.85),0_0_18px_rgba(0,229,255,0.35)]"
                           : "border-cyan-500/25"
@@ -2223,7 +2223,7 @@ export function VideoUpload() {
                                 handleCancelRenameExisting();
                               }
                             }}
-                            className="w-full bg-panel border border-cyan-400/45 rounded px-1.5 py-1 text-sm font-pixel text-cyan-100 focus:outline-none focus:border-cyan-300"
+                            className="w-full bg-[var(--panel-bg)] border border-cyan-400/45 rounded px-1.5 py-1 text-sm font-pixel text-cyan-100 focus:outline-none focus:border-cyan-300"
                             aria-label={`Rename ${item.filename}`}
                             maxLength={120}
                           />
