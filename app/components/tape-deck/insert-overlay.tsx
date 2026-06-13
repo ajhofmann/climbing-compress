@@ -43,7 +43,7 @@ export function TapeInsertOverlay() {
   if (!anim) return null;
 
   return (
-    <div className="tape-overlay rounded" key={anim.key} aria-hidden="true">
+    <div className="tape-overlay" key={anim.key} aria-hidden="true">
       {/* Deck faceplate with tape slit — cassette vanishes behind it */}
       <div className="tape-deck-face">
         <div className="tape-deck-slit" />

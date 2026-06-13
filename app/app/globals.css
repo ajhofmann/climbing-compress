@@ -975,12 +975,12 @@ select:focus {
   100% { opacity: 0; }
 }
 .tape-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 100;
   overflow: hidden;
   pointer-events: none;
-  background: rgba(7, 7, 13, 0.96);
+  background: rgba(7, 7, 13, 0.93);
   animation: tape-overlay-fade 1.7s ease-in-out forwards;
 }
 
@@ -990,7 +990,7 @@ select:focus {
   top: 0;
   left: 0;
   right: 0;
-  height: 34%;
+  height: 32%;
   z-index: 3;
   background-image: url('/retro/rack-panel.png');
   background-size: 256px;
