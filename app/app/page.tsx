@@ -12,6 +12,7 @@ import { SettingsPanel } from "@/components/settings";
 import { ProgressBar } from "@/components/progress-bar";
 import { Tooltip } from "@/components/tooltip";
 import { HeaderArt } from "@/components/header-art";
+import { TapeInsertOverlay } from "@/components/tape-deck/insert-overlay";
 import { sound } from "@/lib/sound";
 
 export default function Home() {
@@ -413,7 +414,8 @@ export default function Home() {
       <div className="neon-divider w-full" />
 
       {/* Transport + Timeline (doubles as upload zone when no video) */}
-      <div className="px-3 py-2 retro-panel rounded">
+      <div className="px-3 py-2 retro-panel rounded relative">
+        <TapeInsertOverlay />
         {!videoId ? (
           <VideoUpload />
         ) : (

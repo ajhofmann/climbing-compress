@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Press_Start_2P, VT323 } from "next/font/google";
+import { Permanent_Marker, Press_Start_2P, VT323 } from "next/font/google";
 import "./globals.css";
 import { AmbientVibes } from "@/components/ambient-vibes";
 import { SoundFx } from "@/components/sound/sound-fx";
@@ -22,6 +22,12 @@ const retroFont = VT323({
   variable: "--font-retro",
 });
 
+const markerFont = Permanent_Marker({
+  subsets: ["latin"],
+  weight: "400",
+  variable: "--font-marker",
+});
+
 function RackScrew() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" className="opacity-40" aria-hidden="true">
@@ -34,7 +40,7 @@ function RackScrew() {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${pixelFont.variable} ${retroFont.variable}`}>
+    <html lang="en" className={`${pixelFont.variable} ${retroFont.variable} ${markerFont.variable}`}>
       <body className="min-h-screen relative overflow-x-hidden">
         <AmbientVibes />
         <SoundFx />

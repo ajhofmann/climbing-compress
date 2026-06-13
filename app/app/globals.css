@@ -813,6 +813,266 @@ select:focus {
   animation: rec-blink 1s ease-in-out infinite;
 }
 
+/* ---- Handwritten marker (tape labels) ---- */
+.marker-font {
+  font-family: var(--font-marker), "Comic Sans MS", cursive;
+  letter-spacing: 0.02em;
+}
+
+/* ===== VHS TAPE SHELF (render history) ===== */
+
+.vhs-shelf {
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  padding: 14px 12px 0 12px;
+  min-height: 196px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.vhs-spine {
+  position: relative;
+  flex-shrink: 0;
+  width: 50px;
+  height: 172px;
+  border-radius: 3px 3px 1px 1px;
+  border: 1px solid #000;
+  /* moulded plastic ridges */
+  background:
+    linear-gradient(90deg,
+      #0d0d13 0%, #20202c 10%, #15151f 22%,
+      #262633 38%, #1a1a26 50%, #262633 62%,
+      #15151f 78%, #20202c 90%, #0a0a10 100%);
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,0.08),
+    inset 0 -3px 5px rgba(0,0,0,0.55),
+    2px 2px 5px rgba(0,0,0,0.5);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.vhs-spine:hover {
+  transform: translateY(-9px);
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,0.08),
+    inset 0 -3px 5px rgba(0,0,0,0.55),
+    2px 6px 10px rgba(0,0,0,0.6),
+    0 0 10px rgba(0,229,255,0.12);
+}
+.vhs-spine--active {
+  transform: translateY(-13px);
+  box-shadow:
+    inset 0 2px 0 rgba(255,255,255,0.08),
+    inset 0 -3px 5px rgba(0,0,0,0.55),
+    2px 8px 12px rgba(0,0,0,0.65),
+    0 0 14px rgba(0,229,255,0.45),
+    0 0 30px rgba(0,229,255,0.18);
+}
+.vhs-spine--active:hover {
+  transform: translateY(-13px);
+}
+
+/* paper label strip glued onto the spine */
+.vhs-spine-label {
+  position: absolute;
+  inset: 12px 6px 12px 6px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, #ece6d4 0%, #ddd6c2 70%, #d2cab4 100%);
+  box-shadow:
+    inset 0 0 5px rgba(60,45,20,0.3),
+    0 1px 1px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  padding: 4px 0 5px 0;
+}
+.vhs-spine--active .vhs-spine-label {
+  background: linear-gradient(180deg, #f4eedb 0%, #e6dfca 70%, #dbd3bc 100%);
+}
+
+/* colored genre stripe across the top of the label */
+.vhs-spine-stripe {
+  width: 100%;
+  height: 7px;
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+/* handwritten title, written down the spine */
+.vhs-spine-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  font-family: var(--font-marker), cursive;
+  font-size: 13px;
+  line-height: 1;
+  color: #232032;
+  text-shadow: 0 0 0.4px rgba(35,32,50,0.6);
+  white-space: nowrap;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.vhs-spine-meta {
+  flex-shrink: 0;
+  font-family: var(--font-marker), cursive;
+  font-size: 9px;
+  color: #4a4458;
+  transform: rotate(-2deg);
+}
+
+/* little square index sticker at the top of the plastic */
+.vhs-spine-corner {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-pixel), monospace;
+  font-size: 6px;
+  letter-spacing: 0.05em;
+  color: #9a94aa;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.7);
+  pointer-events: none;
+}
+
+/* shelf rail the tapes stand on */
+.vhs-shelf-rail {
+  height: 12px;
+  border-radius: 2px;
+  background-image: url('/retro/rack-panel.png');
+  background-size: 256px;
+  border-top: 1px solid #4a4a5a;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    inset 0 -2px 3px rgba(0,0,0,0.5),
+    0 4px 8px rgba(0,0,0,0.45);
+}
+
+/* hover-reveal action chip on a spine */
+.vhs-spine-action {
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%) translateY(110%);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.vhs-spine:hover .vhs-spine-action {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ===== TAPE INSERT / EJECT OVERLAY ===== */
+
+@keyframes tape-overlay-fade {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.tape-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  pointer-events: none;
+  background: rgba(7, 7, 13, 0.96);
+  animation: tape-overlay-fade 1.7s ease-in-out forwards;
+}
+
+/* deck faceplate covering the top — the cassette disappears behind it */
+.tape-deck-face {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 34%;
+  z-index: 3;
+  background-image: url('/retro/rack-panel.png');
+  background-size: 256px;
+  border-bottom: 2px solid #06060a;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.7);
+}
+/* the slit the tape goes into */
+.tape-deck-slit {
+  position: absolute;
+  bottom: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(360px, 64%);
+  height: 12px;
+  border-radius: 2px;
+  background: #020204;
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,0.95),
+    inset 0 -1px 0 rgba(255,255,255,0.06),
+    0 0 10px rgba(0,229,255,0.12);
+}
+
+@keyframes tape-cassette-insert {
+  0% { transform: translate(-50%, 150%); }
+  38% { transform: translate(-50%, 0%); }
+  55% { transform: translate(-50%, 0%); }
+  100% { transform: translate(-50%, -190%); }
+}
+@keyframes tape-cassette-eject {
+  0% { transform: translate(-50%, -190%); }
+  45% { transform: translate(-50%, 10%); }
+  60% { transform: translate(-50%, -2%); }
+  100% { transform: translate(-50%, 2%); }
+}
+.tape-cassette {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  width: min(310px, 56%);
+  z-index: 2;
+  filter: drop-shadow(0 8px 18px rgba(0,0,0,0.8));
+}
+.tape-cassette--insert {
+  animation: tape-cassette-insert 1.45s cubic-bezier(0.45, 0, 0.3, 1) forwards;
+}
+.tape-cassette--eject {
+  animation: tape-cassette-eject 1.45s cubic-bezier(0.45, 0, 0.3, 1) forwards;
+}
+.tape-cassette-name {
+  position: absolute;
+  left: 50%;
+  top: 58%;
+  transform: translateX(-50%) rotate(-1.5deg);
+  max-width: 86%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-marker), cursive;
+  font-size: 15px;
+  color: #e8e2d0;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+@keyframes tape-overlay-status-blink {
+  0%, 60% { opacity: 1; }
+  61%, 100% { opacity: 0.25; }
+}
+.tape-overlay-status {
+  position: absolute;
+  bottom: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-pixel), monospace;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 8px rgba(0,229,255,0.5);
+  animation: tape-overlay-status-blink 0.9s steps(1) infinite;
+  z-index: 4;
+}
+
 /* ---- OSD action flash (PLAY / PAUSE / FF burn-in that fades) ---- */
 @keyframes osd-flash {
   0% { opacity: 0; }

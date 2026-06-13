@@ -1771,9 +1771,9 @@ export function VideoUpload() {
         </svg>
 
         <span className="text-lg font-pixel led-text tracking-widest">
-          {">> DROP VIDEO OR CLICK TO START <<"}
+          {">> INSERT TAPE <<"}
         </span>
-        <span className="text-lg font-retro text-text-muted">[ or click to browse ]</span>
+        <span className="text-lg font-retro text-text-muted">[ drop video or click to browse ]</span>
         {recentFetchDone && (
           <div
             className="w-full px-4 pt-1 flex flex-col gap-1"
