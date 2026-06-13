@@ -1,6 +1,7 @@
 "use client";
 
 import { Tooltip } from "@/components/tooltip";
+import { sound } from "@/lib/sound";
 
 export function ToggleSwitch({ label, checked, onChange, color = "#00e5ff", title, disabled = false }: {
   label: string;
@@ -12,7 +13,7 @@ export function ToggleSwitch({ label, checked, onChange, color = "#00e5ff", titl
 }) {
   const content = (
     <button
-      onClick={() => { if (!disabled) onChange(!checked); }}
+      onClick={() => { if (!disabled) { sound.thunk(); onChange(!checked); } }}
       className={`flex flex-col items-center gap-1 select-none group ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
       style={{ minWidth: 64 }}
       role="switch"

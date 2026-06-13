@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { Tooltip } from "@/components/tooltip";
+import { sound } from "@/lib/sound";
 
 const TRACK_HEIGHT = 160;
 const CAP_HEIGHT = 24;
@@ -18,6 +19,7 @@ export function Fader({ label, value, min, max, step, onChange, color = "#00e5ff
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<{ y: number; startValue: number } | null>(null);
+  const lastValue = useRef(value);
   const [isDragging, setIsDragging] = useState(false);
 
   const pct = (value - min) / (max - min);
@@ -37,6 +39,10 @@ export function Fader({ label, value, min, max, step, onChange, color = "#00e5ff
     const newValue = dragStart.current.startValue + dy * sensitivity;
     const stepped = Math.round(newValue / step) * step;
     const clamped = Math.max(min, Math.min(max, parseFloat(stepped.toFixed(10))));
+    if (clamped !== lastValue.current) {
+      lastValue.current = clamped;
+      sound.tick();
+    }
     onChange(clamped);
   }, [min, max, step, onChange]);
 

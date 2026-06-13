@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Press_Start_2P, VT323 } from "next/font/google";
 import "./globals.css";
 import { AmbientVibes } from "@/components/ambient-vibes";
+import { SoundFx } from "@/components/sound/sound-fx";
 
 export const metadata: Metadata = {
   title: "SENDIT // Speed Ramp System",
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${pixelFont.variable} ${retroFont.variable}`}>
       <body className="min-h-screen relative overflow-x-hidden">
         <AmbientVibes />
+        <SoundFx />
 
         <div className="relative z-10 min-h-screen">
           {/* Rack-mount top rail */}

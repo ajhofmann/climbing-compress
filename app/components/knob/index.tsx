@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { Tooltip } from "@/components/tooltip";
+import { sound } from "@/lib/sound";
 
 const MIN_ANGLE = -135; // 7 o'clock position
 const MAX_ANGLE = 135;  // 5 o'clock position
@@ -56,7 +57,16 @@ export function Knob({ label, info, value, min, max, step, onChange }: {
 }) {
   const knobRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<{ y: number; startValue: number } | null>(null);
+  const lastValue = useRef(value);
   const [isDragging, setIsDragging] = useState(false);
+
+  const emitChange = useCallback((next: number) => {
+    if (next !== lastValue.current) {
+      lastValue.current = next;
+      sound.tick();
+    }
+    onChange(next);
+  }, [onChange]);
 
   const angle = valueToAngle(value, min, max);
 
@@ -74,8 +84,8 @@ export function Knob({ label, info, value, min, max, step, onChange }: {
     const newValue = dragStart.current.startValue + dy * sensitivity;
     const stepped = Math.round(newValue / step) * step;
     const clamped = Math.max(min, Math.min(max, parseFloat(stepped.toFixed(10))));
-    onChange(clamped);
-  }, [min, max, step, onChange]);
+    emitChange(clamped);
+  }, [min, max, step, emitChange]);
 
   const handlePointerUp = useCallback(() => {
     dragStart.current = null;
@@ -87,8 +97,8 @@ export function Knob({ label, info, value, min, max, step, onChange }: {
     const direction = e.deltaY < 0 ? 1 : -1;
     const newValue = value + direction * step;
     const clamped = Math.max(min, Math.min(max, parseFloat(newValue.toFixed(10))));
-    onChange(clamped);
-  }, [value, min, max, step, onChange]);
+    emitChange(clamped);
+  }, [value, min, max, step, emitChange]);
 
   const displayValue = step >= 1 ? value.toFixed(0) : value.toFixed(step < 0.1 ? 2 : 1);
   const pct = (value - min) / (max - min);
