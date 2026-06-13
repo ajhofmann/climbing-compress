@@ -5,6 +5,8 @@ import { RenderHistoryItem } from "@/lib/api";
 import { useStore } from "@/lib/store";
 import { useRenderHistory } from "./use-render-history";
 import { renderHistoryStyles } from "./styles";
+import { Tooltip } from "@/components/tooltip";
+import { sound } from "@/lib/sound";
 
 function formatBytes(bytes: number | null | undefined) {
   if (bytes == null || !Number.isFinite(bytes)) return "?";
@@ -20,6 +22,12 @@ function formatTimestamp(ms: number) {
   return new Date(ms).toLocaleString();
 }
 
+function formatShortDate(ms: number) {
+  if (!Number.isFinite(ms) || ms <= 0) return "??/??";
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 function formatTrim(entry: RenderHistoryItem) {
   const start = entry.settings?.trim_start ?? 0;
   const end = entry.settings?.trim_end ?? 0;
@@ -33,6 +41,26 @@ function buildRenderLabel(entry: RenderHistoryItem) {
   return `${entry.video_filename ?? entry.video_id} · ${mode} · out ${duration.toFixed(1)}s · target ${target.toFixed(1)}s · id ${entry.output_id}`;
 }
 
+const MODE_STRIPES: Record<string, string> = {
+  progress: "var(--neon-cyan)",
+  action: "var(--neon-magenta)",
+  hybrid: "var(--neon-orange)",
+  dynamic: "var(--neon-lime)",
+};
+
+function buildSpineTooltip(entry: RenderHistoryItem) {
+  const lines = [
+    `${formatTimestamp(entry.created_at)}`,
+    `out ${entry.stats.output_duration.toFixed(1)}s · spd ${entry.stats.speed_min.toFixed(1)}x-${entry.stats.speed_max.toFixed(1)}x`,
+    `mode ${entry.settings.mode}/${entry.settings.edit_mode} · target ${entry.settings.target_duration.toFixed(1)}s`,
+    `trim ${formatTrim(entry)} · fps ${entry.settings.output_fps.toFixed(0)} · scale ${entry.settings.scale.toFixed(2)} · crf ${entry.settings.crf}`,
+    `${formatBytes(entry.output_bytes)}${entry.comparison_id ? ` · A/B ${formatBytes(entry.comparison_bytes)}` : ""}`,
+    "",
+    "click to load this tape into the deck",
+  ];
+  return lines.join("\n");
+}
+
 interface RenderHistoryTimelineProps {
   videoId: string | null;
   refreshToken?: number;
@@ -40,7 +68,6 @@ interface RenderHistoryTimelineProps {
 
 export function RenderHistoryTimeline({ videoId, refreshToken = 0 }: RenderHistoryTimelineProps) {
   const outputId = useStore((s) => s.outputId);
-  const comparisonId = useStore((s) => s.comparisonId);
   const setOutputId = useStore((s) => s.setOutputId);
   const setComparisonId = useStore((s) => s.setComparisonId);
   const { entries, isLoading, error, refresh } = useRenderHistory(videoId);
@@ -48,7 +75,7 @@ export function RenderHistoryTimeline({ videoId, refreshToken = 0 }: RenderHisto
   const canCopy = typeof window !== "undefined" && !!window.navigator?.clipboard?.writeText;
 
   const title = useMemo(
-    () => `Past renders (${entries.length})`,
+    () => `tape shelf · past renders (${entries.length})`,
     [entries.length],
   );
 
@@ -73,7 +100,7 @@ export function RenderHistoryTimeline({ videoId, refreshToken = 0 }: RenderHisto
   if (!videoId) return null;
 
   return (
-    <section className={renderHistoryStyles.wrap} aria-label="Past render history timeline">
+    <section className={renderHistoryStyles.wrap} aria-label="Past render history tape shelf">
       <div className={renderHistoryStyles.header}>
         <span className={renderHistoryStyles.title}>{title}</span>
         <div className={renderHistoryStyles.actions}>
@@ -83,7 +110,7 @@ export function RenderHistoryTimeline({ videoId, refreshToken = 0 }: RenderHisto
             className={renderHistoryStyles.button}
             aria-label="Refresh render history"
           >
-            {isLoading ? "[refreshing...]" : "[refresh history]"}
+            {isLoading ? "[refreshing...]" : "[refresh shelf]"}
           </button>
         </div>
       </div>
@@ -95,81 +122,82 @@ export function RenderHistoryTimeline({ videoId, refreshToken = 0 }: RenderHisto
       )}
 
       {entries.length <= 0 ? (
-        <div className="text-sm font-pixel text-text-muted/70">no past renders for this clip yet</div>
+        <div className="text-sm font-pixel text-text-muted/70 py-2">
+          no tapes on the shelf yet — hit ● RENDER to dub one
+        </div>
       ) : (
-        <div className={renderHistoryStyles.timelineRail}>
-          <div className={renderHistoryStyles.timelineTrack}>
+        <div>
+          <div className="vhs-shelf" role="list">
             {entries.map((entry, idx) => {
               const isActive = entry.output_id === outputId;
               const copied = copiedOutputId === entry.output_id;
+              const renderNo = entries.length - idx;
+              const mode = entry.settings?.mode ?? "progress";
+              const stripe = MODE_STRIPES[mode] ?? "var(--neon-cyan)";
               return (
-                <article
-                  key={entry.output_id}
-                  className={`${renderHistoryStyles.card} ${isActive ? renderHistoryStyles.cardActive : ""}`}
-                  aria-current={isActive ? "true" : undefined}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-pixel text-cyan-300/85">render #{entries.length - idx}</span>
-                    <span className="text-sm font-pixel text-text-muted/75">
-                      {formatTimestamp(entry.created_at)}
-                    </span>
-                  </div>
-
-                  <div className="text-sm font-pixel text-cyan-100 break-all">
-                    {entry.output_id}
-                  </div>
-
-                  <div className="text-sm font-pixel text-text-muted/80 leading-tight">
-                    out {entry.stats.output_duration.toFixed(1)}s · spd {entry.stats.speed_min.toFixed(1)}x-{entry.stats.speed_max.toFixed(1)}x
-                  </div>
-                  <div className="text-sm font-pixel text-text-muted/75 leading-tight">
-                    mode {entry.settings.mode}/{entry.settings.edit_mode} · target {entry.settings.target_duration.toFixed(1)}s · trim {formatTrim(entry)}
-                  </div>
-                  <div className="text-sm font-pixel text-text-muted/75 leading-tight">
-                    fps {entry.settings.output_fps.toFixed(0)} · scale {entry.settings.scale.toFixed(2)} · crf {entry.settings.crf}
-                  </div>
-                  <div className="text-sm font-pixel text-text-muted/75 leading-tight">
-                    bytes {formatBytes(entry.output_bytes)}
-                    {entry.comparison_id ? ` · compare ${formatBytes(entry.comparison_bytes)}` : ""}
-                  </div>
-
-                  <div className="pt-1 flex items-center gap-2">
-                    <button
-                      onClick={() => {
+                <Tooltip key={entry.output_id} text={buildSpineTooltip(entry)}>
+                  <div
+                    role="listitem"
+                    tabIndex={0}
+                    aria-current={isActive ? "true" : undefined}
+                    aria-label={`Load past render ${renderNo}: ${buildRenderLabel(entry)}`}
+                    className={`vhs-spine ${isActive ? "vhs-spine--active" : ""}`}
+                    onClick={() => {
+                      sound.tapeInsert();
+                      setOutputId(entry.output_id);
+                      setComparisonId(entry.comparison_id ?? null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        sound.tapeInsert();
                         setOutputId(entry.output_id);
                         setComparisonId(entry.comparison_id ?? null);
-                      }}
-                      className="px-2 py-1 border rounded border-cyan-400/45 text-cyan-200 hover:text-white hover:border-cyan-300 text-sm font-pixel uppercase"
-                      aria-label={`Load past render ${entry.output_id}`}
-                    >
-                      {isActive && entry.comparison_id === comparisonId ? "loaded" : "load"}
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (!canCopy) return;
-                        void window.navigator.clipboard.writeText(buildRenderLabel(entry));
-                        setCopiedOutputId(entry.output_id);
-                        window.setTimeout(() => {
-                          setCopiedOutputId((prev) => (prev === entry.output_id ? null : prev));
-                        }, 1000);
-                      }}
-                      disabled={!canCopy}
-                      className="px-2 py-1 border rounded border-cyan-500/30 text-cyan-300 hover:text-white hover:border-cyan-300 text-sm font-pixel uppercase disabled:opacity-45 disabled:cursor-not-allowed"
-                      aria-label={`Copy summary for render ${entry.output_id}`}
-                    >
-                      {copied ? "copied" : "copy"}
-                    </button>
-                    {entry.comparison_id && (
-                      <span className="text-sm font-pixel text-amber-200/90">A/B</span>
+                      }
+                    }}
+                  >
+                    <span className="vhs-spine-corner">{entry.comparison_id ? "A/B" : "SP"}</span>
+                    <div className="vhs-spine-label">
+                      <div className="vhs-spine-stripe" style={{ background: stripe }} />
+                      <span className="vhs-spine-title">
+                        #{renderNo} · {mode} · {entry.stats.output_duration.toFixed(0)}s
+                      </span>
+                      <span className="vhs-spine-meta">{formatShortDate(entry.created_at)}</span>
+                    </div>
+                    {isActive && (
+                      <span
+                        className="absolute -top-5 left-1/2 -translate-x-1/2 font-pixel text-[7px] tracking-[0.15em] whitespace-nowrap"
+                        style={{ color: "var(--neon-cyan)", textShadow: "0 0 6px rgba(0,229,255,0.5)" }}
+                      >
+                        IN DECK
+                      </span>
                     )}
+                    <span className="vhs-spine-action">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!canCopy) return;
+                          void window.navigator.clipboard.writeText(buildRenderLabel(entry));
+                          setCopiedOutputId(entry.output_id);
+                          window.setTimeout(() => {
+                            setCopiedOutputId((prevId) => (prevId === entry.output_id ? null : prevId));
+                          }, 1000);
+                        }}
+                        disabled={!canCopy}
+                        className="font-pixel text-[7px] tracking-wider px-1 py-0.5 rounded border border-cyan-500/30 text-cyan-300 hover:text-white hover:border-cyan-300 bg-black/70 disabled:opacity-45 disabled:cursor-not-allowed"
+                        aria-label={`Copy summary for render ${entry.output_id}`}
+                      >
+                        {copied ? "COPIED" : "COPY"}
+                      </button>
+                    </span>
                   </div>
-                </article>
+                </Tooltip>
               );
             })}
           </div>
+          <div className="vhs-shelf-rail" />
         </div>
       )}
     </section>
   );
 }
-
