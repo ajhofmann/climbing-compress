@@ -2,9 +2,6 @@
 
 **Auto speed-ramp your climbing sends.** Drop in a video, and SENDIT slows down the moves and fast-forwards the rest -- so 50% through the video means 50% up the boulder.
 
-<!-- TODO: replace with a before/after GIF or MP4 of a raw send → speed-ramped output -->
-<!-- ![before and after](docs/demo.gif) -->
-
 > **Weekend vibe-code project.** MediaPipe pose detection + FFmpeg rendering + a retro VCR interface I couldn't stop adding to. Built for my outdoor climbing videos but works on any climbing footage.
 
 ![sendit ui - video loaded](docs/ui.png)
@@ -49,18 +46,7 @@ The whole thing is styled like a piece of vintage rack-mount video gear -- CRT s
 
 ## Examples
 
-Check out [`examples/`](examples/) for sample before/after renders from outdoor climbing sessions.
-
-<!-- Add your climbing videos here! Each subfolder in examples/ has the raw clip,
-     rendered output, and a speed curve screenshot. See examples/README.md for details. -->
-
-| Clip | Style | Raw | Ramped | Ratio |
-|------|-------|-----|--------|-------|
-| *your-v4-sit-start* | Constant Progress | 2:30 | 0:38 | 6.5x |
-| *your-roof-problem* | Action Highlight | 1:45 | 0:28 | 3.8x |
-| *your-highball-slab* | Hybrid | 3:10 | 0:52 | 3.7x |
-
-> Placeholder rows -- swap these with your actual sends once you render them.
+Sample before/after renders live in [`examples/`](examples/) -- see [`examples/README.md`](examples/README.md) for the folder layout and how to add your own.
 
 ---
 
@@ -112,7 +98,7 @@ Full shortcut reference in [docs/FEATURES.md](docs/FEATURES.md).
 |-|-|
 | **Frontend** | Next.js 16, React 19, Tailwind 4, Zustand |
 | **Backend** | FastAPI, Python |
-| **Vision** | MediaPipe, OpenCV, optional YOLOv8 + ByteTrack |
+| **Vision** | MediaPipe, OpenCV, optional YOLO26 + ByteTrack |
 | **Render** | FFmpeg, audio time-stretch, stabilization |
 | **Vibes** | Press Start 2P + VT323 fonts, CRT scanlines, VHS tracking, neon everything |
 
@@ -127,7 +113,7 @@ pipeline/
   render.py            FFmpeg decode/encode + audio time-stretch
   stabilize.py         Pose-anchored + feature-based stabilization
   flow.py              Optical flow / camera motion estimation
-  tracker.py           YOLOv8 + ByteTrack person tracking (optional)
+  tracker.py           YOLO26 + ByteTrack person tracking (optional)
 app/                   Next.js frontend
   components/          Timeline editor, settings, video player, VCR controls
   lib/                 API client, Zustand store, types
