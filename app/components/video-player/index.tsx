@@ -7,6 +7,7 @@ import { videoUrl } from "@/lib/api";
 export function VideoPlayer() {
   const outputId = useStore((state) => state.outputId);
   const comparisonId = useStore((state) => state.comparisonId);
+  const videoInfo = useStore((state) => state.videoInfo);
   const outputFps = useStore((state) => state.settings.outputFps);
   const setPlaybackTime = useStore((state) => state.setPlaybackTime);
   const smartRef = useRef<HTMLVideoElement>(null);
@@ -14,6 +15,9 @@ export function VideoPlayer() {
   const singleRef = useRef<HTMLVideoElement>(null);
 
   const hasComparison = !!comparisonId;
+  const stackComparison = !!videoInfo && videoInfo.width > videoInfo.height;
+  const comparisonWrapClass = stackComparison ? "flex flex-col gap-3" : "flex flex-col sm:flex-row gap-3";
+  const comparisonVideoClass = stackComparison ? "w-full max-h-[42vh] object-contain" : "w-full max-h-[70vh] object-contain";
 
   // Track playback position → store (for chart tracker)
   const onTimeUpdate = useCallback(() => {
@@ -121,7 +125,7 @@ export function VideoPlayer() {
             ◀◀ J &nbsp; ▶❚❚ K &nbsp; ▶▶ L &nbsp; ◀ , &nbsp; ▶ .
           </span>
         </div>
-        <div className="neon-video-frame overflow-hidden crt-scanlines vhs-tracking relative">
+        <div className="neon-video-frame overflow-hidden relative">
           <video
             ref={singleRef}
             key={outputId}
@@ -149,13 +153,18 @@ export function VideoPlayer() {
   }
 
   return (
-    <div className="flex flex-col sm:flex-row gap-3">
+    <div className={comparisonWrapClass}>
       <div className="flex flex-col gap-1.5 flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="vcr-status text-sm">▶ SMART RAMP</span>
-          <span className="vcr-osd text-sm text-text-muted/50">◀◀ J · ▶❚❚ K · ▶▶ L</span>
+        <div className="relative flex min-h-5 items-center justify-end gap-2">
+          <span className="vcr-osd text-sm text-text-muted/50 absolute left-0" aria-hidden="true">
+            {stackComparison ? "STACKED A/B" : ""}
+          </span>
+          <span className="vcr-status text-sm text-center absolute left-1/2 -translate-x-1/2">▶ SMART RAMP</span>
+          <span className="vcr-osd text-sm text-text-muted/50">
+            ◀◀ J · ▶❚❚ K · ▶▶ L
+          </span>
         </div>
-        <div className="neon-video-frame overflow-hidden crt-scanlines vhs-tracking relative">
+        <div className="neon-video-frame overflow-hidden relative">
           <video
             ref={smartRef}
             key={outputId}
@@ -166,7 +175,7 @@ export function VideoPlayer() {
             playsInline
             aria-label="Rendered climb video smart ramp comparison (keyboard: J/K/L, comma/period frame step, Space)"
             aria-keyshortcuts="J K L Comma Period Space"
-            className="w-full max-h-[70vh] object-contain"
+            className={comparisonVideoClass}
             onPlay={syncPlay}
             onPause={syncPause}
             onSeeked={syncSeek}
@@ -179,7 +188,7 @@ export function VideoPlayer() {
       </div>
       <div className="flex flex-col gap-1.5 flex-1 min-w-0">
         <span className="vcr-osd text-sm text-text-muted/50 text-center">UNIFORM SPEED</span>
-        <div className="neon-video-frame overflow-hidden crt-scanlines relative" style={{ borderColor: "rgba(224,64,251,0.08)", boxShadow: "0 0 15px rgba(224,64,251,0.05)" }}>
+        <div className="neon-video-frame overflow-hidden relative" style={{ borderColor: "rgba(224,64,251,0.08)", boxShadow: "0 0 15px rgba(224,64,251,0.05)" }}>
           <video
             ref={compRef}
             key={comparisonId}
@@ -188,7 +197,7 @@ export function VideoPlayer() {
             playsInline
             muted
             aria-hidden="true"
-            className="w-full max-h-[70vh] object-contain"
+            className={comparisonVideoClass}
           />
           <div className="absolute top-3 right-4 pointer-events-none z-10">
             <span className="vcr-osd text-sm text-text-muted/40">REF</span>

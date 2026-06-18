@@ -5,7 +5,7 @@ Detailed feature reference for climb-ramp. For quickstart and overview, see the 
 ## Upload and clip management
 
 - Supported file extensions: `.mov`, `.mp4`, `.avi`, `.mkv`
-- Backend upload cap defaults to `512 MB` (override with `MAX_UPLOAD_MB`)
+- Backend upload cap defaults to `4 GB` (override with `MAX_UPLOAD_MB`)
 - **Recent** panel for one-click reload of local clips
 - Content-dedup: re-uploading identical video reuses the same clip ID
 - Loaded clip toolbar includes **SWAP**, **EJECT**, **RENAME**, **DELETE**, **CLEAR OUT**, **CLEAR LIB**, and **PREV/NEXT** navigation

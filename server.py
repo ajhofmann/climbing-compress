@@ -11,7 +11,6 @@ import io
 import json
 import logging
 import os
-import shutil
 import time
 import uuid
 from pathlib import Path
@@ -43,8 +42,9 @@ INPUT_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 VIDEO_NAME_INDEX = INPUT_DIR / "_video_names.json"
 RENDER_HISTORY_INDEX = OUTPUT_DIR / "_render_history.json"
-MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "512"))
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", "4096"))
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
+UPLOAD_COPY_CHUNK_BYTES = 8 * 1024 * 1024
 ALLOWED_VIDEO_EXTS = (".mov", ".mp4", ".avi", ".mkv")
 THUMB_PROFILE = "h480_q88"
 
@@ -433,6 +433,21 @@ def _safe_file_size(path: Path) -> int:
         return 0
 
 
+def _copy_upload_to_path(file: UploadFile, path: Path) -> int:
+    """Stream an upload to disk while enforcing the configured size limit."""
+    total = 0
+    with open(path, "wb") as f:
+        while True:
+            chunk = file.file.read(UPLOAD_COPY_CHUNK_BYTES)
+            if not chunk:
+                break
+            total += len(chunk)
+            if MAX_UPLOAD_BYTES > 0 and total > MAX_UPLOAD_BYTES:
+                raise HTTPException(413, f"Upload too large (limit {MAX_UPLOAD_MB} MB)")
+            f.write(chunk)
+    return total
+
+
 def _output_video_totals() -> tuple[int, int]:
     """Return rendered output count + bytes across all source clips."""
     if not OUTPUT_DIR.exists():
@@ -666,12 +681,7 @@ async def upload_video(file: UploadFile = File(...)):
     # Save to temp first so we can hash before committing
     tmp = INPUT_DIR / f"_tmp_{uuid.uuid4().hex[:8]}{ext}"
     try:
-        with open(tmp, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-
-        if MAX_UPLOAD_BYTES > 0 and tmp.stat().st_size > MAX_UPLOAD_BYTES:
-            tmp.unlink()
-            raise HTTPException(413, f"Upload too large (limit {MAX_UPLOAD_MB} MB)")
+        _copy_upload_to_path(file, tmp)
 
         ch = content_hash(str(tmp))
 
@@ -729,6 +739,10 @@ async def upload_video(file: UploadFile = File(...)):
             "output_bytes": output_bytes,
             "reused": False,
         }
+    except HTTPException:
+        if tmp.exists():
+            tmp.unlink()
+        raise
     except (OSError, ValueError) as exc:
         if tmp.exists():
             tmp.unlink()

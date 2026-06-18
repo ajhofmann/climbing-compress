@@ -220,6 +220,7 @@ def _extract_poses_impl(
     max_frame_idx = -1
     detected_frames = 0
     missing_frames = 0
+    bbox_fallback_frames = 0
 
     with vision.PoseLandmarker.create_from_options(vid_options) as landmarker:
         for frame_idx, frame_rgb, meta in iter_video_frames(
@@ -260,7 +261,24 @@ def _extract_poses_impl(
                 raw_poses.append((frame_idx, landmarks))
             else:
                 missing_frames += 1
-                raw_poses.append((frame_idx, None))
+                # When pose detection fails but the tracker still has a
+                # bounding box, synthesise approximate landmarks from the
+                # bbox so progress scoring can track the climber's vertical
+                # movement instead of flatting to zero.
+                track = (
+                    tracks[frame_idx]
+                    if (use_tracks and frame_idx < len(tracks))
+                    else None
+                )
+                if track is not None:
+                    synthetic = _bbox_fallback(track)
+                    if synthetic is not None:
+                        bbox_fallback_frames += 1
+                        raw_poses.append((frame_idx, synthetic))
+                    else:
+                        raw_poses.append((frame_idx, None))
+                else:
+                    raw_poses.append((frame_idx, None))
 
             if progress_cb and total_frames > 0:
                 progress_cb(frame_idx / total_frames)
@@ -285,6 +303,7 @@ def _extract_poses_impl(
             "frame_count": 0,
             "detected_frames": 0,
             "missing_frames": 0,
+            "bbox_fallback_frames": 0,
             "sanitize_discarded_frames": 0,
             "sanitize_discard_pct": 0.0,
             "sanitize_threshold": 0.0,
@@ -310,11 +329,19 @@ def _extract_poses_impl(
     # Temporal smoothing: One Euro Filter kills jitter, stays responsive
     poses = smooth_poses(poses, fps, min_cutoff=1.0, beta=0.5)
 
+    if bbox_fallback_frames > 0:
+        import logging
+        logging.getLogger(__name__).info(
+            "bbox_fallback: synthesised %d/%d frames from tracker bboxes",
+            bbox_fallback_frames, total_frames,
+        )
+
     diagnostics = {
         "mode": "tracked" if use_tracks else "full_frame",
         "frame_count": int(total_frames),
         "detected_frames": int(detected_frames),
         "missing_frames": int(missing_frames),
+        "bbox_fallback_frames": int(bbox_fallback_frames),
         "sanitize_discarded_frames": int(sanitize_stats["discarded_frames"]),
         "sanitize_discard_pct": float(sanitize_stats["discard_pct"]),
         "sanitize_threshold": float(sanitize_stats["threshold"]),
